@@ -1,0 +1,135 @@
+# Gamebook Project Format Version 2
+
+> Status: Provisional. ZIP64 is the preferred self-contained container, but the format is not frozen until the archive feasibility spike passes.
+
+## Goals
+
+Version 2 must remain a portable single `.gamebook` file while supporting large media without base64 serialization, whole-project memory loading, eager extraction, or autosave archive rebuilds.
+
+The format must preserve version 1 projects, survive interrupted writes, support deterministic provenance, and permit lazy access to recordings and extracted frames.
+
+## Proposed package layout
+
+```text
+manifest.json
+records/sessions/{id}.json
+records/evidence/{id}.json
+records/pages/{id}.json
+assets/{sha-prefix}/{sha256}.{extension}
+previews/{evidence-id}/thumbnail.jpg
+previews/{evidence-id}/poster.jpg
+timelines/{video-id}.json
+```
+
+JSON and text entries use Deflate compression. MP4, PNG, and JPEG entries are stored without redundant recompression. Assets are immutable and addressed by the SHA-256 digest of their exact bytes. Clips contain source ranges and do not create media assets.
+
+`manifest.json` contains the format version, project metadata, ordered record IDs, asset index, and minimum reader version. Page, evidence, and session records are separate so the working copy can update them independently.
+
+## Proposed evidence records
+
+An evidence record contains a stable ID, evidence kind, title, timestamps, capture/import metadata, tags, relationships, preview references, and a type-specific payload.
+
+- Screenshot evidence references an immutable image asset.
+- Video evidence references an MP4 asset, timeline entry, dimensions, duration, audio metadata, and decoder information.
+- Clip evidence references a source video ID and source start/end microseconds.
+- Frame evidence references a source video ID, source timestamp, decoded sample index, and PNG asset.
+
+Pages contain ordered `MediaPlacementRecord` values, Fabric annotation JSON, annotation scopes, page background, structured notes, and the primary evidence ID where applicable.
+
+## Lazy open and materialization
+
+Opening a project reads only the ZIP central directory, manifest, and records required for the initial UI. Media remains in the archive until playback, decoding, export, or editing requires a filesystem path.
+
+Materialization streams one archive entry into the app-managed workspace while calculating SHA-256. The completed file becomes visible only after its digest matches the asset record. Verified entries are reused across page switches and jobs.
+
+Binary assets never cross Tauri IPC as base64. The frontend receives an opaque token that resolves only within the application's scoped media protocol.
+
+## Workspace identity and locking
+
+Each opened project receives a workspace keyed by a generated workspace ID and the canonical source path fingerprint, not only the project ID. This prevents copied projects with identical internal IDs from sharing mutable state.
+
+The workspace contains:
+
+- Atomic working records and a recovery journal.
+- New or changed assets.
+- Lazily materialized source assets.
+- A lock containing process ID, application instance ID, source fingerprint, and last heartbeat.
+
+Because Gamebook is single-instance, opening the same source path twice activates its existing workspace instead of creating another. Opening a byte-identical project from a different path creates a separate workspace and reports that it is a copy.
+
+A lock is stale only when its process is absent and its heartbeat has expired. Stale locks never cause automatic deletion; they open the recovery flow. If the source file changes externally after opening, Save pauses and offers Save As or explicit replacement rather than silently overwriting it.
+
+## Autosave and cache lifecycle
+
+Autosave atomically writes changed records and the recovery journal inside the workspace. It never rebuilds the archive. Source and generated assets are immutable once referenced.
+
+Unsaved or recovery-pending workspaces are never evicted automatically. Clean materialized cache entries may be evicted using least-recently-used order after their project is closed. Storage settings show clean cache size, recoverable workspace size, and safe cleanup actions.
+
+Removing an evictable cache file does not remove an archive asset or evidence record. Reopening it materializes the entry again and re-verifies its digest.
+
+## Streamed Save and replacement
+
+Manual Save performs these steps:
+
+1. Flush and validate all working records.
+2. Estimate output and temporary-space requirements.
+3. Create a sibling temporary ZIP64 archive.
+4. Raw-copy unchanged stored media entries from the source archive without materializing them.
+5. Write changed records and new workspace assets while streaming and hashing.
+6. Validate entry references, sizes, digests, and the new manifest.
+7. Flush the temporary file and containing directory where supported.
+8. Replace an existing destination with `ReplaceFileW`, or atomically rename a first save.
+9. Mark the workspace clean only after replacement succeeds.
+
+Cancellation, validation failure, insufficient space, forced termination, or write failure leaves the previous project intact. The temporary replacement is clearly identified and cleaned only after the application verifies it is unreferenced.
+
+The save path never loads an entire asset or archive into frontend or Rust memory. It creates no additional complete copy beyond the source and replacement archives; lazily materialized working assets may also exist.
+
+## Source retention and materialization
+
+A source recording cannot be deleted while clips, frames, timed annotations, or placements depend on it.
+
+Materializing a clip uses the native media pipeline to create and verify an independent H.264/AAC MP4 asset covering the selected range. Dependent placements and timed annotations are remapped to the new source timeline, and provenance records the former relationship. The original source becomes deletable only when no references remain.
+
+Frame evidence is independent once its PNG asset is complete and verified, but it retains historical provenance to the former source even if that source is later removed.
+
+## Version 1 migration
+
+The loader detects Gzip JSON and plain JSON by content signature. Migration runs in a workspace and does not modify the opened file.
+
+Migration must:
+
+- Decode each screenshot data URL into a byte-identical immutable asset.
+- Preserve page IDs and order, active page, titles, timestamps, monitor metadata, source dimensions, transforms, backgrounds, extracted text, thumbnails, and normalized annotation JSON.
+- Create one primary media placement for each legacy screenshot.
+- Mark every legacy annotation as page-persistent.
+- Preserve connector IDs and bindings.
+- Produce a migration report before the first version 2 Save.
+
+The first successful replacement of a version 1 path creates a collision-safe timestamped `.v1-backup`. A failed Save leaves the source and backup state unchanged. Re-running migration against the same source is deterministic.
+
+Unsupported future major versions are rejected without creating or mutating a workspace. Missing or corrupt records produce a repair report and expose valid recoverable content without silently inventing replacements.
+
+## Archive feasibility gate
+
+The spike uses representative 1 GB and 5 GB projects and records Windows version, CPU, RAM, storage type, OneDrive state, archive entry count, and media distribution.
+
+ZIP64 is accepted only when the spike demonstrates:
+
+- Initial metadata open without media extraction and with less than 256 MB additional memory for the 5 GB fixture.
+- Materialization of only the selected recording during first playback.
+- A 5 GB Save with less than 512 MB additional memory.
+- No complete temporary copy beyond the replacement archive.
+- Correct cancellation and recovery during low disk space, forced termination, checksum failure, and simulated write failure.
+- Correct replacement on local NTFS and a OneDrive-managed directory.
+- Correct stale-lock, external-change, duplicate-copy, and cache-eviction behavior.
+
+The report records wall-clock open, materialization, validation, and Save times. Unexpectedly poor latency or unsupported raw-copy behavior blocks schema freeze and requires comparison with the SQLite-container alternative.
+
+## Migration acceptance
+
+- Decoded source image assets are byte-identical to version 1 data URLs.
+- Normalized annotation structures, counts, IDs, connector bindings, and transforms are equivalent.
+- Migrated renders remain 1600 by 900 and have fewer than 0.1% of pixels exceeding a per-channel difference of 8.
+- Page order, active page, titles, text, backgrounds, and export order are exact.
+- Saving, reopening, and saving again produces no additional semantic migration changes.
