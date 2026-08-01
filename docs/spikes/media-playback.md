@@ -74,3 +74,11 @@ The retained browser report must use one exact implementation commit and record:
 - browser, viewport, hardware concurrency, fixture hashes, and exact build revision.
 
 Rendered FPS, pointer latency, CPU/GPU utilization, memory recovery, and production architecture adoption are deliberately not claimed here; issue #13 owns those measured gates.
+
+## Reference Result
+
+The retained `media-playback-reference-report.json` was produced from exact implementation commit `5f2c32fb7d56baf56ceb975ec51c74ee2cf84aa1` on Windows using Chromium 150 at 1280 by 720. All eleven checks passed. The run rendered twelve browser video frames, substituted native-decoded sample 30 at 500000 microseconds, retained identical placement geometry, and reported zero callbacks and zero live sources after pause, page switch, export suspension, minimize suspension, deletion, and disposal.
+
+Visible Chromium interaction confirmed play, source-time slider movement, exact-frame selection, poster restoration, placement selection, timed finding visibility, and page switching. At the supported 900 by 620 minimum viewport, the document remained exactly 900 by 620 with no page-level overflow; the playback panel fit without internal overflow. Browser diagnostics contained no warnings or errors.
+
+The component suite passed keyboard activation, focus, native range-change handling, exact-frame controls, poster restore, state/error semantics, and axe checks with no serious or critical violations. Reduced-motion autoplay policy and inclusive source-time annotation visibility have deterministic unit coverage. NVDA, Windows High Contrast, 100/150/200 percent scale, and the complete reference-system performance run remain the consolidated Milestone 3 review in issue #13.
