@@ -1,4 +1,4 @@
-import { Canvas, Point, Rect, type FabricObject } from "fabric";
+import { Canvas, Point, Rect, StaticCanvas, type FabricObject } from "fabric";
 import { Download, Redo2, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Connector, getObjectAnchors, syncConnectorBindings } from "../lib/Connector";
@@ -371,10 +371,13 @@ async function runHarnessChecks(
 ): Promise<HarnessReport> {
   const page = snapshot.pages.find((candidate) => candidate.id === "page-alpha") ?? snapshot.pages[0];
   await composeHarnessPage(canvas, page);
-  const placement = canvas
+  const placements = canvas
     .getObjects()
-    .find((object): object is MediaPlacement => object instanceof MediaPlacement);
-  if (!placement) throw new Error("Harness placement is missing");
+    .filter((object): object is MediaPlacement => object instanceof MediaPlacement);
+  const placement = placements[0];
+  if (!placement || placements.length !== page.placements.length) {
+    throw new Error("Harness placements are missing");
+  }
 
   const serialized = placement.toObject() as Record<string, unknown>;
   const keys = Object.keys(serialized).sort();
@@ -393,11 +396,24 @@ async function runHarnessChecks(
     `Serialized keys: ${keys.join(", ")}`,
   );
 
-  const restored = await MediaPlacement.fromObject(serialized as never);
+  const roundTripCanvas = new StaticCanvas(document.createElement("canvas"), {
+    width: 1600,
+    height: 900,
+    renderOnAddRemove: false,
+  });
+  await roundTripCanvas.loadFromJSON({ objects: placements.map((candidate) => candidate.toObject()) });
+  const restoredPlacements = roundTripCanvas
+    .getObjects()
+    .filter((object): object is MediaPlacement => object instanceof MediaPlacement);
+  const roundTripPassed = restoredPlacements.length === placements.length &&
+    restoredPlacements.every((restored, index) =>
+      JSON.stringify(restored.toPlacementRecord()) === JSON.stringify(placements[index].toPlacementRecord()),
+    );
+  roundTripCanvas.dispose();
   check(
     "fabric-round-trip",
-    JSON.stringify(restored.toPlacementRecord()) === JSON.stringify(placement.toPlacementRecord()),
-    "Fabric custom-class reconstruction preserved the placement record.",
+    roundTripPassed && restoredPlacements.some((candidate) => candidate.cropRecord?.width === 548),
+    "Fabric loadFromJSON reconstructed both placements, including the cropped record.",
   );
 
   const center = placement.getCenterPoint();
@@ -432,14 +448,30 @@ async function runHarnessChecks(
   const redoPassed = history.redo().pages[0].placements[0].left === 333;
   check("history", undoPassed && redoPassed, "Undo and redo restored deterministic geometry snapshots.");
 
-  const switched = cloneSnapshot(snapshot);
-  switched.activePageId = "page-beta";
-  const returned = cloneSnapshot(switched);
-  returned.activePageId = "page-alpha";
+  const secondaryPage = snapshot.pages.find((candidate) => candidate.id === "page-beta");
+  if (!secondaryPage) throw new Error("Secondary harness page is missing");
+  await composeHarnessPage(canvas, secondaryPage);
+  const secondaryIds = canvas.getObjects().map((object) =>
+    object instanceof MediaPlacement
+      ? object.placementId
+      : String((object as FabricObject & { data?: { id?: string } }).data?.id ?? object.type),
+  );
+  await composeHarnessPage(canvas, page);
+  const returnedIds = canvas.getObjects().map((object) =>
+    object instanceof MediaPlacement
+      ? object.placementId
+      : String((object as FabricObject & { data?: { id?: string } }).data?.id ?? object.type),
+  );
+  const returnedConnector = canvas.getObjects().find(
+    (object) => (object as FabricObject & { data?: { id?: string } }).data?.id === connector.id,
+  ) as (FabricObject & { data?: { connector?: { start?: { objectId?: string; anchor?: string } } } }) | undefined;
   check(
     "page-switch",
-    JSON.stringify(returned.pages.find((candidate) => candidate.id === page.id)) === JSON.stringify(page),
-    "Page switching preserved geometry, crop, connector, and poster records.",
+    JSON.stringify(secondaryIds) === JSON.stringify(orderedCompositionIds(secondaryPage)) &&
+      JSON.stringify(returnedIds) === JSON.stringify(expectedOrder) &&
+      returnedConnector?.data?.connector?.start?.objectId === connector.start.placementId &&
+      returnedConnector.data.connector.start.anchor === connector.start.anchor,
+    "Recomposing the secondary page and returning preserved geometry, crop, connector, and poster records.",
   );
 
   const exportDataUrl = canvas.toDataURL({ format: "png", multiplier: 1 });
