@@ -1,0 +1,140 @@
+{
+  "schema": "gamebook.native-capture-evidence-set.v1",
+  "issue": 6,
+  "decision": "adopt-windows-capture",
+  "decisionRationale": "Replace with the measured reason for adoption or the direct Windows API fallback.",
+  "applicationBuild": {
+    "name": "gamebook",
+    "version": "0.5.3",
+    "sourceRevision": "replace-with-full-commit-sha",
+    "profile": "debug"
+  },
+  "capabilityReports": [
+    {
+      "id": "encoder-capability-01",
+      "path": "../../src-tauri/target/native-capture-spike/encoder-capability-01.json"
+    }
+  ],
+  "reports": [
+    {
+      "id": "1080p60-monitor-pass-01",
+      "path": "../../src-tauri/target/native-capture-spike/1080p60-monitor-pass-01.json",
+      "role": "monitor-1080p60",
+      "scenario": "encode",
+      "expectedOutcome": "pass",
+      "minSourceWidth": 1920,
+      "minSourceHeight": 1080
+    },
+    {
+      "id": "1080p60-monitor-pass-02",
+      "path": "../../src-tauri/target/native-capture-spike/1080p60-monitor-pass-02.json",
+      "role": "monitor-1080p60",
+      "scenario": "encode",
+      "expectedOutcome": "pass",
+      "minSourceWidth": 1920,
+      "minSourceHeight": 1080
+    },
+    {
+      "id": "1440p60-monitor-pass-01",
+      "path": "../../src-tauri/target/native-capture-spike/1440p60-monitor-pass-01.json",
+      "role": "monitor-1440p60",
+      "scenario": "encode",
+      "expectedOutcome": "pass",
+      "minSourceWidth": 2560,
+      "minSourceHeight": 1440
+    },
+    {
+      "id": "1440p60-monitor-pass-02",
+      "path": "../../src-tauri/target/native-capture-spike/1440p60-monitor-pass-02.json",
+      "role": "monitor-1440p60",
+      "scenario": "encode",
+      "expectedOutcome": "pass",
+      "minSourceWidth": 2560,
+      "minSourceHeight": 1440
+    },
+    {
+      "id": "selected-window-pass-01",
+      "path": "../../src-tauri/target/native-capture-spike/selected-window-pass-01.json",
+      "role": "selected-window",
+      "scenario": "encode",
+      "expectedOutcome": "pass",
+      "minSourceWidth": 1,
+      "minSourceHeight": 1
+    },
+    {
+      "id": "selected-window-pass-02",
+      "path": "../../src-tauri/target/native-capture-spike/selected-window-pass-02.json",
+      "role": "selected-window",
+      "scenario": "encode",
+      "expectedOutcome": "pass",
+      "minSourceWidth": 1,
+      "minSourceHeight": 1
+    },
+    {
+      "id": "cancellation-cleanup-01",
+      "path": "../../src-tauri/target/native-capture-spike/cancellation-cleanup-01.json",
+      "role": "cancellation",
+      "scenario": "cancel"
+    },
+    {
+      "id": "cancellation-cleanup-02",
+      "path": "../../src-tauri/target/native-capture-spike/cancellation-cleanup-02.json",
+      "role": "cancellation",
+      "scenario": "cancel"
+    },
+    {
+      "id": "source-close-cleanup-01",
+      "path": "../../src-tauri/target/native-capture-spike/source-close-cleanup-01.json",
+      "role": "source-close",
+      "scenario": "source-close"
+    },
+    {
+      "id": "source-close-cleanup-02",
+      "path": "../../src-tauri/target/native-capture-spike/source-close-cleanup-02.json",
+      "role": "source-close",
+      "scenario": "source-close"
+    },
+    {
+      "id": "encoder-failure-01",
+      "path": "../../src-tauri/target/native-capture-spike/encoder-failure-01.json",
+      "role": "encoder-failure",
+      "scenario": "encoder-failure"
+    }
+  ],
+  "manualEvidence": [
+    {
+      "id": "device-loss",
+      "status": "pending",
+      "attempts": 0,
+      "notes": "Record two device-loss attempts and their recovery or fallback outcomes."
+    },
+    {
+      "id": "protected-content",
+      "status": "pending",
+      "attempts": 0,
+      "notes": "Record two protected-content attempts and the explicit blocked or blank-source outcome."
+    },
+    {
+      "id": "hud-exclusion-fallback",
+      "status": "pending",
+      "attempts": 0,
+      "notes": "Record HUD exclusion and fallback notification evidence."
+    },
+    {
+      "id": "accessibility-contract",
+      "status": "pending",
+      "attempts": 0,
+      "notes": "Record keyboard, focus, announcement, High Contrast, reduced-motion, scale, and assistive-technology evidence for the production recording contract."
+    }
+  ],
+  "fallbackFollowUp": {
+    "issue": 9,
+    "gates": [
+      "source-close",
+      "device-loss",
+      "protected-content",
+      "hud-exclusion-fallback"
+    ],
+    "notes": "Required only for a direct-windows-api-fallback decision; record why these gates move to the native-stack decision issue."
+  }
+}

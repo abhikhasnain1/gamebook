@@ -14,6 +14,8 @@
     "frontend:test:watch": "vitest",
     "fixtures:generate": "node tools/fixtures/generate-fixtures.mjs --write",
     "fixtures:verify": "node tools/fixtures/generate-fixtures.mjs --verify",
+    "native-capture:fixture:verify": "node tools/spikes/verify-native-capture-fixture.mjs",
+    "native-capture:verify": "node tools/spikes/verify-native-capture-report.mjs",
     "check": "tsc --noEmit"
   },
   "dependencies": {
