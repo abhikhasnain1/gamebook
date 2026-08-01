@@ -1,0 +1,67 @@
+{
+  "schema": "gamebook.wasapi-av-sync-evidence-set.v1",
+  "issue": 7,
+  "decisionRationale": "Replace with the measured WASAPI, AAC, and shared-clock result.",
+  "applicationBuild": {
+    "name": "gamebook",
+    "version": "0.5.3",
+    "sourceRevision": "0000000",
+    "profile": "release"
+  },
+  "reports": [
+    {
+      "id": "active-audio-01",
+      "path": "../../src-tauri/target/wasapi-av-sync-spike/active-audio-01.json",
+      "role": "active-audio",
+      "scenario": "active-audio"
+    },
+    {
+      "id": "active-audio-02",
+      "path": "../../src-tauri/target/wasapi-av-sync-spike/active-audio-02.json",
+      "role": "active-audio",
+      "scenario": "active-audio"
+    },
+    {
+      "id": "silence-01",
+      "path": "../../src-tauri/target/wasapi-av-sync-spike/silence-01.json",
+      "role": "silence",
+      "scenario": "silence"
+    },
+    {
+      "id": "silence-02",
+      "path": "../../src-tauri/target/wasapi-av-sync-spike/silence-02.json",
+      "role": "silence",
+      "scenario": "silence"
+    },
+    {
+      "id": "cancellation-01",
+      "path": "../../src-tauri/target/wasapi-av-sync-spike/cancellation-01.json",
+      "role": "cancellation",
+      "scenario": "cancel"
+    },
+    {
+      "id": "cancellation-02",
+      "path": "../../src-tauri/target/wasapi-av-sync-spike/cancellation-02.json",
+      "role": "cancellation",
+      "scenario": "cancel"
+    },
+    {
+      "id": "audio-failure-01",
+      "path": "../../src-tauri/target/wasapi-av-sync-spike/audio-failure-01.json",
+      "role": "audio-failure",
+      "scenario": "audio-failure"
+    },
+    {
+      "id": "endpoint-change-01",
+      "path": "../../src-tauri/target/wasapi-av-sync-spike/endpoint-change-01.json",
+      "role": "endpoint-change",
+      "scenario": "endpoint-change"
+    },
+    {
+      "id": "encoder-failure-01",
+      "path": "../../src-tauri/target/wasapi-av-sync-spike/encoder-failure-01.json",
+      "role": "encoder-failure",
+      "scenario": "encoder-failure"
+    }
+  ]
+}
