@@ -1076,6 +1076,154 @@ fn probe_playable(path: &Path) -> Result<bool, SpikeError> {
     }
 }
 
+#[derive(Debug)]
+struct VideoTimelineProbe {
+    sample_count: u64,
+    first_timestamp: i64,
+    last_end_timestamp: i64,
+    backwards_timestamps: u64,
+}
+
+impl VideoTimelineProbe {
+    fn duration_ticks(&self) -> i64 {
+        self.last_end_timestamp - self.first_timestamp
+    }
+}
+
+fn probe_video_timeline(path: &Path) -> Result<VideoTimelineProbe, SpikeError> {
+    let attributes = create_attributes(1)?;
+    unsafe { attributes.SetUINT32(&MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, 1)? };
+    let wide_path = wide(path);
+    let reader = unsafe { MFCreateSourceReaderFromURL(PCWSTR(wide_path.as_ptr()), &attributes)? };
+    let stream = MF_SOURCE_READER_FIRST_VIDEO_STREAM.0 as u32;
+    unsafe { reader.SetStreamSelection(stream, true)? };
+    let mut sample_count = 0_u64;
+    let mut first_timestamp = None;
+    let mut previous_timestamp = None;
+    let mut last_end_timestamp = None;
+    let mut backwards_timestamps = 0_u64;
+    loop {
+        let mut flags = 0_u32;
+        let mut sample = None;
+        unsafe {
+            reader.ReadSample(stream, 0, None, Some(&mut flags), None, Some(&mut sample))?;
+        }
+        if let Some(sample) = sample {
+            let timestamp = unsafe { sample.GetSampleTime()? };
+            let duration = unsafe { sample.GetSampleDuration()? };
+            if duration <= 0 {
+                return Err("Finalized media contains a non-positive video sample duration".into());
+            }
+            if previous_timestamp.is_some_and(|previous| timestamp < previous) {
+                backwards_timestamps += 1;
+            }
+            first_timestamp.get_or_insert(timestamp);
+            previous_timestamp = Some(timestamp);
+            last_end_timestamp = Some(timestamp + duration);
+            sample_count += 1;
+        }
+        if flags & MF_SOURCE_READERF_ENDOFSTREAM.0 as u32 != 0 {
+            break;
+        }
+    }
+    let first_timestamp = first_timestamp.ok_or("Finalized media contains no video samples")?;
+    let last_end_timestamp = last_end_timestamp.ok_or("Finalized media has no video duration")?;
+    if last_end_timestamp <= first_timestamp {
+        return Err("Finalized media has a non-positive video timeline".into());
+    }
+    Ok(VideoTimelineProbe {
+        sample_count,
+        first_timestamp,
+        last_end_timestamp,
+        backwards_timestamps,
+    })
+}
+
+fn environment_report(build_id: &str) -> Value {
+    json!({
+        "applicationBuild": {
+            "name": env!("CARGO_PKG_NAME"),
+            "version": env!("CARGO_PKG_VERSION"),
+            "sourceRevision": build_id,
+            "profile": if cfg!(debug_assertions) { "debug" } else { "release" },
+        },
+        "executable": env::current_exe()
+            .ok()
+            .and_then(|path| path.file_name().map(|name| name.to_string_lossy().to_string()))
+            .unwrap_or_else(|| "direct_capture_stack_spike.exe".to_string()),
+        "currentDirectory": ".",
+        "os": env::consts::OS,
+        "architecture": env::consts::ARCH,
+        "family": env::consts::FAMILY,
+        "probes": [
+            powershell_probe(
+                "windows-os-memory",
+                "Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,BuildNumber,OSArchitecture,TotalVisibleMemorySize,FreePhysicalMemory | ConvertTo-Json -Compress",
+            ),
+            powershell_probe(
+                "cpu",
+                "Get-CimInstance Win32_Processor | Select-Object Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed | ConvertTo-Json -Compress",
+            ),
+            powershell_probe(
+                "gpu-display-driver",
+                "Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM,DriverVersion,CurrentHorizontalResolution,CurrentVerticalResolution,CurrentRefreshRate | ConvertTo-Json -Compress",
+            ),
+            powershell_probe(
+                "audio-devices",
+                "$devices = @(Get-CimInstance Win32_SoundDevice); $statuses = @($devices | Group-Object Status | ForEach-Object { [pscustomobject]@{ Status = $_.Name; Count = $_.Count } }); [pscustomobject]@{ Count = $devices.Count; Statuses = $statuses } | ConvertTo-Json -Compress -Depth 4",
+            ),
+            powershell_probe(
+                "storage-volumes",
+                "Get-Volume | Select-Object FileSystemType,Size,SizeRemaining,HealthStatus | ConvertTo-Json -Compress",
+            ),
+            powershell_probe(
+                "webview2-runtime",
+                "$paths = 'HKCU:\\Software\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}','HKLM:\\Software\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}','HKLM:\\Software\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'; $paths | ForEach-Object { Get-ItemProperty -Path $_ -ErrorAction SilentlyContinue | Select-Object name,pv } | ConvertTo-Json -Compress",
+            ),
+            command_probe("power-scheme", "powercfg.exe", &["/GETACTIVESCHEME"]),
+        ],
+    })
+}
+
+fn powershell_probe(name: &'static str, script: &str) -> Value {
+    let mut probe = command_probe(name, "powershell.exe", &["-NoProfile", "-Command", script]);
+    probe["command"] = json!(format!("powershell.exe -NoProfile -Command <{name}-probe>"));
+    probe
+}
+
+fn command_probe(name: &'static str, program: &str, args: &[&str]) -> Value {
+    let command = if args.is_empty() {
+        program.to_string()
+    } else {
+        format!("{program} {}", args.join(" "))
+    };
+    match Command::new(program).args(args).output() {
+        Ok(output) => json!({
+            "name": name,
+            "command": command,
+            "exitCode": output.status.code(),
+            "stdout": bounded_text(&String::from_utf8_lossy(&output.stdout)),
+            "stderr": bounded_text(&String::from_utf8_lossy(&output.stderr)),
+        }),
+        Err(error) => json!({
+            "name": name,
+            "command": command,
+            "exitCode": null,
+            "stdout": "",
+            "stderr": bounded_text(&error.to_string()),
+        }),
+    }
+}
+
+fn bounded_text(value: &str) -> String {
+    const LIMIT: usize = 12_000;
+    let trimmed = value.trim();
+    if trimmed.len() <= LIMIT {
+        return trimmed.to_string();
+    }
+    format!("{}...<truncated>", &trimmed[..LIMIT])
+}
+
 fn run_recovery_check(options: &Options) -> Result<Value, SpikeError> {
     let input_run_id = options
         .input_run_id
@@ -1128,7 +1276,9 @@ fn run_capture(options: &Options, receiver: Receiver<FrameData>) -> Result<Value
     };
     let report_started = Instant::now();
     let frame_duration = TICKS_PER_SECOND / i64::from(options.frame_rate);
+    let requested_duration_ticks = i64::try_from(options.duration_seconds)? * TICKS_PER_SECOND;
     let deadline = Duration::from_secs(options.duration_seconds);
+    let watchdog = deadline + Duration::from_secs(5);
     let mut writer = None;
     let mut first_source = None;
     let mut last_source = None;
@@ -1141,7 +1291,7 @@ fn run_capture(options: &Options, receiver: Receiver<FrameData>) -> Result<Value
     let mut source_height = 0_u32;
     let mut excluded_frames_black = true;
     let mut hud_marker_visible = false;
-    while report_started.elapsed() < deadline {
+    while report_started.elapsed() < watchdog {
         let frame = match receiver.recv_timeout(Duration::from_millis(250)) {
             Ok(frame) => frame,
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
@@ -1149,6 +1299,9 @@ fn run_capture(options: &Options, receiver: Receiver<FrameData>) -> Result<Value
         };
         let first = *first_source.get_or_insert(frame.source_ticks);
         let relative = frame.source_ticks - first;
+        if relative >= requested_duration_ticks {
+            break;
+        }
         if relative < next_due {
             sampling_skips += 1;
             continue;
@@ -1287,6 +1440,14 @@ fn run_capture(options: &Options, receiver: Receiver<FrameData>) -> Result<Value
     let finalize_started = Instant::now();
     writer.finalize()?;
     let finalization_ms = finalize_started.elapsed().as_secs_f64() * 1_000.0;
+    let timeline = probe_video_timeline(&output_path)?;
+    let output_duration_ticks = timeline.duration_ticks();
+    let duration_error_ticks = output_duration_ticks - requested_duration_ticks;
+    let duration_within_one_frame = duration_error_ticks.abs() <= frame_duration;
+    let requested_frames = options.duration_seconds * u64::from(options.frame_rate);
+    let minimum_throughput_frames = (requested_frames * 95).div_ceil(100);
+    let throughput_passed = submitted >= minimum_throughput_frames;
+    let finalization_passed = finalization_ms <= 5_000.0;
     if options.scenario == Scenario::PromotionInterrupt {
         write_recovery_journal(options, "finalized-unpromoted")?;
         return Ok(json!({
@@ -1295,6 +1456,15 @@ fn run_capture(options: &Options, receiver: Receiver<FrameData>) -> Result<Value
             "classification": "pending-recovery-check",
             "submittedFrames": submitted,
             "finalizationMs": finalization_ms,
+            "encodedSampleCount": timeline.sample_count,
+            "outputDuration100ns": output_duration_ticks,
+            "outputDurationMs": output_duration_ticks as f64 / 10_000.0,
+            "durationError100ns": duration_error_ticks,
+            "durationErrorMs": duration_error_ticks as f64 / 10_000.0,
+            "durationTolerance100ns": frame_duration,
+            "durationWithinOneFrame": duration_within_one_frame,
+            "backwardsEncodedTimestamps": timeline.backwards_timestamps,
+            "finalizationPassed": finalization_passed,
             "outputBytes": fs::metadata(&output_path)?.len(),
             "retainedMedia": true,
             "projectReferenced": false,
@@ -1317,6 +1487,26 @@ fn run_capture(options: &Options, receiver: Receiver<FrameData>) -> Result<Value
         "writeSampleMs": write_sample_ms,
         "samplingSkippedFrames": sampling_skips,
         "finalizationMs": finalization_ms,
+        "encodedSampleCount": timeline.sample_count,
+        "outputDuration100ns": output_duration_ticks,
+        "outputDurationMs": output_duration_ticks as f64 / 10_000.0,
+        "durationError100ns": duration_error_ticks,
+        "durationErrorMs": duration_error_ticks as f64 / 10_000.0,
+        "durationTolerance100ns": frame_duration,
+        "durationWithinOneFrame": duration_within_one_frame,
+        "backwardsEncodedTimestamps": timeline.backwards_timestamps,
+        "minimumThroughputFrames": minimum_throughput_frames,
+        "throughputPassed": throughput_passed,
+        "finalizationPassed": finalization_passed,
+        "captureGate": if options.scenario == Scenario::Capture {
+            if throughput_passed && duration_within_one_frame && finalization_passed {
+                "passed"
+            } else {
+                "blocking-result"
+            }
+        } else {
+            "not-applicable"
+        },
         "outputBytes": fs::metadata(&output_path)?.len(),
         "retainedMedia": true,
         "projectReferenced": false,
@@ -1417,14 +1607,24 @@ fn main() -> Result<(), SpikeError> {
                 Err(format!("Failure cleanup could not remove the partial media: {error}").into());
         }
     }
+    let environment = environment_report(&options.build_id);
     let report = match result {
         Ok(mut report) => {
             report["schemaVersion"] = json!(1);
             report["applicationBuild"] = json!(options.build_id);
+            report["applicationVersion"] = json!(env!("CARGO_PKG_VERSION"));
+            report["buildProfile"] = json!(if cfg!(debug_assertions) {
+                "debug"
+            } else {
+                "release"
+            });
             report["runId"] = json!(options.run_id);
             report["scenario"] = json!(options.scenario.label());
             report["target"] = json!(options.target.label());
+            report["requestedDurationMs"] = json!(options.duration_seconds * 1_000);
+            report["requestedFrameRate"] = json!(options.frame_rate);
             report["startedAt"] = json!(started_at);
+            report["environment"] = environment;
             report["networkAccess"] = json!(false);
             report["projectWrites"] = json!(false);
             report["audioCapture"] = json!(false);
@@ -1435,10 +1635,15 @@ fn main() -> Result<(), SpikeError> {
         Err(error) => json!({
             "schemaVersion": 1,
             "applicationBuild": options.build_id,
+            "applicationVersion": env!("CARGO_PKG_VERSION"),
+            "buildProfile": if cfg!(debug_assertions) { "debug" } else { "release" },
             "runId": options.run_id,
             "scenario": options.scenario.label(),
             "target": options.target.label(),
+            "requestedDurationMs": options.duration_seconds * 1_000,
+            "requestedFrameRate": options.frame_rate,
             "startedAt": started_at,
+            "environment": environment,
             "result": if options.scenario.expected_failure_outcome().is_some() { "passed" } else { "failed" },
             "outcome": options.scenario.expected_failure_outcome().unwrap_or("failed"),
             "errorMessage": error.to_string(),

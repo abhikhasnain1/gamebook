@@ -47,6 +47,8 @@ Current dry-run gaps for the screenshot workflow:
 - `npm.cmd run fixtures:generate` regenerates numbered-frame, SDR/HDR, malformed import/archive, and version 1 project fixtures.
 - `npm.cmd run native-decode:verify -- --self-test` checks the isolated exact-decode report verifier.
 - `npm.cmd run native-decode:verify -- --manifest PATH` validates a complete issue #8 release evidence set against one exact build and binary hash.
+- `npm.cmd run direct-stack:verify -- --self-test` checks the isolated direct-capture report verifier.
+- `npm.cmd run direct-stack:verify -- --manifest PATH` validates issue #9 reports, retained-media hashes, fixed scenario counts, and the exact release binary hash.
 - Fixture files live under `src/test/fixtures/` and must contain generated synthetic content only.
 - `src/test/fixtures/manifest.json` records hashes, byte counts, textual descriptions, expected failures, and accessibility descriptions.
 - Fixture updates must keep regeneration instructions and validation evidence with the fixture change.

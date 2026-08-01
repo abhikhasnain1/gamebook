@@ -2,6 +2,7 @@
   "schema": "gamebook.direct-capture-stack-evidence.v1",
   "issue": 9,
   "applicationBuild": "0000000",
+  "binaryPath": "path/to/direct_capture_stack_spike.exe",
   "binarySha256": "0000000000000000000000000000000000000000000000000000000000000000",
   "referenceEnvironment": {
     "osName": "Windows 11 Pro",
@@ -20,12 +21,19 @@
     "source-close": 2,
     "device-loss": 2,
     "protected-content": 2,
-    "hud-exclusion": 1,
+    "hud-exclusion": 2,
     "cancellation": 2,
     "capture-interruption": 1,
     "capture-recovery": 1,
     "promotion-interruption": 1,
-    "promotion-recovery": 1
+    "promotion-recovery": 1,
+    "force-termination-recovery": 1,
+    "initialization-failure": 1,
+    "encoder-failure": 1,
+    "decoder-failure": 1,
+    "gpu-failure": 1,
+    "storage-failure": 1,
+    "finalization-failure": 1
   },
   "reports": []
 }

@@ -33,6 +33,8 @@ Targets are:
 
 The controlled fixture uses no external asset, browser, network request, project data, audio, or microphone. Its child process watches a private parent pipe and closes itself after forced parent termination.
 
+Closeout performance runs use `fixture-monitor` for both display resolutions so the selected monitor contains a continuously animated, locally owned stimulus. A run is an explicit blocking result when it misses 95% of the requested frames, the finalized video duration differs from 30 seconds by more than one requested frame, or finalization exceeds five seconds; the report does not relabel that result as a successful performance gate.
+
 ## Direct Pipeline
 
 The harness creates a BGRA-capable D3D11 hardware device, converts it to an `IDirect3DDevice`, creates a free-threaded Windows Graphics Capture frame pool, and resolves target items through `IGraphicsCaptureItemInterop`. Each callback copies the actual WGC backing texture into a reusable staging texture and returns only the logical content rectangle.
@@ -70,6 +72,8 @@ src-tauri\target\release\examples\direct_capture_stack_spike.exe `
 
 Reports and media are written below `src-tauri/target/direct-capture-stack-spike` by default and remain uncommitted. Reports contain anonymous target kinds and artifact identities, not window titles, local paths, user identifiers, or media bytes.
 
+Each report records Gamebook 0.5.3, the exact source revision, debug or release profile, requested rate and duration, a redacted reference-environment probe set, and local-data/privacy declarations. Finalized reports are re-read through Media Foundation Source Reader and record encoded sample count, output timeline duration, backwards timestamps, one-frame duration tolerance, throughput result, and finalization result. The manifest binds the exact release executable and every retained media artifact to its byte count and SHA-256 hash.
+
 Verify individual reports or a complete local manifest based on `direct-capture-stack-evidence.example.json`:
 
 ```powershell
@@ -78,7 +82,7 @@ npm.cmd run direct-stack:verify -- --manifest path/to/evidence-manifest.json
 npm.cmd run direct-stack:verify -- --self-test
 ```
 
-The manifest binds every retained artifact to its byte count and SHA-256 hash, every report to one application build, and required repeated roles to explicit minimum counts.
+The manifest binds every retained artifact to its byte count and SHA-256 hash, every report to one application build, and required repeated roles to fixed minimum counts. The fixed role set includes two runs each for 1080p60 monitor, 1440p60 monitor, selected window, source close, device loss, protected content, HUD exclusion, and cancellation; recording/finalization interruption and recovery; true force-termination recovery; and every injected initialization, encoder, decoder, GPU, storage, and finalization boundary.
 
 ## Accessibility Contract For Production
 
