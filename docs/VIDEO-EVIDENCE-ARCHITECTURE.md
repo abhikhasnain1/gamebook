@@ -118,7 +118,7 @@ System audio uses whole-output-device WASAPI loopback in version 1. The recordin
 
 If system audio fails after recording starts, video continues, the audio discontinuity is recorded in metadata, and the editor presents a warning. Capture or encoder initialization failure aborts without creating referenced partial evidence.
 
-The encoder output is 8-bit H.264 SDR Rec.709. HDR source state and color-space metadata are recorded separately. HDR capture must pass reference color-pattern and representative-game comparisons after tone mapping; otherwise recording is blocked while HDR is active. At most one replicated-edge pixel is added to satisfy even encoder dimensions, and the logical aperture is retained in media metadata.
+The encoder output is 8-bit H.264 SDR Rec.709. HDR source state and color-space metadata are recorded separately. HDR capture must pass reference color-pattern and representative-game comparisons after tone mapping; otherwise recording is blocked while HDR is active. At most one replicated-edge pixel is added to satisfy even encoder dimensions. The exact-decode spike found that Media Foundation MP4 output does not retain the submitted `MFVideoArea` as container metadata, so trusted evidence metadata must retain the logical dimensions and reapply the aperture during decode; production must not infer the logical aperture from the MP4 alone.
 
 ## `MediaPlacement` rendering contract
 
