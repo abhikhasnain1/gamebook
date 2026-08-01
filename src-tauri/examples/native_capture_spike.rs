@@ -5,7 +5,7 @@ use std::{
     error::Error,
     fs,
     io::Write,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -32,6 +32,7 @@ type SpikeError = Box<dyn Error + Send + Sync>;
 #[derive(Clone)]
 struct RunConfig {
     scenario: Scenario,
+    declared_target_kind: &'static str,
     target_label: String,
     source_width: u32,
     source_height: u32,
@@ -50,6 +51,7 @@ struct RunConfig {
 enum Scenario {
     Encode,
     Cancel,
+    SourceClose,
     EncoderFailure,
 }
 
@@ -64,6 +66,7 @@ struct CaptureRun {
     duplicate_timestamps: u64,
     backwards_timestamps: u64,
     largest_gap_ticks: i64,
+    estimated_dropped_frames: u64,
     report_written: bool,
 }
 
@@ -75,6 +78,7 @@ struct SpikeReport {
     completed_at: String,
     command: Vec<String>,
     scenario: Scenario,
+    declared_target_kind: &'static str,
     target_label: String,
     source_width: u32,
     source_height: u32,
@@ -88,9 +92,11 @@ struct SpikeReport {
     estimated_frame_duration_ms: f64,
     first_timestamp_ticks: Option<i64>,
     last_timestamp_ticks: Option<i64>,
-    encoded_duration_ms: Option<f64>,
+    capture_timestamp_span_ms: Option<f64>,
+    output_duration_ms: Option<f64>,
     duration_error_ms: Option<f64>,
     largest_frame_gap_ms: f64,
+    estimated_dropped_frames: u64,
     duplicate_timestamps: u64,
     backwards_timestamps: u64,
     finalization_ms: Option<u128>,
@@ -150,6 +156,7 @@ impl GraphicsCaptureApiHandler for CaptureRun {
             duplicate_timestamps: 0,
             backwards_timestamps: 0,
             largest_gap_ticks: 0,
+            estimated_dropped_frames: 0,
             report_written: false,
         })
     }
@@ -171,6 +178,10 @@ impl GraphicsCaptureApiHandler for CaptureRun {
                 self.backwards_timestamps += 1;
             } else {
                 self.largest_gap_ticks = self.largest_gap_ticks.max(gap);
+                let expected_gap_ticks = 10_000_000 / i64::from(self.config.frame_rate);
+                let estimated_intervals =
+                    ((gap + expected_gap_ticks / 2) / expected_gap_ticks).max(1);
+                self.estimated_dropped_frames += (estimated_intervals - 1) as u64;
             }
         }
         self.previous_timestamp_ticks = Some(timestamp_ticks);
@@ -182,8 +193,18 @@ impl GraphicsCaptureApiHandler for CaptureRun {
 
         if should_cancel {
             self.encoder.take();
-            let cleaned = remove_if_exists(&self.config.output_path)?;
+            let cleaned = ensure_output_absent(&self.config.output_path)?;
             self.write_report(None, true, cleaned, "cancelled")?;
+            capture_control.stop();
+            return Ok(());
+        }
+
+        let source_close_timed_out = matches!(self.config.scenario, Scenario::SourceClose)
+            && elapsed >= self.config.duration;
+        if source_close_timed_out {
+            self.encoder.take();
+            let cleaned = ensure_output_absent(&self.config.output_path)?;
+            self.write_report(None, false, cleaned, "source-not-closed")?;
             capture_control.stop();
             return Ok(());
         }
@@ -217,11 +238,16 @@ impl GraphicsCaptureApiHandler for CaptureRun {
     fn on_closed(&mut self) -> Result<(), Self::Error> {
         if !self.report_written {
             self.encoder.take();
+            let result = if matches!(self.config.scenario, Scenario::SourceClose) {
+                "source-closed"
+            } else {
+                "unexpected-source-closed"
+            };
             self.write_report(
                 None,
-                true,
-                remove_if_exists(&self.config.output_path)?,
-                "source-closed",
+                false,
+                ensure_output_absent(&self.config.output_path)?,
+                result,
             )?;
         }
         Ok(())
@@ -240,16 +266,17 @@ impl CaptureRun {
             return Ok(());
         }
 
-        let output_bytes = fs::metadata(&self.config.output_path)
-            .ok()
-            .map(|value| value.len());
-        let encoded_duration_ms = match (self.first_timestamp_ticks, self.last_timestamp_ticks) {
-            (Some(first), Some(last)) if last >= first => Some(ticks_to_ms(last - first)),
-            _ => None,
-        };
+        let output_bytes = file_bytes(&self.config.output_path);
+        let capture_timestamp_span_ms =
+            match (self.first_timestamp_ticks, self.last_timestamp_ticks) {
+                (Some(first), Some(last)) if last >= first => Some(ticks_to_ms(last - first)),
+                _ => None,
+            };
+        let output_duration_ms =
+            finalization_ms.and_then(|_| probe_output_duration_ms(&self.config.output_path));
         let requested_duration_ms = self.config.duration.as_millis();
         let duration_error_ms =
-            encoded_duration_ms.map(|actual| actual - requested_duration_ms as f64);
+            output_duration_ms.map(|actual| actual - requested_duration_ms as f64);
         let estimated_frame_duration_ms = 1000.0 / self.config.frame_rate as f64;
 
         let report = SpikeReport {
@@ -258,6 +285,7 @@ impl CaptureRun {
             completed_at: unix_time_label(),
             command: sanitize_command(&self.config.args),
             scenario: self.config.scenario,
+            declared_target_kind: self.config.declared_target_kind,
             target_label: self.config.target_label.clone(),
             source_width: self.config.source_width,
             source_height: self.config.source_height,
@@ -265,15 +293,17 @@ impl CaptureRun {
             requested_height: self.config.height,
             requested_frame_rate: self.config.frame_rate,
             requested_duration_ms,
-            output_path: self.config.output_path.display().to_string(),
+            output_path: artifact_label(&self.config.output_path),
             output_bytes,
             submitted_frames: self.submitted_frames,
             estimated_frame_duration_ms,
             first_timestamp_ticks: self.first_timestamp_ticks,
             last_timestamp_ticks: self.last_timestamp_ticks,
-            encoded_duration_ms,
+            capture_timestamp_span_ms,
+            output_duration_ms,
             duration_error_ms,
             largest_frame_gap_ms: ticks_to_ms(self.largest_gap_ticks),
+            estimated_dropped_frames: self.estimated_dropped_frames,
             duplicate_timestamps: self.duplicate_timestamps,
             backwards_timestamps: self.backwards_timestamps,
             finalization_ms,
@@ -285,6 +315,7 @@ impl CaptureRun {
             notes: vec![
                 "Audio is disabled in this harness; WASAPI loopback is covered by the dependent audio synchronization spike.".to_string(),
                 "The harness writes to a staging output path and removes cancellation/source-close partial output.".to_string(),
+                "Output duration is read from the finalized MP4 through the Windows System.Media.Duration property; capture timestamp span is reported separately.".to_string(),
                 "The production application is not linked to this example and exposes no recording UI from this spike.".to_string(),
             ],
         };
@@ -359,7 +390,7 @@ fn main() -> Result<(), SpikeError> {
                 "primary-monitor:{}",
                 monitor.name().unwrap_or_else(|_| "unknown".to_string())
             );
-            run_capture(monitor, width, height, label, options)
+            run_capture(monitor, width, height, "monitor", label, options)
         }
         TargetOption::MonitorIndex(index) => {
             let monitor = Monitor::from_index(index)?;
@@ -369,16 +400,23 @@ fn main() -> Result<(), SpikeError> {
                 "monitor-index-{index}:{}",
                 monitor.name().unwrap_or_else(|_| "unknown".to_string())
             );
-            run_capture(monitor, width, height, label, options)
+            run_capture(monitor, width, height, "monitor", label, options)
         }
-        TargetOption::Picker => {
+        TargetOption::Picker(declared_kind) => {
             let Some(item) = GraphicsCapturePicker::pick_item()? else {
                 println!("No capture target selected.");
                 return Ok(());
             };
             let (width, height) = item.size()?;
-            let label = "picker-selected-window-or-monitor".to_string();
-            run_capture(item, width as u32, height as u32, label, options)
+            let label = declared_kind.target_label().to_string();
+            run_capture(
+                item,
+                width as u32,
+                height as u32,
+                declared_kind.report_value(),
+                label,
+                options,
+            )
         }
     }
 }
@@ -387,6 +425,7 @@ fn run_capture<T>(
     target: T,
     source_width: u32,
     source_height: u32,
+    declared_target_kind: &'static str,
     target_label: String,
     options: Options,
 ) -> Result<(), SpikeError>
@@ -411,6 +450,7 @@ where
 
     let config = RunConfig {
         scenario: options.scenario,
+        declared_target_kind,
         target_label,
         source_width,
         source_height,
@@ -463,7 +503,32 @@ struct Options {
 enum TargetOption {
     PrimaryMonitor,
     MonitorIndex(usize),
-    Picker,
+    Picker(PickerTargetKind),
+}
+
+#[derive(Clone, Copy)]
+enum PickerTargetKind {
+    Unspecified,
+    Window,
+    Monitor,
+}
+
+impl PickerTargetKind {
+    fn report_value(self) -> &'static str {
+        match self {
+            Self::Unspecified => "unspecified",
+            Self::Window => "window",
+            Self::Monitor => "monitor",
+        }
+    }
+
+    fn target_label(self) -> &'static str {
+        match self {
+            Self::Unspecified => "picker-selected-unspecified",
+            Self::Window => "picker-selected-window",
+            Self::Monitor => "picker-selected-monitor",
+        }
+    }
 }
 
 impl Options {
@@ -486,14 +551,17 @@ impl Options {
                 "--scenario" => {
                     index += 1;
                     let value = args.get(index).ok_or("--scenario requires a value")?;
-                    scenario = match value.as_str() {
-                        "encode" => Scenario::Encode,
-                        "cancel" => Scenario::Cancel,
-                        "encoder-failure" => Scenario::EncoderFailure,
-                        _ => {
-                            return Err("scenario must be encode, cancel, or encoder-failure".into())
-                        }
-                    };
+                    scenario =
+                        match value.as_str() {
+                            "encode" => Scenario::Encode,
+                            "cancel" => Scenario::Cancel,
+                            "source-close" => Scenario::SourceClose,
+                            "encoder-failure" => Scenario::EncoderFailure,
+                            _ => return Err(
+                                "scenario must be encode, cancel, source-close, or encoder-failure"
+                                    .into(),
+                            ),
+                        };
                 }
                 "--duration" => {
                     index += 1;
@@ -547,12 +615,21 @@ fn parse_target(value: &str) -> Result<TargetOption, SpikeError> {
         return Ok(TargetOption::PrimaryMonitor);
     }
     if value == "picker" {
-        return Ok(TargetOption::Picker);
+        return Ok(TargetOption::Picker(PickerTargetKind::Unspecified));
+    }
+    if value == "picker-window" {
+        return Ok(TargetOption::Picker(PickerTargetKind::Window));
+    }
+    if value == "picker-monitor" {
+        return Ok(TargetOption::Picker(PickerTargetKind::Monitor));
     }
     if let Some(index) = value.strip_prefix("monitor-index:") {
         return Ok(TargetOption::MonitorIndex(index.parse()?));
     }
-    Err("--target must be primary-monitor, picker, or monitor-index:N".into())
+    Err(
+        "--target must be primary-monitor, picker, picker-window, picker-monitor, or monitor-index:N"
+            .into(),
+    )
 }
 
 fn print_help() {
@@ -560,8 +637,8 @@ fn print_help() {
         "Native capture spike\n\n\
          cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- \\\n\
            --target primary-monitor --scenario encode --duration 30 --frame-rate 60\n\n\
-         Targets: primary-monitor, monitor-index:N, picker\n\
-         Scenarios: encode, cancel, encoder-failure\n\
+         Targets: primary-monitor, monitor-index:N, picker-window, picker-monitor, picker\n\
+         Scenarios: encode, cancel, source-close, encoder-failure\n\
          Outputs: MP4 and JSON report under src-tauri/target/native-capture-spike by default"
     );
 }
@@ -573,6 +650,7 @@ fn write_startup_failure_report(config: &RunConfig, error_message: &str) -> Resu
         completed_at: unix_time_label(),
         command: sanitize_command(&config.args),
         scenario: config.scenario,
+        declared_target_kind: config.declared_target_kind,
         target_label: config.target_label.clone(),
         source_width: config.source_width,
         source_height: config.source_height,
@@ -580,22 +658,24 @@ fn write_startup_failure_report(config: &RunConfig, error_message: &str) -> Resu
         requested_height: config.height,
         requested_frame_rate: config.frame_rate,
         requested_duration_ms: config.duration.as_millis(),
-        output_path: config.output_path.display().to_string(),
-        output_bytes: fs::metadata(&config.output_path).ok().map(|value| value.len()),
+        output_path: artifact_label(&config.output_path),
+        output_bytes: file_bytes(&config.output_path),
         submitted_frames: 0,
         estimated_frame_duration_ms: 1000.0 / config.frame_rate as f64,
         first_timestamp_ticks: None,
         last_timestamp_ticks: None,
-        encoded_duration_ms: None,
+        capture_timestamp_span_ms: None,
+        output_duration_ms: None,
         duration_error_ms: None,
         largest_frame_gap_ms: 0.0,
+        estimated_dropped_frames: 0,
         duplicate_timestamps: 0,
         backwards_timestamps: 0,
         finalization_ms: None,
         cancelled: false,
         cleaned_partial_output: false,
         result: "startup-failed",
-        error_message: Some(error_message.to_string()),
+        error_message: Some(sanitize_error_message(error_message, config)),
         environment: EnvironmentReport::current()?,
         notes: vec![
             "Startup failure reports exercise capture or encoder initialization failure before a project can reference media.".to_string(),
@@ -658,6 +738,43 @@ fn sanitize_command(args: &[String]) -> Vec<String> {
             *program = file_name.to_string();
         }
     }
+
+    let mut index = 0;
+    while index < sanitized.len() {
+        if sanitized[index] == "--output-dir" && index + 1 < sanitized.len() {
+            sanitized[index + 1] = ".".to_string();
+            index += 2;
+        } else {
+            index += 1;
+        }
+    }
+    sanitized
+}
+
+fn artifact_label(path: &Path) -> String {
+    path.file_name()
+        .and_then(|value| value.to_str())
+        .map(|value| format!("artifact:{value}"))
+        .unwrap_or_else(|| "artifact".to_string())
+}
+
+fn sanitize_error_message(error_message: &str, config: &RunConfig) -> String {
+    let mut sanitized = error_message.to_string();
+    let mut candidates = vec![
+        config.output_path.display().to_string(),
+        config.report_path.display().to_string(),
+    ];
+    if let Ok(current_dir) = env::current_dir() {
+        candidates.push(current_dir.display().to_string());
+    }
+
+    for candidate in candidates {
+        if candidate.is_empty() {
+            continue;
+        }
+        sanitized = sanitized.replace(&candidate, "<local-path>");
+        sanitized = sanitized.replace(&candidate.replace('\\', "/"), "<local-path>");
+    }
     sanitized
 }
 
@@ -673,13 +790,48 @@ fn ticks_to_ms(ticks: i64) -> f64 {
     ticks as f64 / 10_000.0
 }
 
-fn remove_if_exists(path: &PathBuf) -> Result<bool, SpikeError> {
+fn file_bytes(path: &Path) -> Option<u64> {
+    fs::metadata(path)
+        .ok()
+        .filter(|value| value.is_file())
+        .map(|value| value.len())
+}
+
+fn probe_output_duration_ms(path: &Path) -> Option<f64> {
+    if !path.is_file() {
+        return None;
+    }
+
+    let script = concat!(
+        "$path = [IO.Path]::GetFullPath($env:GAMEBOOK_SPIKE_MEDIA_PATH); ",
+        "$shell = New-Object -ComObject Shell.Application; ",
+        "$folder = $shell.Namespace([IO.Path]::GetDirectoryName($path)); ",
+        "$item = $folder.ParseName([IO.Path]::GetFileName($path)); ",
+        "$duration = $item.ExtendedProperty('System.Media.Duration'); ",
+        "if ($null -eq $duration) { exit 2 }; ",
+        "[Console]::Write([string]$duration)"
+    );
+    let output = Command::new("powershell.exe")
+        .args(["-NoProfile", "-Command", script])
+        .env("GAMEBOOK_SPIKE_MEDIA_PATH", path)
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let duration_ticks = String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .parse::<f64>()
+        .ok()?;
+    Some(duration_ticks / 10_000.0)
+}
+
+fn ensure_output_absent(path: &Path) -> Result<bool, SpikeError> {
     if path.exists() {
         fs::remove_file(path)?;
-        Ok(true)
-    } else {
-        Ok(false)
     }
+    Ok(!path.exists())
 }
 
 fn unix_time_label() -> String {
@@ -703,8 +855,8 @@ fn unix_millis() -> u128 {
 #[cfg(test)]
 mod tests {
     use super::{
-        even_dimension, frame_interval, parse_target, sanitize_command, Options, Scenario,
-        TargetOption,
+        artifact_label, even_dimension, frame_interval, parse_target, sanitize_command, Options,
+        PickerTargetKind, Scenario, TargetOption,
     };
 
     #[test]
@@ -727,7 +879,15 @@ mod tests {
         ));
         assert!(matches!(
             parse_target("picker").unwrap(),
-            TargetOption::Picker
+            TargetOption::Picker(PickerTargetKind::Unspecified)
+        ));
+        assert!(matches!(
+            parse_target("picker-window").unwrap(),
+            TargetOption::Picker(PickerTargetKind::Window)
+        ));
+        assert!(matches!(
+            parse_target("picker-monitor").unwrap(),
+            TargetOption::Picker(PickerTargetKind::Monitor)
         ));
         assert!(matches!(
             parse_target("monitor-index:2").unwrap(),
@@ -751,14 +911,40 @@ mod tests {
     }
 
     #[test]
+    fn parses_source_close_scenario() {
+        let options = Options::parse(vec![
+            "native_capture_spike".to_string(),
+            "--scenario".to_string(),
+            "source-close".to_string(),
+        ])
+        .unwrap();
+
+        assert!(matches!(options.scenario, Scenario::SourceClose));
+    }
+
+    #[test]
     fn redacts_executable_path_from_report_command() {
         let command = sanitize_command(&[
             "C:\\Users\\name\\project\\native_capture_spike.exe".to_string(),
+            "--output-dir".to_string(),
+            "C:\\Users\\name\\reports".to_string(),
             "--scenario".to_string(),
             "encoder-failure".to_string(),
         ]);
 
         assert_eq!(command[0], "native_capture_spike.exe");
-        assert_eq!(command[1], "--scenario");
+        assert_eq!(command[1], "--output-dir");
+        assert_eq!(command[2], ".");
+        assert_eq!(command[3], "--scenario");
+    }
+
+    #[test]
+    fn report_artifact_labels_never_include_parent_paths() {
+        assert_eq!(
+            artifact_label(&std::path::PathBuf::from(
+                "C:\\Users\\name\\reports\\capture.mp4"
+            )),
+            "artifact:capture.mp4"
+        );
     }
 }

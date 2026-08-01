@@ -14,18 +14,20 @@ Run from the repository root:
 
 ```powershell
 cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --run-id 1080p60-monitor-pass-01
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target picker --scenario encode --duration 30 --frame-rate 60 --run-id selected-window-pass-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target picker-window --scenario encode --duration 30 --frame-rate 60 --run-id selected-window-pass-01
 cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario cancel --duration 5 --frame-rate 60 --run-id cancellation-cleanup-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target picker-window --scenario source-close --duration 30 --frame-rate 60 --run-id source-close-cleanup-01
 cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario encoder-failure --duration 1 --frame-rate 60 --run-id encoder-failure-01
 ```
 
-Target options are `primary-monitor`, `monitor-index:N`, and `picker`. Scenario options are `encode`, `cancel`, and `encoder-failure`.
+Target options are `primary-monitor`, `monitor-index:N`, `picker-window`, `picker-monitor`, and the non-closeout `picker` fallback. The picker API does not expose the selected item type after selection, so `picker-window` and `picker-monitor` are operator declarations: the operator must choose the declared target kind. Scenario options are `encode`, `cancel`, `source-close`, and `encoder-failure`. For `source-close`, close the selected window before the configured timeout; a timeout produces a failing `source-not-closed` report and removes the partial MP4.
 
 Verify generated JSON reports before attaching them to the issue:
 
 ```powershell
 npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/1080p60-monitor-pass-01.json --scenario encode --min-source-width 1920 --min-source-height 1080
 npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/cancellation-cleanup-01.json --scenario cancel
+npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/source-close-cleanup-01.json --scenario source-close
 npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/encoder-failure-01.json --scenario encoder-failure
 ```
 
@@ -37,18 +39,21 @@ npm.cmd run native-capture:verify -- --manifest path/to/native-capture-evidence.
 
 ## Evidence Contract
 
-Each committed closeout must attach the generated JSON summaries for:
+Each closeout evidence set must include the generated JSON summaries for:
 
-- repeated 1080p60 monitor capture on the reference system;
-- repeated 1440p60 monitor capture on the reference system;
-- selected-window capture through the picker;
+- at least two 1080p60 monitor captures on the reference system;
+- at least two 1440p60 monitor captures on the reference system;
+- at least two selected-window captures through `picker-window`;
 - 4K60 capability report or explicit lower-rate fallback;
-- cancellation cleanup;
-- source-close behavior;
-- device-loss or encoder-failure behavior where the reference environment can reproduce it;
-- protected-content behavior.
+- at least two cancellation-cleanup runs;
+- at least two selected-window source-close runs;
+- at least two device-loss attempts with recovery or explicit fallback evidence;
+- one deliberate encoder-initialization failure report;
+- at least two protected-content attempts with explicit blocked or blank-source outcomes.
 
-The JSON report records the command, target label, source dimensions, dimensions requested from the encoder after even-dimension padding, requested frame rate and duration, submitted frame count, capture timestamp span, largest timestamp gap, duplicate or backwards timestamps, finalization time, output size, cancellation cleanup, startup failure message where applicable, and runtime environment probes. Environment probes include Windows version and memory, CPU, GPU/display driver and current display mode, audio devices, storage volumes, WebView2 runtime, and active power scheme. The verifier checks schema, redaction, required probes, scenario-specific state, the one-frame encoded-duration tolerance, and the five-second finalization threshold. Manifest verification additionally checks that manual-only evidence entries are explicitly completed with notes before issue closeout.
+The JSON report records the redacted command and artifact label, declared target kind, target label, source dimensions, dimensions requested from the encoder after even-dimension padding, requested frame rate and duration, submitted frame count, capture timestamp span, finalized MP4 duration from the Windows media property system, estimated dropped frames from timestamp gaps, largest timestamp gap, duplicate or backwards timestamps, finalization time, output size, cancellation cleanup, startup failure message where applicable, and runtime environment probes. Environment probes include Windows version and memory, CPU, GPU/display driver and current display mode, audio devices, storage volumes, WebView2 runtime, and active power scheme.
+
+The verifier checks schema, path redaction, required probes, scenario-specific state, the one-frame finalized output-duration tolerance, and the five-second finalization threshold. Manifest verification also requires every automated evidence role, repeated-run counts, at least 95% of the requested 30-second 60 FPS frame count for pass roles, two attempts each for device-loss and protected-content evidence, and completed manual rows with notes. A manual row cannot pass as `not-applicable`.
 
 ## Preliminary Architecture Finding
 
@@ -71,7 +76,7 @@ This isolated CLI harness has no shipped user-facing UI. Manual issue evidence s
 
 ## Security And Privacy Notes
 
-The harness uses desktop capture APIs only. It does not inject into game processes, read game memory, open network connections, or write project records. Audio is disabled in this issue's harness because WASAPI loopback and A/V synchronization are owned by the dependent audio spike. Cancellation and source-close paths remove partial MP4 output instead of leaving a referenced artifact.
+The harness uses desktop capture APIs only. It does not inject into game processes, read game memory, open network connections, or write project records. Audio is disabled in this issue's harness because WASAPI loopback and A/V synchronization are owned by the dependent audio spike. Cancellation and source-close paths ensure partial MP4 output is absent instead of leaving a referenced artifact. Report commands, output labels, and startup errors redact local paths before JSON is written.
 
 The harness output can contain sensitive screen contents and must stay local validation evidence unless the user intentionally shares it.
 

@@ -13,6 +13,21 @@ const REQUIRED_PROBES = new Set([
   "webview2-runtime",
   "power-scheme",
 ]);
+const REQUIRED_REPORT_ROLES = new Map([
+  ["monitor-1080p60", { scenario: "encode", minimumCount: 2 }],
+  ["monitor-1440p60", { scenario: "encode", minimumCount: 2 }],
+  ["selected-window", { scenario: "encode", minimumCount: 2 }],
+  ["cancellation", { scenario: "cancel", minimumCount: 2 }],
+  ["source-close", { scenario: "source-close", minimumCount: 2 }],
+  ["encoder-failure", { scenario: "encoder-failure", minimumCount: 1 }],
+]);
+const REQUIRED_MANUAL_EVIDENCE = new Map([
+  ["4k-capability-or-fallback", 1],
+  ["device-loss", 2],
+  ["protected-content", 2],
+  ["hud-exclusion-fallback", 1],
+  ["accessibility-contract", 1],
+]);
 const PATH_MARKERS = [
   /[A-Z]:\\\\Users\\\\/i,
   /OneDrive[\\\\/]/i,
@@ -95,11 +110,12 @@ function printHelp() {
 Usage:
   npm.cmd run native-capture:verify -- <report.json> --scenario encode --min-source-width 1920 --min-source-height 1080
   npm.cmd run native-capture:verify -- <report.json> --scenario cancel
+  npm.cmd run native-capture:verify -- <report.json> --scenario source-close
   npm.cmd run native-capture:verify -- <report.json> --scenario encoder-failure
   npm.cmd run native-capture:verify -- --manifest <evidence-set.json>
 
 Options:
-  --duration-tolerance-frames N   Encoded duration tolerance for encode reports. Default: 1
+  --duration-tolerance-frames N   Finalized output-duration tolerance. Default: 1 frame
   --max-finalization-ms N         Maximum finalization time for encode reports. Default: 5000
   --min-output-bytes N            Minimum MP4 byte count for encode reports. Default: 1
   --min-submitted-frames N        Minimum submitted frames for encode reports. Default: 1
@@ -113,6 +129,11 @@ function verifyReport(report, options, label = "report") {
   assert.ok(report.completedAt, `${label}: missing completedAt`);
   assert.ok(Array.isArray(report.command), `${label}: command must be an array`);
   assert.ok(report.command.length > 0, `${label}: command is empty`);
+  assert.ok(
+    ["monitor", "window", "unspecified"].includes(report.declaredTargetKind),
+    `${label}: invalid declaredTargetKind`,
+  );
+  assert.match(report.outputPath, /^artifact(?::[^\\/]+)?$/, `${label}: outputPath is not redacted`);
   assertNoPathMarkers(report, label);
 
   if (options.scenario) {
@@ -123,6 +144,10 @@ function verifyReport(report, options, label = "report") {
   assert.equal(report.requestedWidth % 2, 0, `${label}: requested width must be even`);
   assert.equal(report.requestedHeight % 2, 0, `${label}: requested height must be even`);
   assert.ok(report.estimatedFrameDurationMs > 0, `${label}: missing frame duration`);
+  assert.ok(
+    Number.isInteger(report.estimatedDroppedFrames) && report.estimatedDroppedFrames >= 0,
+    `${label}: invalid estimatedDroppedFrames`,
+  );
   verifyEnvironment(report, label);
 
   switch (report.scenario) {
@@ -131,6 +156,9 @@ function verifyReport(report, options, label = "report") {
       break;
     case "cancel":
       verifyCancelReport(report, label);
+      break;
+    case "source-close":
+      verifySourceCloseReport(report, label);
       break;
     case "encoder-failure":
       verifyEncoderFailureReport(report, label);
@@ -154,7 +182,11 @@ function verifyEncodeReport(report, options, label) {
     report.finalizationMs <= options.maxFinalizationMs,
     `${label}: finalization exceeded ${options.maxFinalizationMs}ms`,
   );
-  assert.ok(report.encodedDurationMs !== null, `${label}: missing encodedDurationMs`);
+  assert.ok(
+    report.captureTimestampSpanMs !== null,
+    `${label}: missing captureTimestampSpanMs`,
+  );
+  assert.ok(report.outputDurationMs !== null, `${label}: missing outputDurationMs`);
   assert.ok(report.durationErrorMs !== null, `${label}: missing durationErrorMs`);
 
   const toleranceMs = report.estimatedFrameDurationMs * options.durationToleranceFrames;
@@ -173,6 +205,7 @@ function verifyCancelReport(report, label) {
     `${label}: cancellation must clean partial output`,
   );
   assert.ok(!report.outputBytes || report.outputBytes === 0, `${label}: cancelled output remains`);
+  assert.equal(report.outputDurationMs, null, `${label}: cancelled output has a duration`);
 }
 
 function verifyEncoderFailureReport(report, label) {
@@ -180,6 +213,20 @@ function verifyEncoderFailureReport(report, label) {
   assert.equal(report.submittedFrames, 0, `${label}: startup failure submitted frames`);
   assert.ok(report.errorMessage, `${label}: missing startup failure message`);
   assert.ok(!report.outputBytes || report.outputBytes === 0, `${label}: failure output remains`);
+  assert.equal(report.outputDurationMs, null, `${label}: failed output has a duration`);
+}
+
+function verifySourceCloseReport(report, label) {
+  assert.equal(report.result, "source-closed", `${label}: source-close result must be source-closed`);
+  assert.equal(report.cancelled, false, `${label}: source close is not user cancellation`);
+  assert.equal(
+    report.cleanedPartialOutput,
+    true,
+    `${label}: source close must leave no partial output`,
+  );
+  assert.ok(report.submittedFrames > 0, `${label}: source closed before any frame was submitted`);
+  assert.ok(!report.outputBytes || report.outputBytes === 0, `${label}: source-close output remains`);
+  assert.equal(report.outputDurationMs, null, `${label}: source-close output has a duration`);
 }
 
 function verifyEnvironment(report, label) {
@@ -215,13 +262,29 @@ function verifyManifest(manifest, manifestPath) {
 
   const baseDir = dirname(resolve(manifestPath));
   const seenIds = new Set();
+  const seenReportPaths = new Set();
+  const seenRunFingerprints = new Set();
+  const roleCounts = new Map();
   for (const entry of manifest.reports) {
     assert.ok(entry.id, `${label}: report entry missing id`);
     assert.ok(!seenIds.has(entry.id), `${label}: duplicate report id ${entry.id}`);
     seenIds.add(entry.id);
+    assert.ok(entry.role, `${label}: report ${entry.id} missing role`);
+    assert.ok(
+      REQUIRED_REPORT_ROLES.has(entry.role),
+      `${label}: report ${entry.id} has unsupported role ${entry.role}`,
+    );
     assert.ok(entry.path, `${label}: report ${entry.id} missing path`);
     const reportPath = resolve(baseDir, entry.path);
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    registerUniqueReportEvidence(
+      entry,
+      reportPath,
+      report,
+      seenReportPaths,
+      seenRunFingerprints,
+      label,
+    );
     verifyReport(
       report,
       {
@@ -236,29 +299,117 @@ function verifyManifest(manifest, manifestPath) {
       },
       `${label}:${entry.id}`,
     );
+    verifyReportRole(entry, report, `${label}:${entry.id}`);
+    roleCounts.set(entry.role, (roleCounts.get(entry.role) ?? 0) + 1);
   }
 
+  assertRequiredReportRoles(roleCounts, label);
   assertRequiredManualEvidence(manifest.manualEvidence ?? [], label);
 }
 
-function assertRequiredManualEvidence(manualEvidence, label) {
-  const requiredIds = new Set([
-    "4k-capability-or-fallback",
-    "source-close",
-    "device-loss",
-    "protected-content",
-    "hud-exclusion-fallback",
-    "accessibility-contract",
-  ]);
-  assert.ok(Array.isArray(manualEvidence), `${label}: manualEvidence must be an array`);
-  const entries = new Map(manualEvidence.map((entry) => [entry.id, entry]));
+function registerUniqueReportEvidence(
+  entry,
+  reportPath,
+  report,
+  seenReportPaths,
+  seenRunFingerprints,
+  label,
+) {
+  const normalizedPath = reportPath.toLowerCase();
+  assert.ok(!seenReportPaths.has(normalizedPath), `${label}: report path reused by ${entry.id}`);
+  seenReportPaths.add(normalizedPath);
 
-  for (const id of requiredIds) {
+  const runFingerprint = JSON.stringify([report.startedAt, report.completedAt, report.command]);
+  assert.ok(
+    !seenRunFingerprints.has(runFingerprint),
+    `${label}: duplicate run evidence ${entry.id}`,
+  );
+  seenRunFingerprints.add(runFingerprint);
+}
+
+function verifyReportRole(entry, report, label) {
+  const requirement = REQUIRED_REPORT_ROLES.get(entry.role);
+  assert.equal(entry.scenario, requirement.scenario, `${label}: role scenario mismatch`);
+
+  switch (entry.role) {
+    case "monitor-1080p60":
+      verifyTimed60FpsCapture(report, label);
+      verifyMonitorTarget(report, label);
+      assert.ok(report.sourceWidth >= 1920, `${label}: 1080p source width below 1920`);
+      assert.equal(report.sourceHeight, 1080, `${label}: 1080p source height mismatch`);
+      break;
+    case "monitor-1440p60":
+      verifyTimed60FpsCapture(report, label);
+      verifyMonitorTarget(report, label);
+      assert.ok(report.sourceWidth >= 2560, `${label}: 1440p source width below 2560`);
+      assert.equal(report.sourceHeight, 1440, `${label}: 1440p source height mismatch`);
+      break;
+    case "selected-window":
+      verifyTimed60FpsCapture(report, label);
+      verifyDeclaredWindowTarget(report, label);
+      break;
+    case "source-close":
+      verifyDeclaredWindowTarget(report, label);
+      break;
+    case "cancellation":
+    case "encoder-failure":
+      break;
+    default:
+      throw new Error(`${label}: unsupported report role ${entry.role}`);
+  }
+}
+
+function verifyTimed60FpsCapture(report, label) {
+  assert.equal(report.requestedFrameRate, 60, `${label}: capture must request 60 FPS`);
+  assert.equal(report.requestedDurationMs, 30000, `${label}: capture must request 30 seconds`);
+  const expectedFrames = report.requestedDurationMs / report.estimatedFrameDurationMs;
+  const minimumFrames = Math.floor(expectedFrames * 0.95);
+  assert.ok(
+    report.submittedFrames >= minimumFrames,
+    `${label}: submitted ${report.submittedFrames} frames; at least ${minimumFrames} required`,
+  );
+}
+
+function verifyMonitorTarget(report, label) {
+  assert.equal(report.declaredTargetKind, "monitor", `${label}: target must be a monitor`);
+  assert.match(
+    report.targetLabel,
+    /^(primary-monitor:|monitor-index-\d+:)/,
+    `${label}: target label is not a direct monitor target`,
+  );
+}
+
+function verifyDeclaredWindowTarget(report, label) {
+  assert.equal(report.declaredTargetKind, "window", `${label}: target must be declared as a window`);
+  assert.equal(report.targetLabel, "picker-selected-window", `${label}: target must use picker-window`);
+}
+
+function assertRequiredReportRoles(roleCounts, label) {
+  for (const [role, requirement] of REQUIRED_REPORT_ROLES) {
+    const actual = roleCounts.get(role) ?? 0;
+    assert.ok(
+      actual >= requirement.minimumCount,
+      `${label}: report role ${role} requires ${requirement.minimumCount} run(s); found ${actual}`,
+    );
+  }
+}
+
+function assertRequiredManualEvidence(manualEvidence, label) {
+  assert.ok(Array.isArray(manualEvidence), `${label}: manualEvidence must be an array`);
+  const entries = new Map();
+  for (const entry of manualEvidence) {
+    assert.ok(entry.id, `${label}: manual evidence entry missing id`);
+    assert.ok(!entries.has(entry.id), `${label}: duplicate manual evidence ${entry.id}`);
+    entries.set(entry.id, entry);
+  }
+
+  for (const [id, minimumAttempts] of REQUIRED_MANUAL_EVIDENCE) {
     assert.ok(entries.has(id), `${label}: missing manual evidence ${id}`);
     const entry = entries.get(id);
+    assert.equal(entry.status, "passed", `${label}: manual evidence ${id} is not complete`);
     assert.ok(
-      entry.status === "passed" || entry.status === "not-applicable",
-      `${label}: manual evidence ${id} is not complete`,
+      Number.isInteger(entry.attempts) && entry.attempts >= minimumAttempts,
+      `${label}: manual evidence ${id} requires at least ${minimumAttempts} attempt(s)`,
     );
     assert.ok(entry.notes && entry.notes.trim(), `${label}: manual evidence ${id} missing notes`);
   }
@@ -271,6 +422,7 @@ function syntheticBase(overrides = {}) {
     completedAt: "unix-ms-2",
     command: ["native_capture_spike.exe", "--scenario", "encode"],
     scenario: "encode",
+    declaredTargetKind: "monitor",
     targetLabel: "synthetic",
     sourceWidth: 1920,
     sourceHeight: 1080,
@@ -278,15 +430,17 @@ function syntheticBase(overrides = {}) {
     requestedHeight: 1080,
     requestedFrameRate: 60,
     requestedDurationMs: 30000,
-    outputPath: "src-tauri/target/native-capture-spike/synthetic.mp4",
+    outputPath: "artifact:synthetic.mp4",
     outputBytes: 1024,
     submittedFrames: 1800,
     estimatedFrameDurationMs: 1000 / 60,
     firstTimestampTicks: 0,
     lastTimestampTicks: 300000000,
-    encodedDurationMs: 30000,
+    captureTimestampSpanMs: 29983.333,
+    outputDurationMs: 30000,
     durationErrorMs: 0,
     largestFrameGapMs: 16.7,
+    estimatedDroppedFrames: 0,
     duplicateTimestamps: 0,
     backwardsTimestamps: 0,
     finalizationMs: 1200,
@@ -331,6 +485,8 @@ function runSelfTest() {
       cancelled: true,
       cleanedPartialOutput: true,
       finalizationMs: null,
+      outputDurationMs: null,
+      durationErrorMs: null,
     }),
     { ...defaultOptions(), scenario: "cancel" },
     "cancel",
@@ -339,15 +495,36 @@ function runSelfTest() {
     syntheticBase({
       command: ["native_capture_spike.exe", "--scenario", "encoder-failure"],
       scenario: "encoder-failure",
-      outputPath: "src-tauri/target/native-capture-spike",
+      outputPath: "artifact:native-capture-spike",
       outputBytes: 0,
       submittedFrames: 0,
       result: "startup-failed",
       errorMessage: "New handler error",
       finalizationMs: null,
+      captureTimestampSpanMs: null,
+      outputDurationMs: null,
+      durationErrorMs: null,
     }),
     { ...defaultOptions(), scenario: "encoder-failure" },
     "encoder-failure",
+  );
+  verifyReport(
+    syntheticBase({
+      command: ["native_capture_spike.exe", "--target", "picker-window", "--scenario", "source-close"],
+      scenario: "source-close",
+      declaredTargetKind: "window",
+      targetLabel: "picker-selected-window",
+      outputBytes: 0,
+      submittedFrames: 120,
+      result: "source-closed",
+      cancelled: false,
+      cleanedPartialOutput: true,
+      finalizationMs: null,
+      outputDurationMs: null,
+      durationErrorMs: null,
+    }),
+    { ...defaultOptions(), scenario: "source-close" },
+    "source-close",
   );
   assert.throws(() =>
     verifyReport(
@@ -377,6 +554,69 @@ function runSelfTest() {
         },
       ],
       "pending-manual",
+    ),
+  );
+
+  verifyReportRole(
+    { role: "monitor-1080p60", scenario: "encode" },
+    syntheticBase({ targetLabel: "primary-monitor:synthetic" }),
+    "1080p-role",
+  );
+  assert.throws(() =>
+    verifyReportRole(
+      { role: "monitor-1440p60", scenario: "encode" },
+      syntheticBase({ targetLabel: "primary-monitor:synthetic" }),
+      "wrong-1440p-role",
+    ),
+  );
+
+  const completeRoleCounts = new Map(
+    [...REQUIRED_REPORT_ROLES].map(([role, requirement]) => [role, requirement.minimumCount]),
+  );
+  assertRequiredReportRoles(completeRoleCounts, "complete-roles");
+  completeRoleCounts.set("selected-window", 1);
+  assert.throws(() => assertRequiredReportRoles(completeRoleCounts, "sparse-roles"));
+
+  const seenReportPaths = new Set();
+  const seenRunFingerprints = new Set();
+  registerUniqueReportEvidence(
+    { id: "run-01" },
+    "C:\\reports\\run-01.json",
+    syntheticBase(),
+    seenReportPaths,
+    seenRunFingerprints,
+    "unique-runs",
+  );
+  assert.throws(() =>
+    registerUniqueReportEvidence(
+      { id: "reused-path" },
+      "C:\\reports\\run-01.json",
+      syntheticBase({ startedAt: "unix-ms-3" }),
+      seenReportPaths,
+      seenRunFingerprints,
+      "unique-runs",
+    ),
+  );
+  assert.throws(() =>
+    registerUniqueReportEvidence(
+      { id: "copied-run" },
+      "C:\\reports\\run-copy.json",
+      syntheticBase(),
+      seenReportPaths,
+      seenRunFingerprints,
+      "unique-runs",
+    ),
+  );
+
+  assert.throws(() =>
+    assertRequiredManualEvidence(
+      [...REQUIRED_MANUAL_EVIDENCE].map(([id, minimumAttempts]) => ({
+        id,
+        status: "not-applicable",
+        attempts: minimumAttempts,
+        notes: "Synthetic rationale.",
+      })),
+      "not-applicable-manual",
     ),
   );
 }
