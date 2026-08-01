@@ -101,4 +101,13 @@ The harness output can contain sensitive screen contents and must stay local val
 
 ## Current Validation
 
-Measured 1080p60, 1440p60, 4K60, source-close, device-loss, protected-content, and manual accessibility evidence are pending reference-system runs.
+A preliminary no-pixel capability run from commit `4fd85d1` completed on the reference system with `captureStarted: false`, two synthetic frames per profile, successful cleanup, and all seven environment probes returning exit code 0.
+
+| H.264 profile | Initialization | Finalization | MP4 bytes before cleanup | Result |
+| --- | ---: | ---: | ---: | --- |
+| 3840x2160 at 60 FPS | 621 ms | 54 ms | 3,001 | Supported |
+| 3840x2160 at 30 FPS | 458 ms | 53 ms | 3,005 | Supported |
+| 2560x1440 at 60 FPS | 462 ms | 36 ms | 2,041 | Supported |
+| 1920x1080 at 60 FPS | 434 ms | 27 ms | 1,704 | Supported |
+
+The capability result must be rerun from the final shared closeout build so its build identity matches every capture report in the evidence manifest. Measured 1080p60, 1440p60, selected-window, cancellation, source-close, device-loss, protected-content, HUD fallback, and manual accessibility evidence remain pending reference-system runs.
