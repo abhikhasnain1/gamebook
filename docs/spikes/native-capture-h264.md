@@ -21,6 +21,14 @@ cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike --
 
 Target options are `primary-monitor`, `monitor-index:N`, and `picker`. Scenario options are `encode`, `cancel`, and `encoder-failure`.
 
+Verify generated JSON reports before attaching them to the issue:
+
+```powershell
+npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/1080p60-monitor-pass-01.json --scenario encode --min-source-width 1920 --min-source-height 1080
+npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/cancellation-cleanup-01.json --scenario cancel
+npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/encoder-failure-01.json --scenario encoder-failure
+```
+
 ## Evidence Contract
 
 Each committed closeout must attach the generated JSON summaries for:
@@ -34,7 +42,7 @@ Each committed closeout must attach the generated JSON summaries for:
 - device-loss or encoder-failure behavior where the reference environment can reproduce it;
 - protected-content behavior.
 
-The JSON report records the command, target label, source dimensions, dimensions requested from the encoder after even-dimension padding, requested frame rate and duration, submitted frame count, capture timestamp span, largest timestamp gap, duplicate or backwards timestamps, finalization time, output size, cancellation cleanup, startup failure message where applicable, and runtime environment probes. Environment probes include Windows version and memory, CPU, GPU/display driver and current display mode, audio devices, storage volumes, WebView2 runtime, and active power scheme.
+The JSON report records the command, target label, source dimensions, dimensions requested from the encoder after even-dimension padding, requested frame rate and duration, submitted frame count, capture timestamp span, largest timestamp gap, duplicate or backwards timestamps, finalization time, output size, cancellation cleanup, startup failure message where applicable, and runtime environment probes. Environment probes include Windows version and memory, CPU, GPU/display driver and current display mode, audio devices, storage volumes, WebView2 runtime, and active power scheme. The verifier checks schema, redaction, required probes, scenario-specific state, the one-frame encoded-duration tolerance, and the five-second finalization threshold.
 
 ## Preliminary Architecture Finding
 
