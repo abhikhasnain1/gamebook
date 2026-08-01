@@ -1,0 +1,53 @@
+name: Architecture decision
+description: Evaluate and record a durable technical decision.
+title: "[Architecture]: "
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Decision question
+      description: State one durable decision and why it is required now.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Governing documents, evidence, and milestone
+      description: Link specifications, spike reports, issues, prior decisions, and the roadmap gate.
+    validations:
+      required: true
+  - type: textarea
+    id: drivers
+    attributes:
+      label: Decision drivers and constraints
+      description: Include user outcomes, platform limits, performance, recovery, compatibility, and maintenance constraints.
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options and tradeoffs
+      description: Compare viable approaches, evidence, failure modes, reversibility, and rejected assumptions.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance and validation
+      description: List evidence needed to accept the decision and conditions that would cause it to be revisited.
+    validations:
+      required: true
+  - type: textarea
+    id: impacts
+    attributes:
+      label: Accessibility, security, privacy, and compatibility
+      description: Describe consequences for each area and required mitigations.
+    validations:
+      required: true
+  - type: textarea
+    id: updates
+    attributes:
+      label: Required updates
+      description: List the decision record, specifications, tests, QA, issues, migrations, and implementation work affected.
+    validations:
+      required: true

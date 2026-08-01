@@ -1,0 +1,49 @@
+name: Security or privacy work
+description: Plan non-sensitive security, privacy, recovery, or hardening work.
+title: "[Security review]: "
+body:
+  - type: markdown
+    attributes:
+      value: Do not report vulnerabilities or include sensitive details here. Use the private vulnerability-reporting link on the issue chooser.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Goal and affected boundary
+      description: Describe the trust boundary, data flow, privacy control, recovery path, or validation outcome.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Governing documents and milestone
+      description: Link the security and privacy specification, product or format requirements, decisions, and roadmap milestone.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope, threats, dependencies, and non-goals
+      description: Identify assets, actors, entry points, failure modes, related issues, and behavior outside this work.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Define fail-closed behavior, permissions, redaction, recovery, rollback, compatibility, and observable user controls.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: List automated abuse cases, malformed fixtures, manual review, logging checks, and environments.
+    validations:
+      required: true
+  - type: textarea
+    id: related
+    attributes:
+      label: Accessibility and documentation
+      description: Cover accessible warnings and recovery, then list required specification, QA, guide, issue, and decision updates.
+    validations:
+      required: true

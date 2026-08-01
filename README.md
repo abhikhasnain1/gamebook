@@ -51,6 +51,7 @@ Windows installers are written below `src-tauri/target/release/bundle/`.
 
 ## Documentation
 
+- [Documentation index](docs/INDEX.md)
 - [User guide](docs/USER-GUIDE.md)
 - [Architecture and data model](docs/ARCHITECTURE.md)
 - [Release QA checklist](docs/QA.md)

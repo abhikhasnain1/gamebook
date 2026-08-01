@@ -1,0 +1,60 @@
+name: Feasibility spike
+description: Measure a roadmap gate before adopting a production architecture.
+title: "[Spike]: "
+body:
+  - type: textarea
+    id: decision
+    attributes:
+      label: Decision this spike unlocks
+      description: State the exact architecture or dependency question that cannot be answered without measured evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Governing documents and milestone
+      description: Link the relevant roadmap gate, proposed contracts, acceptance thresholds, and related issues.
+    validations:
+      required: true
+  - type: textarea
+    id: harness
+    attributes:
+      label: Isolated harness and fixtures
+      description: Define the disposable harness, inputs, fixtures, and boundary from production code.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Reference environments
+      description: List operating system, hardware, drivers, display, audio, storage, power, and application runtime details to record.
+    validations:
+      required: true
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Metrics and thresholds
+      description: List measurements, acceptance thresholds, repetitions, and comparison methods.
+    validations:
+      required: true
+  - type: textarea
+    id: failures
+    attributes:
+      label: Failure and recovery scenarios
+      description: Define cancellation, interruption, resource loss, malformed input, cleanup, and rollback tests.
+    validations:
+      required: true
+  - type: textarea
+    id: crosscutting
+    attributes:
+      label: Accessibility, security, privacy, and compatibility
+      description: State the requirements the harness must exercise or the production decision must preserve.
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Deliverables
+      description: Define the report, raw measurements, reproducible steps, recommendation, fallback, issue updates, and proposed decision record.
+    validations:
+      required: true

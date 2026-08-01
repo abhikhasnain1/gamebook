@@ -1,0 +1,39 @@
+name: Documentation
+description: Correct or improve durable project documentation.
+title: "[Documentation]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Documentation problem
+      description: Identify the missing, stale, conflicting, or unclear information and its consequence.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Affected sources and authority
+      description: Link every conflicting or dependent document, issue, decision record, test, and implementation source.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and non-goals
+      description: State the durable knowledge being changed and what behavior is not changing.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Define how reviewers will verify accuracy, links, terminology, status, and absence of contradictions.
+    validations:
+      required: true
+  - type: textarea
+    id: crosscutting
+    attributes:
+      label: Accessibility, security, privacy, and compatibility
+      description: State whether the correction changes requirements in these areas and how related sources will remain aligned.
+    validations:
+      required: true

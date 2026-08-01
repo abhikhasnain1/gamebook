@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a reproducible defect in current behavior.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: Do not include sensitive projects, gameplay media, credentials, personal data, or private vulnerability details.
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Impact
+      description: Describe who is affected and what workflow is blocked or degraded.
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior
+      description: Include reproducible steps, expected behavior, observed behavior, and frequency.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Gamebook version, Windows version, display scaling, hardware, and relevant project characteristics.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Governing documents and milestone
+      description: Link the relevant specifications, current-state documentation, decision records, and roadmap milestone.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Scope, dependencies, and non-goals
+      description: Identify affected interfaces, blockers, related issues, and behavior that must remain unchanged.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable conditions that prove the defect is resolved, including failure and recovery behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Test requirements
+      description: List automated coverage, regression fixtures, manual QA, and affected environments.
+    validations:
+      required: true
+  - type: textarea
+    id: crosscutting
+    attributes:
+      label: Accessibility, security, and compatibility
+      description: State applicable requirements or justify why each area is not affected.
+    validations:
+      required: true
+  - type: textarea
+    id: docs
+    attributes:
+      label: Documentation and decision records
+      description: List required updates or explain why none are needed.
+    validations:
+      required: true

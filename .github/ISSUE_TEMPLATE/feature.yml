@@ -1,0 +1,74 @@
+name: Feature
+description: Define a user-facing capability from the approved product direction.
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Goal and user outcome
+      description: Describe the researcher, workflow, problem, and measurable outcome.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Governing documents and milestone
+      description: Link the product, architecture, format, accessibility, security, roadmap, and decision sources that apply.
+    validations:
+      required: true
+  - type: textarea
+    id: baseline
+    attributes:
+      label: Current behavior
+      description: Describe the verified baseline and compatibility that must be preserved.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and non-goals
+      description: Define the smallest independently testable outcome and what remains outside this issue.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and interfaces
+      description: List blocking issues, roadmap gates, owned modules, data contracts, and downstream work.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable success, failure, cancellation, recovery, persistence, and export behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Test requirements
+      description: List automated tests, fixtures, performance checks, manual QA, and reference environments.
+    validations:
+      required: true
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Accessibility requirements
+      description: Cover keyboard, focus, semantics, announcements, visual presentation, reduced motion, scale, and assistive technology.
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security, privacy, and compatibility
+      description: Cover data handling, permissions, diagnostics, exports, recovery, migration, and version 1 behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: docs
+    attributes:
+      label: Documentation and decision records
+      description: List every guide, specification, QA section, and decision record that must change.
+    validations:
+      required: true
