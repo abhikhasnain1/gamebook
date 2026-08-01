@@ -1,0 +1,26 @@
+{
+  "fixture": "numbered-frames-60fps",
+  "generatedAt": "2026-08-01T00:00:00.000Z",
+  "description": "60 FPS numbered frames with machine-verifiable sample indices and presentation timestamps.",
+  "frameDurationUs": 16666.666666666668,
+  "frames": [
+    {
+      "sampleIndex": 0,
+      "timestampUs": 0,
+      "path": "media/numbered-frames-60fps/frame-0000.png",
+      "sha256": "8f15d4818f0f3680349b75098b6e0a0a0551a60883e9bcf15743cb90521cf537"
+    },
+    {
+      "sampleIndex": 30,
+      "timestampUs": 500000,
+      "path": "media/numbered-frames-60fps/frame-0030.png",
+      "sha256": "e44a4784c49913bd73c39af7ccbb3ecb73cade6c2ab95927cffd438e4ec87aab"
+    },
+    {
+      "sampleIndex": 59,
+      "timestampUs": 983333,
+      "path": "media/numbered-frames-60fps/frame-0059.png",
+      "sha256": "1063218aef8ace66739f1699da1841ae10f1c06a01a001df68d304023d757f47"
+    }
+  ]
+}

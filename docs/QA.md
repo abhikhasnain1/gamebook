@@ -4,6 +4,7 @@
 
 - `npm.cmd run check`
 - `npm.cmd run frontend:test`
+- `npm.cmd run fixtures:verify`
 - `npm.cmd run frontend:build`
 - `cargo check --manifest-path src-tauri/Cargo.toml`
 - `npm.cmd run build`
@@ -14,6 +15,14 @@
 - Component tests must render through deterministic browser and native-command boundaries; mock native commands rather than invoking Tauri.
 - Serious and critical axe-core accessibility violations fail the test run.
 - Baseline component coverage must include accessible names, roles, state, focus, and keyboard operation where applicable.
+
+## Deterministic fixtures
+
+- `npm.cmd run fixtures:verify` checks every generated fixture against the committed manifest.
+- `npm.cmd run fixtures:generate` regenerates numbered-frame, SDR/HDR, malformed import/archive, and version 1 project fixtures.
+- Fixture files live under `src/test/fixtures/` and must contain generated synthetic content only.
+- `src/test/fixtures/manifest.json` records hashes, byte counts, textual descriptions, expected failures, and accessibility descriptions.
+- Fixture updates must keep regeneration instructions and validation evidence with the fixture change.
 
 ## Capture and lifecycle
 

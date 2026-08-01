@@ -40,6 +40,7 @@ Run the checks that apply to the change. The current baseline commands are:
 ```powershell
 npm.cmd run check
 npm.cmd run frontend:test
+npm.cmd run fixtures:verify
 npm.cmd run frontend:build
 cargo check --manifest-path src-tauri/Cargo.toml
 ```

@@ -1,0 +1,20 @@
+{
+  "fixture": "hdr-blocking-samples",
+  "generatedAt": "2026-08-01T00:00:00.000Z",
+  "description": "Synthetic HDR metadata samples used to test explicit blocking or validated tone mapping decisions.",
+  "samples": [
+    {
+      "name": "pq-1000-nit-white",
+      "transfer": "PQ",
+      "primaries": "bt2020",
+      "maxCLL": 1000
+    },
+    {
+      "name": "hlg-wide-color",
+      "transfer": "HLG",
+      "primaries": "bt2020",
+      "maxCLL": null
+    }
+  ],
+  "expectedVersion1Behavior": "reject-or-explicitly-tone-map-before-record-creation"
+}
