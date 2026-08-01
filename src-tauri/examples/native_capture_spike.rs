@@ -6,6 +6,7 @@ use std::{
     fs,
     io::Write,
     path::PathBuf,
+    process::Command,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -32,6 +33,8 @@ type SpikeError = Box<dyn Error + Send + Sync>;
 struct RunConfig {
     scenario: Scenario,
     target_label: String,
+    source_width: u32,
+    source_height: u32,
     width: u32,
     height: u32,
     frame_rate: u32,
@@ -47,6 +50,7 @@ struct RunConfig {
 enum Scenario {
     Encode,
     Cancel,
+    EncoderFailure,
 }
 
 struct CaptureRun {
@@ -72,6 +76,8 @@ struct SpikeReport {
     command: Vec<String>,
     scenario: Scenario,
     target_label: String,
+    source_width: u32,
+    source_height: u32,
     requested_width: u32,
     requested_height: u32,
     requested_frame_rate: u32,
@@ -91,6 +97,7 @@ struct SpikeReport {
     cancelled: bool,
     cleaned_partial_output: bool,
     result: &'static str,
+    error_message: Option<String>,
     environment: EnvironmentReport,
     notes: Vec<String>,
 }
@@ -104,6 +111,17 @@ struct EnvironmentReport {
     arch: &'static str,
     family: &'static str,
     windows_capture_version: &'static str,
+    probes: Vec<EnvironmentProbe>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EnvironmentProbe {
+    name: &'static str,
+    command: String,
+    exit_code: Option<i32>,
+    stdout: String,
+    stderr: String,
 }
 
 impl GraphicsCaptureApiHandler for CaptureRun {
@@ -238,9 +256,11 @@ impl CaptureRun {
             schema: "gamebook.native-capture-spike.v1",
             started_at: self.config.started_at.clone(),
             completed_at: unix_time_label(),
-            command: self.config.args.clone(),
+            command: sanitize_command(&self.config.args),
             scenario: self.config.scenario,
             target_label: self.config.target_label.clone(),
+            source_width: self.config.source_width,
+            source_height: self.config.source_height,
             requested_width: self.config.width,
             requested_height: self.config.height,
             requested_frame_rate: self.config.frame_rate,
@@ -260,6 +280,7 @@ impl CaptureRun {
             cancelled,
             cleaned_partial_output,
             result,
+            error_message: None,
             environment: EnvironmentReport::current()?,
             notes: vec![
                 "Audio is disabled in this harness; WASAPI loopback is covered by the dependent audio synchronization spike.".to_string(),
@@ -284,12 +305,43 @@ impl CaptureRun {
 impl EnvironmentReport {
     fn current() -> Result<Self, SpikeError> {
         Ok(Self {
-            exe: env::current_exe()?.display().to_string(),
-            current_dir: env::current_dir()?.display().to_string(),
+            exe: env::current_exe()?
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("native_capture_spike.exe")
+                .to_string(),
+            current_dir: ".".to_string(),
             os: env::consts::OS,
             arch: env::consts::ARCH,
             family: env::consts::FAMILY,
             windows_capture_version: "2.0.0",
+            probes: vec![
+                powershell_probe(
+                    "windows-os-memory",
+                    "Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,BuildNumber,OSArchitecture,TotalVisibleMemorySize,FreePhysicalMemory | ConvertTo-Json -Compress",
+                ),
+                powershell_probe(
+                    "cpu",
+                    "Get-CimInstance Win32_Processor | Select-Object Name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed | ConvertTo-Json -Compress",
+                ),
+                powershell_probe(
+                    "gpu-display-driver",
+                    "Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM,DriverVersion,CurrentHorizontalResolution,CurrentVerticalResolution,CurrentRefreshRate | ConvertTo-Json -Compress",
+                ),
+                powershell_probe(
+                    "audio-devices",
+                    "Get-CimInstance Win32_SoundDevice | Select-Object Name,Status,Manufacturer | ConvertTo-Json -Compress",
+                ),
+                powershell_probe(
+                    "storage-volumes",
+                    "Get-Volume | Select-Object DriveLetter,FileSystemType,Size,SizeRemaining,HealthStatus | ConvertTo-Json -Compress",
+                ),
+                powershell_probe(
+                    "webview2-runtime",
+                    "$paths = 'HKCU:\\Software\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}','HKLM:\\Software\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}','HKLM:\\Software\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'; $paths | ForEach-Object { Get-ItemProperty -Path $_ -ErrorAction SilentlyContinue | Select-Object name,pv } | ConvertTo-Json -Compress",
+                ),
+                command_probe("power-scheme", "powercfg.exe", &["/GETACTIVESCHEME"]),
+            ],
         })
     }
 }
@@ -343,7 +395,11 @@ where
 {
     let width = even_dimension(source_width);
     let height = even_dimension(source_height);
-    let output_path = options.output_dir.join(format!("{}.mp4", options.run_id));
+    let output_path = if matches!(options.scenario, Scenario::EncoderFailure) {
+        options.output_dir.clone()
+    } else {
+        options.output_dir.join(format!("{}.mp4", options.run_id))
+    };
     let report_path = options.output_dir.join(format!("{}.json", options.run_id));
 
     if width != source_width || height != source_height {
@@ -356,6 +412,8 @@ where
     let config = RunConfig {
         scenario: options.scenario,
         target_label,
+        source_width,
+        source_height,
         width,
         height,
         frame_rate: options.frame_rate,
@@ -374,11 +432,20 @@ where
         MinimumUpdateIntervalSettings::Custom(frame_interval(options.frame_rate)),
         DirtyRegionSettings::Default,
         ColorFormat::Bgra8,
-        config,
+        config.clone(),
     );
 
-    CaptureRun::start(settings)?;
-    Ok(())
+    match CaptureRun::start(settings) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            write_startup_failure_report(&config, &error.to_string())?;
+            if matches!(config.scenario, Scenario::EncoderFailure) {
+                Ok(())
+            } else {
+                Err(format!("Capture failed before a completion report: {error}").into())
+            }
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -422,7 +489,10 @@ impl Options {
                     scenario = match value.as_str() {
                         "encode" => Scenario::Encode,
                         "cancel" => Scenario::Cancel,
-                        _ => return Err("scenario must be encode or cancel".into()),
+                        "encoder-failure" => Scenario::EncoderFailure,
+                        _ => {
+                            return Err("scenario must be encode, cancel, or encoder-failure".into())
+                        }
                     };
                 }
                 "--duration" => {
@@ -491,9 +561,104 @@ fn print_help() {
          cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- \\\n\
            --target primary-monitor --scenario encode --duration 30 --frame-rate 60\n\n\
          Targets: primary-monitor, monitor-index:N, picker\n\
-         Scenarios: encode, cancel\n\
-         Outputs: MP4 and JSON report under target/native-capture-spike by default"
+         Scenarios: encode, cancel, encoder-failure\n\
+         Outputs: MP4 and JSON report under src-tauri/target/native-capture-spike by default"
     );
+}
+
+fn write_startup_failure_report(config: &RunConfig, error_message: &str) -> Result<(), SpikeError> {
+    let report = SpikeReport {
+        schema: "gamebook.native-capture-spike.v1",
+        started_at: config.started_at.clone(),
+        completed_at: unix_time_label(),
+        command: sanitize_command(&config.args),
+        scenario: config.scenario,
+        target_label: config.target_label.clone(),
+        source_width: config.source_width,
+        source_height: config.source_height,
+        requested_width: config.width,
+        requested_height: config.height,
+        requested_frame_rate: config.frame_rate,
+        requested_duration_ms: config.duration.as_millis(),
+        output_path: config.output_path.display().to_string(),
+        output_bytes: fs::metadata(&config.output_path).ok().map(|value| value.len()),
+        submitted_frames: 0,
+        estimated_frame_duration_ms: 1000.0 / config.frame_rate as f64,
+        first_timestamp_ticks: None,
+        last_timestamp_ticks: None,
+        encoded_duration_ms: None,
+        duration_error_ms: None,
+        largest_frame_gap_ms: 0.0,
+        duplicate_timestamps: 0,
+        backwards_timestamps: 0,
+        finalization_ms: None,
+        cancelled: false,
+        cleaned_partial_output: false,
+        result: "startup-failed",
+        error_message: Some(error_message.to_string()),
+        environment: EnvironmentReport::current()?,
+        notes: vec![
+            "Startup failure reports exercise capture or encoder initialization failure before a project can reference media.".to_string(),
+            "The encoder-failure scenario deliberately points the encoder at the output directory path to force initialization failure.".to_string(),
+        ],
+    };
+
+    if let Some(parent) = config.report_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(&config.report_path, serde_json::to_string_pretty(&report)?)?;
+    println!("Report: {}", config.report_path.display());
+    Ok(())
+}
+
+fn powershell_probe(name: &'static str, script: &str) -> EnvironmentProbe {
+    command_probe(name, "powershell.exe", &["-NoProfile", "-Command", script])
+}
+
+fn command_probe(name: &'static str, program: &str, args: &[&str]) -> EnvironmentProbe {
+    let command = if args.is_empty() {
+        program.to_string()
+    } else {
+        format!("{program} {}", args.join(" "))
+    };
+
+    match Command::new(program).args(args).output() {
+        Ok(output) => EnvironmentProbe {
+            name,
+            command,
+            exit_code: output.status.code(),
+            stdout: bounded_text(&String::from_utf8_lossy(&output.stdout)),
+            stderr: bounded_text(&String::from_utf8_lossy(&output.stderr)),
+        },
+        Err(error) => EnvironmentProbe {
+            name,
+            command,
+            exit_code: None,
+            stdout: String::new(),
+            stderr: error.to_string(),
+        },
+    }
+}
+
+fn bounded_text(value: &str) -> String {
+    const LIMIT: usize = 12_000;
+    if value.len() <= LIMIT {
+        return value.trim().to_string();
+    }
+    format!("{}...<truncated>", &value[..LIMIT])
+}
+
+fn sanitize_command(args: &[String]) -> Vec<String> {
+    let mut sanitized = args.to_vec();
+    if let Some(program) = sanitized.first_mut() {
+        if let Some(file_name) = PathBuf::from(&program)
+            .file_name()
+            .and_then(|value| value.to_str())
+        {
+            *program = file_name.to_string();
+        }
+    }
+    sanitized
 }
 
 fn frame_interval(frame_rate: u32) -> Duration {
@@ -537,7 +702,10 @@ fn unix_millis() -> u128 {
 
 #[cfg(test)]
 mod tests {
-    use super::{even_dimension, frame_interval, parse_target, TargetOption};
+    use super::{
+        even_dimension, frame_interval, parse_target, sanitize_command, Options, Scenario,
+        TargetOption,
+    };
 
     #[test]
     fn pads_only_odd_encoder_dimensions() {
@@ -566,5 +734,31 @@ mod tests {
             TargetOption::MonitorIndex(2)
         ));
         assert!(parse_target("window").is_err());
+    }
+
+    #[test]
+    fn parses_encoder_failure_scenario() {
+        let options = Options::parse(vec![
+            "native_capture_spike".to_string(),
+            "--scenario".to_string(),
+            "encoder-failure".to_string(),
+            "--run-id".to_string(),
+            "encoder-failure-test".to_string(),
+        ])
+        .unwrap();
+
+        assert!(matches!(options.scenario, Scenario::EncoderFailure));
+    }
+
+    #[test]
+    fn redacts_executable_path_from_report_command() {
+        let command = sanitize_command(&[
+            "C:\\Users\\name\\project\\native_capture_spike.exe".to_string(),
+            "--scenario".to_string(),
+            "encoder-failure".to_string(),
+        ]);
+
+        assert_eq!(command[0], "native_capture_spike.exe");
+        assert_eq!(command[1], "--scenario");
     }
 }

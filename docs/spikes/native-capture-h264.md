@@ -16,9 +16,10 @@ Run from the repository root:
 cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --run-id 1080p60-monitor-pass-01
 cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target picker --scenario encode --duration 30 --frame-rate 60 --run-id selected-window-pass-01
 cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario cancel --duration 5 --frame-rate 60 --run-id cancellation-cleanup-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario encoder-failure --duration 1 --frame-rate 60 --run-id encoder-failure-01
 ```
 
-Target options are `primary-monitor`, `monitor-index:N`, and `picker`. Scenario options are `encode` and `cancel`.
+Target options are `primary-monitor`, `monitor-index:N`, and `picker`. Scenario options are `encode`, `cancel`, and `encoder-failure`.
 
 ## Evidence Contract
 
@@ -33,7 +34,7 @@ Each committed closeout must attach the generated JSON summaries for:
 - device-loss or encoder-failure behavior where the reference environment can reproduce it;
 - protected-content behavior.
 
-The JSON report records the command, target label, source dimensions after encoder padding, requested frame rate and duration, submitted frame count, capture timestamp span, largest timestamp gap, duplicate or backwards timestamps, finalization time, output size, cancellation cleanup, and basic runtime environment.
+The JSON report records the command, target label, source dimensions, dimensions requested from the encoder after even-dimension padding, requested frame rate and duration, submitted frame count, capture timestamp span, largest timestamp gap, duplicate or backwards timestamps, finalization time, output size, cancellation cleanup, startup failure message where applicable, and runtime environment probes. Environment probes include Windows version and memory, CPU, GPU/display driver and current display mode, audio devices, storage volumes, WebView2 runtime, and active power scheme.
 
 ## Preliminary Architecture Finding
 
