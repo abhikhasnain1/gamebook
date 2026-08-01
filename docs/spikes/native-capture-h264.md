@@ -40,6 +40,8 @@ Run only from a clean committed branch: `git status --short` must have no output
 
 `encoder-capability` is a no-pixel scenario. It does not construct or start Windows Graphics Capture. It submits two deterministic synthetic BGRA frames to Media Foundation for each profile in the fixed fallback order 3840x2160 at 60 FPS, 3840x2160 at 30 FPS, 2560x1440 at 60 FPS, and 1920x1080 at 60 FPS. A profile passes only when H.264 initializes, accepts both frames, finalizes a non-empty MP4, and removes the temporary MP4. This result establishes initialization and finalization capability on the tested stack; it does not establish sustained capture throughput, frame pacing, or 4K display availability.
 
+The harness uses `windows-capture`'s system-default minimum update interval for 60 FPS runs, which the crate documents as 60 FPS, and applies a custom interval only for 30 FPS runs. This avoids rounding a nominal 60 FPS interval down to 16,666,666 nanoseconds before passing it to Windows Graphics Capture.
+
 Verify generated JSON reports before attaching them to the issue:
 
 ```powershell

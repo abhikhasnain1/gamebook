@@ -706,7 +706,7 @@ where
         CursorCaptureSettings::WithoutCursor,
         DrawBorderSettings::WithoutBorder,
         SecondaryWindowSettings::Exclude,
-        MinimumUpdateIntervalSettings::Custom(frame_interval(options.frame_rate)),
+        minimum_update_interval(options.frame_rate),
         DirtyRegionSettings::Default,
         ColorFormat::Bgra8,
         config.clone(),
@@ -1086,6 +1086,14 @@ fn frame_interval(frame_rate: u32) -> Duration {
     Duration::from_nanos(1_000_000_000 / frame_rate as u64)
 }
 
+fn minimum_update_interval(frame_rate: u32) -> MinimumUpdateIntervalSettings {
+    if frame_rate == 60 {
+        MinimumUpdateIntervalSettings::Default
+    } else {
+        MinimumUpdateIntervalSettings::Custom(frame_interval(frame_rate))
+    }
+}
+
 fn even_dimension(value: u32) -> u32 {
     value + (value % 2)
 }
@@ -1159,10 +1167,13 @@ fn unix_millis() -> u128 {
 #[cfg(test)]
 mod tests {
     use super::{
-        artifact_label, capability_frame_bytes, even_dimension, frame_interval, parse_target,
-        sanitize_command, validate_build_id, validate_run_id, EncoderProfile, Options,
-        PickerTargetKind, Scenario, TargetOption, CAPABILITY_PROFILES,
+        artifact_label, capability_frame_bytes, even_dimension, frame_interval,
+        minimum_update_interval, parse_target, sanitize_command, validate_build_id,
+        validate_run_id, EncoderProfile, Options, PickerTargetKind, Scenario, TargetOption,
+        CAPABILITY_PROFILES,
     };
+    use std::time::Duration;
+    use windows_capture::settings::MinimumUpdateIntervalSettings;
 
     #[test]
     fn pads_only_odd_encoder_dimensions() {
@@ -1174,6 +1185,14 @@ mod tests {
     fn maps_capture_frame_rate_to_minimum_interval() {
         assert_eq!(frame_interval(60).as_nanos(), 16_666_666);
         assert_eq!(frame_interval(30).as_nanos(), 33_333_333);
+        assert_eq!(
+            minimum_update_interval(60),
+            MinimumUpdateIntervalSettings::Default
+        );
+        assert_eq!(
+            minimum_update_interval(30),
+            MinimumUpdateIntervalSettings::Custom(Duration::from_nanos(33_333_333))
+        );
     }
 
     #[test]
