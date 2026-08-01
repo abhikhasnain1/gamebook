@@ -18,6 +18,7 @@
     "native-capture:verify": "node tools/spikes/verify-native-capture-report.mjs",
     "wasapi-sync:verify": "node tools/spikes/verify-wasapi-av-sync-report.mjs",
     "native-decode:verify": "node tools/spikes/verify-native-decode-report.mjs",
+    "direct-stack:verify": "node tools/spikes/verify-direct-capture-stack-report.mjs",
     "check": "tsc --noEmit"
   },
   "dependencies": {
