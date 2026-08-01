@@ -1,0 +1,52 @@
+{
+  "schema": "gamebook.viewport-spike.v1",
+  "status": "passed",
+  "generatedAt": "2026-08-01T22:47:57.081Z",
+  "buildRevision": "42a574a4599820f34c34a38dae1cf57a5665f0e7",
+  "fixture": "deterministic-viewport-page-v1",
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "hardwareConcurrency": 24,
+    "devicePixelRatio": 1,
+    "uiScale": 1,
+    "viewport": { "width": 1280, "height": 720 }
+  },
+  "checks": [
+    { "id": "fit-default", "passed": true, "detail": "Fit opened at 62.000 percent with logical center 800.0, 450.0." },
+    { "id": "zoom-range", "passed": true, "detail": "25, 50, 100, and 200 percent rendered through viewport transforms." },
+    { "id": "pan-paths", "passed": true, "detail": "Dedicated controls, Space+Arrow, Space+primary drag, and middle-button drag all changed only the view." },
+    { "id": "keyboard-intent", "passed": true, "detail": "Arrow moves one logical pixel, Shift+Arrow moves ten, and Space+Arrow pans the viewport." },
+    { "id": "stable-page-state", "passed": true, "detail": "14 viewport paths preserved the version 1 logical page snapshot." },
+    { "id": "history-unchanged", "passed": true, "detail": "Viewport operations created no undo or redo entries." },
+    { "id": "connector-scene-coordinates", "passed": true, "detail": "Connector endpoints stayed in logical scene coordinates." },
+    { "id": "static-export-pixels", "passed": true, "detail": "Static export remained 1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55 (43601 bytes)." },
+    { "id": "thumbnail-pixels", "passed": true, "detail": "Thumbnail remained 4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78 (2577 bytes)." },
+    { "id": "malformed-input", "passed": true, "detail": "A non-finite zoom was rejected without changing viewport state." },
+    { "id": "semantic-controls", "passed": true, "detail": "8 named icon buttons, a labeled 25-200 percent slider, a polite state announcement, and a focusable canvas are available." }
+  ],
+  "logicalPage": { "width": 1600, "height": 900 },
+  "supportedZoomPercents": [25, 50, 100, 200],
+  "paths": [
+    { "id": "fit-default", "zoomPercent": 62, "transform": [0.62, 0, 0, 0.62, 24, 33], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "zoom-25", "zoomPercent": 25, "transform": [0.25, 0, 0, 0.25, 320, 199.5], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "zoom-50", "zoomPercent": 50, "transform": [0.5, 0, 0, 0.5, 120, 87], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "zoom-100", "zoomPercent": 100, "transform": [1, 0, 0, 1, -280, -138], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "zoom-200", "zoomPercent": 200, "transform": [2, 0, 0, 2, -1080, -588], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "reset-100", "zoomPercent": 100, "transform": [1, 0, 0, 1, -280, -138], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "control-pan-left", "zoomPercent": 100, "transform": [1, 0, 0, 1, -256, -138], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "control-pan-right", "zoomPercent": 100, "transform": [1, 0, 0, 1, -280, -138], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "space-arrow-up", "zoomPercent": 100, "transform": [1, 0, 0, 1, -280, -114], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "space-arrow-down", "zoomPercent": 100, "transform": [1, 0, 0, 1, -280, -138], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "space-primary-drag", "zoomPercent": 100, "transform": [1, 0, 0, 1, -243, -157], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "middle-button-drag", "zoomPercent": 100, "transform": [1, 0, 0, 1, -266, -126], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "compact-resize", "zoomPercent": 100, "transform": [1, 0, 0, 1, -426, -235.5], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 },
+    { "id": "large-resize", "zoomPercent": 100, "transform": [1, 0, 0, 1, -146, -78], "pageStateStable": true, "historyStable": true, "connectorsStable": true, "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55", "exportBytes": 43601, "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78", "thumbnailBytes": 2577 }
+  ],
+  "baseline": {
+    "exportSha256": "1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55",
+    "exportBytes": 43601,
+    "thumbnailSha256": "4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78",
+    "thumbnailBytes": 2577
+  },
+  "serializedKeys": ["activePageId", "pages"]
+}

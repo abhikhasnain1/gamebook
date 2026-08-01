@@ -56,3 +56,9 @@ Vitest covers controller bounds, center preservation, resize, malformed inputs, 
 No new native permission, path, media, credential, or diagnostic boundary is introduced. The harness stores no user data, has no persistence or recovery path, and exposes only synthetic geometry and artifact hashes in its report.
 
 Issue #13 owns 1080p60/1440p60 performance, transform latency, memory growth, cleanup under stress, the final rendering architecture, and consolidated NVDA/Windows High Contrast review. No architecture decision record is accepted by this issue.
+
+## Reference Result
+
+The retained `viewport-reference-report.json` was produced from exact implementation commit `42a574a4599820f34c34a38dae1cf57a5665f0e7` on Windows using Chromium 150 at 1280 by 720. All 11 checks and all 14 ordered viewport paths passed. Every path retained the same 43,601-byte static export with SHA-256 `1e2117b3ddf85ca92360305d6a4052555d7a0853f5d3e977c07f1fa9a5902a55` and the same 2,577-byte thumbnail with SHA-256 `4233c644242af224f58f91ddff01311688a7b65917007aa1c21c32e61633ba78`.
+
+The 900 by 620 run remained exactly 900 by 620 with no document overflow, warnings, or errors. A deterministic 200 percent scale run used an 1800 by 1240 outer viewport and a 900 by 620 half-size shell rendered at 2x; the full application filled the frame, the heading and controls remained visible without overlap, the document did not overflow, and the harness again passed 11/11 checks. Dedicated pan, Fit, zoom-in, and one-logical-pixel Arrow movement passed through rendered controls. NVDA and Windows High Contrast remain consolidated issue #13 reviewer checks.
