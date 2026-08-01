@@ -19,7 +19,7 @@ npm.cmd run native-capture:fixture:verify
 Start-Process tools/spikes/native-capture-fixture.html
 ```
 
-Move the browser window to the target display and press `F` inside the fixture to enter browser fullscreen. Press `P` to pause/resume and `R` to reset its counters. For selected-window and source-close scenarios, use `picker-window` and choose this browser window. Add `?run=RUN_ID` to the local file URL when a visible run label is useful. The harness `--countdown` option gives the operator up to 30 seconds to focus or fullscreen the fixture after selecting a target.
+Move the browser window to the target display and press `F` inside the fixture to enter browser fullscreen. Press `P` to pause/resume and `R` to reset its counters. For deterministic selected-window and source-close closeout runs, use `controlled-fixture-window`; it resolves only the exact fixture title and records an anonymous target label. The `picker-window` target remains available for exploratory system-picker runs. Add `?run=RUN_ID` to the local file URL when a visible run label is useful. The harness `--countdown` option gives the operator up to 30 seconds to focus or fullscreen the fixture after target resolution.
 
 ## Harness Commands
 
@@ -30,13 +30,13 @@ $buildId = git rev-parse HEAD
 git status --short
 cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --scenario encoder-capability --run-id encoder-capability-01
 cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --countdown 5 --run-id 1080p60-monitor-pass-01
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target picker-window --scenario encode --duration 30 --frame-rate 60 --countdown 5 --run-id selected-window-pass-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target controlled-fixture-window --scenario encode --duration 30 --frame-rate 60 --countdown 5 --run-id selected-window-pass-01
 cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target primary-monitor --scenario cancel --duration 5 --frame-rate 60 --countdown 5 --run-id cancellation-cleanup-01
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target picker-window --scenario source-close --duration 30 --frame-rate 60 --countdown 5 --run-id source-close-cleanup-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target controlled-fixture-window --scenario source-close --duration 30 --frame-rate 60 --countdown 5 --run-id source-close-cleanup-01
 cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target primary-monitor --scenario encoder-failure --duration 1 --frame-rate 60 --run-id encoder-failure-01
 ```
 
-Run only from a clean committed branch: `git status --short` must have no output. `--build-id` is required and accepts a 7-64 character hexadecimal commit ID so every report identifies the exact source revision. Target options are `primary-monitor`, `monitor-index:N`, `picker-window`, `picker-monitor`, and the non-closeout `picker` fallback. The picker API does not expose the selected item type after selection, so `picker-window` and `picker-monitor` are operator declarations: the operator must choose the declared target kind. Scenario options are `encode`, `cancel`, `source-close`, `encoder-failure`, and `encoder-capability`. For `source-close`, close the selected window before the configured timeout; a timeout produces a failing `source-not-closed` report and removes the partial MP4. Run IDs are restricted to 1-80 ASCII letters, numbers, hyphens, or underscores so they cannot escape the configured output directory.
+Run only from a clean committed branch: `git status --short` must have no output. `--build-id` is required and accepts a 7-64 character hexadecimal commit ID so every report identifies the exact source revision. Target options are `primary-monitor`, `monitor-index:N`, `controlled-fixture-window`, `picker-window`, `picker-monitor`, and the non-closeout `picker` fallback. The controlled target resolves only `Gamebook Native Capture Fixture - Brave` and never records that title. The picker API does not expose the selected item type after selection, so `picker-window` and `picker-monitor` are operator declarations: the operator must choose the declared target kind. Scenario options are `encode`, `cancel`, `source-close`, `encoder-failure`, and `encoder-capability`. For `source-close`, close the selected window before the configured timeout; a timeout produces a failing `source-not-closed` report and removes the partial MP4. Run IDs are restricted to 1-80 ASCII letters, numbers, hyphens, or underscores so they cannot escape the configured output directory.
 
 `encoder-capability` is a no-pixel scenario. It does not construct or start Windows Graphics Capture. It submits two deterministic synthetic BGRA frames to Media Foundation for each profile in the fixed fallback order 3840x2160 at 60 FPS, 3840x2160 at 30 FPS, 2560x1440 at 60 FPS, and 1920x1080 at 60 FPS. A profile passes only when H.264 initializes, accepts both frames, finalizes a non-empty MP4, and removes the temporary MP4. This result establishes initialization and finalization capability on the tested stack; it does not establish sustained capture throughput, frame pacing, or 4K display availability.
 
@@ -64,7 +64,7 @@ Each closeout evidence set must include the generated JSON summaries for:
 
 - at least two 1080p60 monitor captures on the reference system;
 - at least two 1440p60 monitor captures on the reference system;
-- at least two selected-window captures through `picker-window`;
+- at least two selected-window captures through `picker-window` or the title-exact controlled fixture fallback;
 - a synthetic encoder-capability report covering 4K60 and the fixed lower-rate fallback ladder;
 - at least two cancellation-cleanup runs;
 - at least two selected-window source-close runs;
@@ -88,6 +88,8 @@ The verifier checks schema, exact build identity, anonymous target labels, path 
 - internal even-dimension padding in the encoder path.
 
 The production capture decision remains unlocked only after the measured reports satisfy issue #6 and the dependent audio, decoding/color, interruption, and native-stack decision spikes.
+
+On the reference system, two attempts to launch `windows-capture` 2.0.0's system picker completed immediately without returning an item. No capture started and no report or MP4 was written. The controlled fixture target uses the same crate's direct window capture path so timing and source-close behavior can still be measured while the picker limitation remains an explicit architecture input.
 
 ## Accessibility Contract For Production
 

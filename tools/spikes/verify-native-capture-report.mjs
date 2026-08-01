@@ -358,7 +358,7 @@ function verifyApplicationBuild(build, label) {
 function verifyTargetLabel(report, label) {
   const expected = {
     monitor: /^(primary-monitor|monitor-index-\d+|picker-selected-monitor)$/,
-    window: /^picker-selected-window$/,
+    window: /^(picker-selected-window|controlled-fixture-window)$/,
     unspecified: /^picker-selected-unspecified$/,
   }[report.declaredTargetKind];
   assert.match(report.targetLabel, expected, `${label}: targetLabel is not anonymous`);
@@ -537,7 +537,11 @@ function verifyMonitorTarget(report, label) {
 
 function verifyDeclaredWindowTarget(report, label) {
   assert.equal(report.declaredTargetKind, "window", `${label}: target must be declared as a window`);
-  assert.equal(report.targetLabel, "picker-selected-window", `${label}: target must use picker-window`);
+  assert.match(
+    report.targetLabel,
+    /^(picker-selected-window|controlled-fixture-window)$/,
+    `${label}: target must use the system picker or the title-exact controlled fixture`,
+  );
 }
 
 function assertRequiredReportRoles(roleCounts, label) {
@@ -719,10 +723,16 @@ function runSelfTest() {
   );
   verifyReport(
     syntheticBase({
-      command: ["native_capture_spike.exe", "--target", "picker-window", "--scenario", "source-close"],
+      command: [
+        "native_capture_spike.exe",
+        "--target",
+        "controlled-fixture-window",
+        "--scenario",
+        "source-close",
+      ],
       scenario: "source-close",
       declaredTargetKind: "window",
-      targetLabel: "picker-selected-window",
+      targetLabel: "controlled-fixture-window",
       outputBytes: 0,
       submittedFrames: 120,
       result: "source-closed",
@@ -734,6 +744,14 @@ function runSelfTest() {
     }),
     { ...defaultOptions(), scenario: "source-close" },
     "source-close",
+  );
+  verifyReportRole(
+    { role: "selected-window", scenario: "encode" },
+    syntheticBase({
+      declaredTargetKind: "window",
+      targetLabel: "controlled-fixture-window",
+    }),
+    "controlled-window-role",
   );
   assert.throws(() =>
     verifyReport(

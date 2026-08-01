@@ -26,6 +26,7 @@ use windows_capture::{
         ColorFormat, CursorCaptureSettings, DirtyRegionSettings, DrawBorderSettings,
         GraphicsCaptureItemType, MinimumUpdateIntervalSettings, SecondaryWindowSettings, Settings,
     },
+    window::Window,
 };
 
 type SpikeError = Box<dyn Error + Send + Sync>;
@@ -64,6 +65,8 @@ const CAPABILITY_PROFILES: [EncoderProfile; 4] = [
     EncoderProfile::new(2560, 1440, 60),
     EncoderProfile::new(1920, 1080, 60),
 ];
+
+const CONTROLLED_FIXTURE_WINDOW_TITLE: &str = "Gamebook Native Capture Fixture - Brave";
 
 struct CaptureRun {
     config: RunConfig,
@@ -637,6 +640,19 @@ fn main() -> Result<(), SpikeError> {
             let label = format!("monitor-index-{index}");
             run_capture(monitor, width, height, "monitor", label, options)
         }
+        TargetOption::ControlledFixtureWindow => {
+            let window = Window::from_name(CONTROLLED_FIXTURE_WINDOW_TITLE)?;
+            let width = u32::try_from(window.width()?)?;
+            let height = u32::try_from(window.height()?)?;
+            run_capture(
+                window,
+                width,
+                height,
+                "window",
+                "controlled-fixture-window".to_string(),
+                options,
+            )
+        }
         TargetOption::Picker(declared_kind) => {
             let Some(item) = GraphicsCapturePicker::pick_item()? else {
                 println!("No capture target selected.");
@@ -742,6 +758,7 @@ struct Options {
 enum TargetOption {
     PrimaryMonitor,
     MonitorIndex(usize),
+    ControlledFixtureWindow,
     Picker(PickerTargetKind),
 }
 
@@ -889,12 +906,14 @@ fn parse_target(value: &str) -> Result<TargetOption, SpikeError> {
     if value == "picker-monitor" {
         return Ok(TargetOption::Picker(PickerTargetKind::Monitor));
     }
+    if value == "controlled-fixture-window" {
+        return Ok(TargetOption::ControlledFixtureWindow);
+    }
     if let Some(index) = value.strip_prefix("monitor-index:") {
         return Ok(TargetOption::MonitorIndex(index.parse()?));
     }
     Err(
-        "--target must be primary-monitor, picker, picker-window, picker-monitor, or monitor-index:N"
-            .into(),
+        "--target must be primary-monitor, controlled-fixture-window, picker, picker-window, picker-monitor, or monitor-index:N".into(),
     )
 }
 
@@ -903,7 +922,7 @@ fn print_help() {
         "Native capture spike\n\n\
          cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- \\\n\
            --build-id COMMIT_SHA --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --countdown 5\n\n\
-         Targets: primary-monitor, monitor-index:N, picker-window, picker-monitor, picker\n\
+         Targets: primary-monitor, monitor-index:N, controlled-fixture-window, picker-window, picker-monitor, picker\n\
          Scenarios: encode, cancel, source-close, encoder-failure, encoder-capability\n\
          Outputs: MP4 and JSON report under src-tauri/target/native-capture-spike by default"
     );
@@ -1216,6 +1235,10 @@ mod tests {
         assert!(matches!(
             parse_target("monitor-index:2").unwrap(),
             TargetOption::MonitorIndex(2)
+        ));
+        assert!(matches!(
+            parse_target("controlled-fixture-window").unwrap(),
+            TargetOption::ControlledFixtureWindow
         ));
         assert!(parse_target("window").is_err());
     }
