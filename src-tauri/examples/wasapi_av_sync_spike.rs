@@ -88,7 +88,7 @@ impl Scenario {
     fn stimulus(self) -> Option<Stimulus> {
         match self {
             Self::ActiveAudio => Some(Stimulus::Tone),
-            Self::Silence => Some(Stimulus::Silence),
+            Self::Silence | Self::AudioFailure | Self::EndpointChange => Some(Stimulus::Silence),
             _ => None,
         }
     }

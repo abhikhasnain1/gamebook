@@ -127,9 +127,11 @@ function verifyReport(report, options = defaultOptions(), label = "report") {
       break;
     case "audio-failure":
       verifyAudioFailure(report, label);
+      assert.equal(report.controlledStimulus, "local-silence", `${label}: silence fixture missing`);
       break;
     case "endpoint-change":
       verifyCompletedCapture(report, options, label);
+      assert.equal(report.controlledStimulus, "local-silence", `${label}: silence fixture missing`);
       assert.equal(report.endpointChanged, true, `${label}: endpoint change was not observed`);
       break;
     case "encoder-failure":
@@ -408,7 +410,7 @@ function runSelfTest() {
       scenario: "audio-failure",
       result: "audio-failed",
       errorMessage: "Simulated post-start audio failure.",
-      controlledStimulus: null,
+      controlledStimulus: "local-silence",
       audioTimelineDurationMs: 5000,
       videoReferenceDurationMs: 30000,
     }),
@@ -416,7 +418,7 @@ function runSelfTest() {
   verifyReport(
     syntheticBase({
       scenario: "endpoint-change",
-      controlledStimulus: null,
+      controlledStimulus: "local-silence",
       endpointChanged: true,
     }),
   );

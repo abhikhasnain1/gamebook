@@ -28,8 +28,8 @@ Available scenarios are:
 - `active-audio`: plays a local looping 440 Hz fixture at low amplitude while capturing the default output-device mix. This scenario is audible and must not be run without the user's approval.
 - `silence`: plays a local all-zero fixture so the audio engine continues producing packets without audible output.
 - `cancel`: stops early, drops the unfinalized writer, and removes the partial MP4.
-- `audio-failure`: stops audio after five seconds while the reference video clock continues for the requested duration, then finalizes the partial audio timeline.
-- `endpoint-change`: polls the default render endpoint while capturing and requires an observed endpoint change. The harness never changes the Windows default itself; a user-approved manual switch is required.
+- `audio-failure`: uses the local all-zero fixture, stops audio after five seconds while the reference video clock continues for the requested duration, then finalizes the partial audio timeline.
+- `endpoint-change`: uses the local all-zero fixture while polling the default render endpoint and requires an observed endpoint change. The harness never changes the Windows default itself; a user-approved manual switch is required.
 - `encoder-failure`: deliberately gives the sink writer a directory as its output URL and verifies startup failure without retained media.
 
 Reports and MP4s are written below `src-tauri/target/wasapi-av-sync-spike` by default. They are local evidence and must remain uncommitted.
