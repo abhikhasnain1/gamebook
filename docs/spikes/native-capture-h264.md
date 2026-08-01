@@ -52,7 +52,7 @@ npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/sourc
 npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/encoder-failure-01.json --scenario encoder-failure
 ```
 
-After the full evidence set is collected, create a local evidence manifest based on `docs/spikes/native-capture-evidence.example.json`, replace its application-build values with the exact shared build, update the paths and manual evidence statuses, and run:
+After the evidence set is collected, create a local evidence manifest based on `docs/spikes/native-capture-evidence.example.json`, replace its application-build values with the exact shared build, select either `adopt-windows-capture` or `direct-windows-api-fallback`, and run:
 
 ```powershell
 npm.cmd run native-capture:verify -- --manifest path/to/native-capture-evidence.json
@@ -60,23 +60,50 @@ npm.cmd run native-capture:verify -- --manifest path/to/native-capture-evidence.
 
 ## Evidence Contract
 
-Each closeout evidence set must include the generated JSON summaries for:
+Every closeout evidence set includes generated JSON summaries for:
 
 - at least two 1080p60 monitor captures on the reference system;
 - at least two 1440p60 monitor captures on the reference system;
 - at least two selected-window captures through `picker-window` or the title-exact controlled fixture fallback;
 - a synthetic encoder-capability report covering 4K60 and the fixed lower-rate fallback ladder;
 - at least two cancellation-cleanup runs;
-- at least two selected-window source-close runs;
-- at least two device-loss attempts with recovery or explicit fallback evidence;
 - one deliberate encoder-initialization failure report;
-- at least two protected-content attempts with explicit blocked or blank-source outcomes.
+
+An adoption manifest marks every timed capture `expectedOutcome` as `pass` and additionally requires two selected-window source-close runs, two device-loss attempts, two protected-content attempts, HUD exclusion/fallback evidence, and completed manual accessibility evidence. A direct-Windows-API-fallback manifest marks measured timed runs as `capture-gate-failure`, requires at least one machine-checked failure for each monitor-resolution and selected-window role, and links source-close, device-loss, protected-content, and HUD exclusion/fallback validation to issue #9. This early-stop contract prevents a failed dependency path from being represented as adopted while preserving the remaining native-stack gates for the fallback implementation.
 
 The JSON report records the Gamebook package version, exact source revision, build profile, redacted command and artifact label, anonymous target kind/index label, source dimensions, dimensions requested from the encoder after even-dimension padding, requested frame rate and duration, submitted frame count, capture timestamp span, finalized MP4 duration from the Windows media property system, estimated dropped frames from timestamp gaps, largest timestamp gap, duplicate or backwards timestamps, finalization time, output size, cancellation cleanup, startup failure message where applicable, and runtime environment probes. Environment probes include Windows version and memory, CPU, GPU/display driver and current display mode, anonymized audio-device status counts, storage-volume capabilities without drive letters, WebView2 runtime, and active power scheme.
 
-The verifier checks schema, exact build identity, anonymous target labels, path redaction, required probes, scenario-specific state, the one-frame finalized output-duration tolerance, and the five-second finalization threshold. It separately verifies the complete ordered encoder-capability ladder, synthetic-only/no-capture declarations, per-attempt cleanup, first supported fallback, and build identity. Manifest verification also requires every report to use the same declared application build, every automated evidence role, repeated-run counts, at least 95% of the requested 30-second 60 FPS frame count for pass roles, two attempts each for device-loss and protected-content evidence, and completed manual rows with notes. A manual row cannot pass as `not-applicable`.
+The verifier checks schema, exact build identity, anonymous target labels, path redaction, required probes, scenario-specific state, the one-frame finalized output-duration tolerance, and the five-second finalization threshold. It separately verifies the complete ordered encoder-capability ladder, synthetic-only/no-capture declarations, per-attempt cleanup, first supported fallback, and build identity. Manifest verification requires one shared build and distinct repeated runs. Adoption requires at least 95% of the requested 30-second 60 FPS frame count for every pass role and completed manual rows; fallback requires structurally valid completed reports that fail throughput, duration, or finalization and a complete issue #9 gate handoff.
 
-## Preliminary Architecture Finding
+## Measured Reference Result
+
+The closeout build was release commit `fd166f796a4f5411919798495a8e7b7b11c0dc33`, built from a clean worktree. The reference system reported Windows 11 Pro build 26200, an Intel Core Ultra 9 285K, an NVIDIA GeForce RTX 5080 with driver 32.0.15.9579, 64 GB RAM, NTFS storage, and the Balanced power scheme. Monitor runs used 1920 by 1080 at 60 Hz and 3440 by 1440 at the system-reported 164 Hz. The controlled fixture was observed live at 3432 by 1251 physical pixels and approximately 165 animation frames per second before the final run set.
+
+For a 30-second 60 FPS pass, the verifier requires at least 1,710 submitted frames, output-duration error no greater than 16.6667 ms, and finalization within 5,000 ms.
+
+| Role | Frames | Output-duration error | Largest timestamp gap | Finalization | Gate result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 1080p60 monitor 01 | 1,578 | +16.6500 ms | 33.3371 ms | 60 ms | Failed throughput |
+| 1080p60 monitor 02 | 1,734 | -16.6834 ms | 33.3375 ms | 42 ms | Failed strict duration tolerance |
+| 1440p60 monitor 01 | 1,649 | -0.0167 ms | 18.1977 ms | 37 ms | Failed throughput |
+| 1440p60 monitor 02 | 1,649 | -0.0167 ms | 18.1966 ms | 38 ms | Failed throughput |
+| Selected window 01 | 1,549 | +333.3166 ms | 1,473.6249 ms | 23 ms | Failed throughput and duration |
+| Selected window 02 | 2 | +224,499.9833 ms | 127,253.2712 ms | 32,164 ms | Failed throughput, duration, and finalization |
+
+The selected-window system picker was also attempted twice. Both picker calls completed immediately without returning a capture item, so no capture started and no report or MP4 was written. The title-exact controlled fixture fallback supplied the measured window runs above.
+
+The exact-build no-pixel capability report completed with `captureStarted: false`, two synthetic frames per profile, successful cleanup, and all seven environment probes returning exit code 0.
+
+| H.264 profile | Initialization | Finalization | MP4 bytes before cleanup | Result |
+| --- | ---: | ---: | ---: | --- |
+| 3840x2160 at 60 FPS | 571 ms | 58 ms | 3,001 | Supported |
+| 3840x2160 at 30 FPS | 480 ms | 49 ms | 3,005 | Supported |
+| 2560x1440 at 60 FPS | 480 ms | 43 ms | 2,041 | Supported |
+| 1920x1080 at 60 FPS | 499 ms | 44 ms | 1,704 | Supported |
+
+Two exact-build cancellation runs stopped after 274 submitted frames, reported `cancelled`, removed their partial MP4s, and left no output duration. The deliberate encoder-initialization failure reported `startup-failed`, submitted zero frames, and left no MP4.
+
+## Architecture Recommendation
 
 `windows-capture` 2.0.0 exposes the lifecycle needed for the capture portion of Milestone 2:
 
@@ -87,31 +114,18 @@ The verifier checks schema, exact build identity, anonymous target labels, path 
 - H.264 MP4 finalization through Media Foundation;
 - internal even-dimension padding in the encoder path.
 
-The production capture decision remains unlocked only after the measured reports satisfy issue #6 and the dependent audio, decoding/color, interruption, and native-stack decision spikes.
+Do not adopt the crate's integrated capture-and-encoding path for production. Repeated 1440p60 runs missed the frame-throughput gate, repeated 1080p60 runs did not both satisfy every gate, selected-window capture was unstable, and the system picker returned no item. The encoder-capability result shows that Media Foundation H.264 profile initialization is available; it does not offset the sustained capture failures.
 
-On the reference system, two attempts to launch `windows-capture` 2.0.0's system picker completed immediately without returning an item. No capture started and no report or MP4 was written. The controlled fixture target uses the same crate's direct window capture path so timing and source-close behavior can still be measured while the picker limitation remains an explicit architecture input.
+Issue #9 must evaluate the direct Windows API fallback while preserving the proposed capture interfaces. It also owns source-close, device-loss, protected-content, HUD exclusion/fallback, interruption, quarantine, and final native-stack evidence. Issues #7 and #8 still own audio synchronization and exact decoding/color/aperture. No architecture decision record is accepted here; Milestone 5 records the durable capture decision after the remaining Milestone 2 gates are reviewed.
 
 ## Accessibility Contract For Production
 
 The eventual production recording workflow must provide keyboard-operable start, stop, cancel, target selection, failure review, and fallback notification controls. Status must announce preparing, recording, elapsed time, stopping, finalizing, completed, cancelled, failed, and source-closed states. Warnings for HUD exclusion, protected content, HDR blocking, device loss, and partial-output quarantine must be textual, focusable, High Contrast safe, and not color-only. Reduced-motion users must not receive animated recording state as the only state cue.
 
-This isolated CLI harness has no shipped user-facing UI. Manual issue evidence still needs to record the keyboard and assistive-technology expectations for the production flow before issue #6 is closed.
+This isolated CLI harness has no interactive or shipped user-facing UI, so keyboard navigation, focus, NVDA, High Contrast, reduced-motion, and scale checks do not apply to the executable itself. The written production contract above is the issue #6 accessibility evidence. Manual validation of actual recovery/fallback surfaces remains with issue #9, and manual validation of the shipped recording workflow remains a Milestone 7 acceptance requirement.
 
 ## Security And Privacy Notes
 
-The harness uses desktop capture APIs only. It does not inject into game processes, read game memory, open network connections, or write project records. The capability scenario uses synthetic buffers without starting capture and removes every temporary MP4. The controlled fixture is self-contained and its verifier rejects external scripts, styles, network APIs, and local path markers. Audio is disabled in this issue's harness because WASAPI loopback and A/V synchronization are owned by the dependent audio spike. Cancellation and source-close paths ensure partial MP4 output is absent instead of leaving a referenced artifact. Report commands, output labels, and startup errors redact local paths; target labels omit monitor names, audio probes omit device names, and storage probes omit drive letters before JSON is written.
+The harness uses desktop capture APIs only. It does not inject into game processes, read game memory, open network connections, or write project records. The capability scenario uses synthetic buffers without starting capture and removes every temporary MP4. The controlled fixture is self-contained and its verifier rejects external scripts, styles, network APIs, and local path markers. Audio and microphone capture are disabled in this issue's harness because WASAPI loopback and A/V synchronization are owned by the dependent audio spike. Cancellation evidence confirms partial MP4 output is absent; completed failed-gate MP4s remain unreferenced local artifacts. Report commands, output labels, and startup errors redact local paths; target labels omit monitor names, audio probes omit device names, and storage probes omit drive letters before JSON is written.
 
-The harness output can contain sensitive screen contents and must stay local validation evidence unless the user intentionally shares it.
-
-## Current Validation
-
-A preliminary no-pixel capability run from commit `4fd85d1` completed on the reference system with `captureStarted: false`, two synthetic frames per profile, successful cleanup, and all seven environment probes returning exit code 0.
-
-| H.264 profile | Initialization | Finalization | MP4 bytes before cleanup | Result |
-| --- | ---: | ---: | ---: | --- |
-| 3840x2160 at 60 FPS | 621 ms | 54 ms | 3,001 | Supported |
-| 3840x2160 at 30 FPS | 458 ms | 53 ms | 3,005 | Supported |
-| 2560x1440 at 60 FPS | 462 ms | 36 ms | 2,041 | Supported |
-| 1920x1080 at 60 FPS | 434 ms | 27 ms | 1,704 | Supported |
-
-The capability result must be rerun from the final shared closeout build so its build identity matches every capture report in the evidence manifest. Measured 1080p60, 1440p60, selected-window, cancellation, source-close, device-loss, protected-content, HUD fallback, and manual accessibility evidence remain pending reference-system runs.
+The harness output can contain sensitive screen contents and must stay local validation evidence unless the user intentionally shares it. No generated JSON or MP4 evidence is committed.

@@ -1,6 +1,8 @@
 {
   "schema": "gamebook.native-capture-evidence-set.v1",
   "issue": 6,
+  "decision": "adopt-windows-capture",
+  "decisionRationale": "Replace with the measured reason for adoption or the direct Windows API fallback.",
   "applicationBuild": {
     "name": "gamebook",
     "version": "0.5.3",
@@ -19,6 +21,7 @@
       "path": "../../src-tauri/target/native-capture-spike/1080p60-monitor-pass-01.json",
       "role": "monitor-1080p60",
       "scenario": "encode",
+      "expectedOutcome": "pass",
       "minSourceWidth": 1920,
       "minSourceHeight": 1080
     },
@@ -27,6 +30,7 @@
       "path": "../../src-tauri/target/native-capture-spike/1080p60-monitor-pass-02.json",
       "role": "monitor-1080p60",
       "scenario": "encode",
+      "expectedOutcome": "pass",
       "minSourceWidth": 1920,
       "minSourceHeight": 1080
     },
@@ -35,6 +39,7 @@
       "path": "../../src-tauri/target/native-capture-spike/1440p60-monitor-pass-01.json",
       "role": "monitor-1440p60",
       "scenario": "encode",
+      "expectedOutcome": "pass",
       "minSourceWidth": 2560,
       "minSourceHeight": 1440
     },
@@ -43,6 +48,7 @@
       "path": "../../src-tauri/target/native-capture-spike/1440p60-monitor-pass-02.json",
       "role": "monitor-1440p60",
       "scenario": "encode",
+      "expectedOutcome": "pass",
       "minSourceWidth": 2560,
       "minSourceHeight": 1440
     },
@@ -51,6 +57,7 @@
       "path": "../../src-tauri/target/native-capture-spike/selected-window-pass-01.json",
       "role": "selected-window",
       "scenario": "encode",
+      "expectedOutcome": "pass",
       "minSourceWidth": 1,
       "minSourceHeight": 1
     },
@@ -59,6 +66,7 @@
       "path": "../../src-tauri/target/native-capture-spike/selected-window-pass-02.json",
       "role": "selected-window",
       "scenario": "encode",
+      "expectedOutcome": "pass",
       "minSourceWidth": 1,
       "minSourceHeight": 1
     },
@@ -118,5 +126,15 @@
       "attempts": 0,
       "notes": "Record keyboard, focus, announcement, High Contrast, reduced-motion, scale, and assistive-technology evidence for the production recording contract."
     }
-  ]
+  ],
+  "fallbackFollowUp": {
+    "issue": 9,
+    "gates": [
+      "source-close",
+      "device-loss",
+      "protected-content",
+      "hud-exclusion-fallback"
+    ],
+    "notes": "Required only for a direct-windows-api-fallback decision; record why these gates move to the native-stack decision issue."
+  }
 }

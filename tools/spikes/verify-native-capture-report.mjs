@@ -5,6 +5,8 @@ import { basename, dirname, resolve } from "node:path";
 const REQUIRED_SCHEMA = "gamebook.native-capture-spike.v1";
 const REQUIRED_CAPABILITY_SCHEMA = "gamebook.native-encoder-capability.v1";
 const REQUIRED_MANIFEST_SCHEMA = "gamebook.native-capture-evidence-set.v1";
+const ADOPT_DECISION = "adopt-windows-capture";
+const FALLBACK_DECISION = "direct-windows-api-fallback";
 const REQUIRED_PROBES = new Set([
   "windows-os-memory",
   "cpu",
@@ -21,6 +23,20 @@ const REQUIRED_REPORT_ROLES = new Map([
   ["cancellation", { scenario: "cancel", minimumCount: 2 }],
   ["source-close", { scenario: "source-close", minimumCount: 2 }],
   ["encoder-failure", { scenario: "encoder-failure", minimumCount: 1 }],
+]);
+const REQUIRED_FALLBACK_REPORT_ROLES = new Map(
+  [...REQUIRED_REPORT_ROLES].filter(([role]) => role !== "source-close"),
+);
+const REQUIRED_FALLBACK_FAILURE_ROLES = new Set([
+  "monitor-1080p60",
+  "monitor-1440p60",
+  "selected-window",
+]);
+const REQUIRED_FALLBACK_FOLLOW_UP_GATES = new Set([
+  "source-close",
+  "device-loss",
+  "protected-content",
+  "hud-exclusion-fallback",
 ]);
 const REQUIRED_MANUAL_EVIDENCE = new Map([
   ["device-loss", 2],
@@ -126,7 +142,7 @@ Options:
   --max-finalization-ms N         Maximum finalization time for encode reports. Default: 5000
   --min-output-bytes N            Minimum MP4 byte count for encode reports. Default: 1
   --min-submitted-frames N        Minimum submitted frames for encode reports. Default: 1
-  --manifest PATH                 Verify an evidence-set manifest and every referenced report.
+  --manifest PATH                 Verify an adopt-or-fallback evidence set and every report.
   --self-test                     Run synthetic verifier tests.`);
 }
 
@@ -375,6 +391,14 @@ function verifyManifest(manifest, manifestPath) {
   const label = basename(manifestPath);
   assert.equal(manifest.schema, REQUIRED_MANIFEST_SCHEMA, `${label}: manifest schema mismatch`);
   assert.equal(manifest.issue, 6, `${label}: manifest must target issue 6`);
+  assert.ok(
+    [ADOPT_DECISION, FALLBACK_DECISION].includes(manifest.decision),
+    `${label}: decision must adopt windows-capture or select the direct Windows API fallback`,
+  );
+  assert.ok(
+    manifest.decisionRationale && manifest.decisionRationale.trim(),
+    `${label}: decisionRationale is required`,
+  );
   verifyApplicationBuild(manifest.applicationBuild, label);
   assertNoPathMarkers(manifest, label);
   assert.ok(Array.isArray(manifest.reports), `${label}: reports must be an array`);
@@ -393,6 +417,8 @@ function verifyManifest(manifest, manifestPath) {
   const seenReportPaths = new Set();
   const seenRunFingerprints = new Set();
   const roleCounts = new Map();
+  const passingRoleCounts = new Map();
+  const failureRoleCounts = new Map();
   for (const entry of manifest.reports) {
     assert.ok(entry.id, `${label}: report entry missing id`);
     assert.ok(!seenIds.has(entry.id), `${label}: duplicate report id ${entry.id}`);
@@ -413,6 +439,16 @@ function verifyManifest(manifest, manifestPath) {
       seenRunFingerprints,
       label,
     );
+    const expectedOutcome = entry.expectedOutcome ?? "pass";
+    assert.ok(
+      ["pass", "capture-gate-failure"].includes(expectedOutcome),
+      `${label}:${entry.id}: invalid expectedOutcome`,
+    );
+    assert.ok(
+      expectedOutcome === "pass" || entry.scenario === "encode",
+      `${label}:${entry.id}: only encode reports may expect a capture-gate failure`,
+    );
+    const acceptsFailedCaptureGates = expectedOutcome === "capture-gate-failure";
     verifyReport(
       report,
       {
@@ -420,8 +456,12 @@ function verifyManifest(manifest, manifestPath) {
         scenario: entry.scenario,
         minSourceWidth: entry.minSourceWidth ?? 0,
         minSourceHeight: entry.minSourceHeight ?? 0,
-        durationToleranceFrames: entry.durationToleranceFrames ?? 1,
-        maxFinalizationMs: entry.maxFinalizationMs ?? 5000,
+        durationToleranceFrames: acceptsFailedCaptureGates
+          ? Number.POSITIVE_INFINITY
+          : (entry.durationToleranceFrames ?? 1),
+        maxFinalizationMs: acceptsFailedCaptureGates
+          ? Number.POSITIVE_INFINITY
+          : (entry.maxFinalizationMs ?? 5000),
         minOutputBytes: entry.minOutputBytes ?? 1,
         minSubmittedFrames: entry.minSubmittedFrames ?? 1,
       },
@@ -432,7 +472,13 @@ function verifyManifest(manifest, manifestPath) {
       manifest.applicationBuild,
       `${label}:${entry.id}: applicationBuild does not match the evidence set`,
     );
-    verifyReportRole(entry, report, `${label}:${entry.id}`);
+    verifyReportRole(entry, report, `${label}:${entry.id}`, expectedOutcome);
+    if (acceptsFailedCaptureGates) {
+      verifyCaptureGateFailure(report, `${label}:${entry.id}`);
+      failureRoleCounts.set(entry.role, (failureRoleCounts.get(entry.role) ?? 0) + 1);
+    } else {
+      passingRoleCounts.set(entry.role, (passingRoleCounts.get(entry.role) ?? 0) + 1);
+    }
     roleCounts.set(entry.role, (roleCounts.get(entry.role) ?? 0) + 1);
   }
 
@@ -459,8 +505,24 @@ function verifyManifest(manifest, manifestPath) {
     );
   }
 
-  assertRequiredReportRoles(roleCounts, label);
-  assertRequiredManualEvidence(manifest.manualEvidence ?? [], label);
+  if (manifest.decision === ADOPT_DECISION) {
+    assert.equal(
+      failureRoleCounts.size,
+      0,
+      `${label}: adoption evidence cannot declare a capture-gate failure`,
+    );
+    assertRequiredReportRoles(passingRoleCounts, label, REQUIRED_REPORT_ROLES);
+    assertRequiredManualEvidence(manifest.manualEvidence ?? [], label);
+  } else {
+    assertRequiredReportRoles(roleCounts, label, REQUIRED_FALLBACK_REPORT_ROLES);
+    for (const role of REQUIRED_FALLBACK_FAILURE_ROLES) {
+      assert.ok(
+        (failureRoleCounts.get(role) ?? 0) > 0,
+        `${label}: fallback decision requires capture-gate failure evidence for ${role}`,
+      );
+    }
+    verifyFallbackFollowUp(manifest.fallbackFollowUp, label);
+  }
 }
 
 function registerUniqueReportEvidence(
@@ -483,25 +545,26 @@ function registerUniqueReportEvidence(
   seenRunFingerprints.add(runFingerprint);
 }
 
-function verifyReportRole(entry, report, label) {
+function verifyReportRole(entry, report, label, expectedOutcome = "pass") {
   const requirement = REQUIRED_REPORT_ROLES.get(entry.role);
   assert.equal(entry.scenario, requirement.scenario, `${label}: role scenario mismatch`);
+  const requirePassingCaptureGates = expectedOutcome === "pass";
 
   switch (entry.role) {
     case "monitor-1080p60":
-      verifyTimed60FpsCapture(report, label);
+      verifyTimed60FpsCapture(report, label, requirePassingCaptureGates);
       verifyMonitorTarget(report, label);
       assert.ok(report.sourceWidth >= 1920, `${label}: 1080p source width below 1920`);
       assert.equal(report.sourceHeight, 1080, `${label}: 1080p source height mismatch`);
       break;
     case "monitor-1440p60":
-      verifyTimed60FpsCapture(report, label);
+      verifyTimed60FpsCapture(report, label, requirePassingCaptureGates);
       verifyMonitorTarget(report, label);
       assert.ok(report.sourceWidth >= 2560, `${label}: 1440p source width below 2560`);
       assert.equal(report.sourceHeight, 1440, `${label}: 1440p source height mismatch`);
       break;
     case "selected-window":
-      verifyTimed60FpsCapture(report, label);
+      verifyTimed60FpsCapture(report, label, requirePassingCaptureGates);
       verifyDeclaredWindowTarget(report, label);
       break;
     case "source-close":
@@ -515,14 +578,44 @@ function verifyReportRole(entry, report, label) {
   }
 }
 
-function verifyTimed60FpsCapture(report, label) {
+function verifyTimed60FpsCapture(report, label, requirePassingCaptureGates = true) {
   assert.equal(report.requestedFrameRate, 60, `${label}: capture must request 60 FPS`);
   assert.equal(report.requestedDurationMs, 30000, `${label}: capture must request 30 seconds`);
+  if (!requirePassingCaptureGates) {
+    return;
+  }
   const expectedFrames = report.requestedDurationMs / report.estimatedFrameDurationMs;
   const minimumFrames = Math.floor(expectedFrames * 0.95);
   assert.ok(
     report.submittedFrames >= minimumFrames,
     `${label}: submitted ${report.submittedFrames} frames; at least ${minimumFrames} required`,
+  );
+}
+
+function captureGateFailures(report) {
+  const failures = [];
+  const expectedFrames = report.requestedDurationMs / report.estimatedFrameDurationMs;
+  const minimumFrames = Math.floor(expectedFrames * 0.95);
+  if (report.submittedFrames < minimumFrames) {
+    failures.push("submitted-frame-throughput");
+  }
+  if (report.finalizationMs === null || report.finalizationMs > 5000) {
+    failures.push("finalization-time");
+  }
+  if (
+    report.durationErrorMs === null ||
+    Math.abs(report.durationErrorMs) > report.estimatedFrameDurationMs
+  ) {
+    failures.push("output-duration");
+  }
+  return failures;
+}
+
+function verifyCaptureGateFailure(report, label) {
+  assert.equal(report.scenario, "encode", `${label}: capture-gate failure must be an encode run`);
+  assert.ok(
+    captureGateFailures(report).length > 0,
+    `${label}: report passed every capture gate but was declared as a failure`,
   );
 }
 
@@ -544,14 +637,29 @@ function verifyDeclaredWindowTarget(report, label) {
   );
 }
 
-function assertRequiredReportRoles(roleCounts, label) {
-  for (const [role, requirement] of REQUIRED_REPORT_ROLES) {
+function assertRequiredReportRoles(roleCounts, label, requirements = REQUIRED_REPORT_ROLES) {
+  for (const [role, requirement] of requirements) {
     const actual = roleCounts.get(role) ?? 0;
     assert.ok(
       actual >= requirement.minimumCount,
       `${label}: report role ${role} requires ${requirement.minimumCount} run(s); found ${actual}`,
     );
   }
+}
+
+function verifyFallbackFollowUp(followUp, label) {
+  assert.ok(followUp, `${label}: fallbackFollowUp is required`);
+  assert.equal(followUp.issue, 9, `${label}: fallback follow-up must be issue 9`);
+  assert.ok(Array.isArray(followUp.gates), `${label}: fallbackFollowUp.gates must be an array`);
+  assert.deepEqual(
+    new Set(followUp.gates),
+    REQUIRED_FALLBACK_FOLLOW_UP_GATES,
+    `${label}: fallback follow-up gates are incomplete`,
+  );
+  assert.ok(
+    followUp.notes && followUp.notes.trim(),
+    `${label}: fallbackFollowUp.notes is required`,
+  );
 }
 
 function assertRequiredManualEvidence(manualEvidence, label) {
@@ -690,6 +798,11 @@ function runSelfTest() {
       "bad-duration",
     ),
   );
+  verifyCaptureGateFailure(
+    syntheticBase({ submittedFrames: 1600 }),
+    "low-throughput-fallback",
+  );
+  assert.throws(() => verifyCaptureGateFailure(syntheticBase(), "passing-fallback"));
   verifyReport(
     syntheticBase({
       scenario: "cancel",
@@ -827,6 +940,36 @@ function runSelfTest() {
   assertRequiredReportRoles(completeRoleCounts, "complete-roles");
   completeRoleCounts.set("selected-window", 1);
   assert.throws(() => assertRequiredReportRoles(completeRoleCounts, "sparse-roles"));
+
+  const fallbackRoleCounts = new Map(
+    [...REQUIRED_FALLBACK_REPORT_ROLES].map(([role, requirement]) => [
+      role,
+      requirement.minimumCount,
+    ]),
+  );
+  assertRequiredReportRoles(
+    fallbackRoleCounts,
+    "complete-fallback-roles",
+    REQUIRED_FALLBACK_REPORT_ROLES,
+  );
+  verifyFallbackFollowUp(
+    {
+      issue: 9,
+      gates: [...REQUIRED_FALLBACK_FOLLOW_UP_GATES],
+      notes: "Validate the direct Windows binding path.",
+    },
+    "fallback-follow-up",
+  );
+  assert.throws(() =>
+    verifyFallbackFollowUp(
+      {
+        issue: 9,
+        gates: ["device-loss"],
+        notes: "Incomplete gate handoff.",
+      },
+      "incomplete-fallback-follow-up",
+    ),
+  );
 
   const seenReportPaths = new Set();
   const seenRunFingerprints = new Set();
