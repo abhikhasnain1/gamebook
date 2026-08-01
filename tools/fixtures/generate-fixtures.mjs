@@ -19,6 +19,7 @@ if (!MODE) {
 
 const FIXED_TIME = "2026-08-01T00:00:00.000Z";
 const files = new Map();
+const textFiles = new Set();
 const catalog = [];
 const CRC_TABLE = Array.from({ length: 256 }, (_, index) => {
   let value = index;
@@ -53,7 +54,7 @@ if (MODE === "write") {
       continue;
     }
     const actual = readFileSync(target);
-    if (!actual.equals(Buffer.from(content))) {
+    if (!matchesExpectedFile(path, actual, Buffer.from(content))) {
       failures.push(`Changed ${path}`);
     }
   }
@@ -117,7 +118,7 @@ function addColorFixtures() {
 }
 
 function addMalformedFixtures() {
-  addBinary("imports/not-a-png.png.fixture", Buffer.from("not a png\n", "utf8"), {
+  addText("imports/not-a-png.png.fixture", "not a png\n", {
     type: "malformed-import",
     description: "File has a PNG-like name but invalid bytes.",
     accessibilityText: "Invalid import fixture with text bytes instead of an image.",
@@ -288,6 +289,7 @@ function addJson(path, value, info) {
 }
 
 function addText(path, value, info) {
+  textFiles.add(path);
   addBinary(path, Buffer.from(value, "utf8"), info);
 }
 
@@ -306,6 +308,16 @@ function addBinary(path, content, info = {}) {
 
 function sha256(buffer) {
   return createHash("sha256").update(buffer).digest("hex");
+}
+
+function matchesExpectedFile(path, actual, expected) {
+  if (actual.equals(expected)) return true;
+  if (!textFiles.has(path)) return false;
+  return normalizeLineEndings(actual).equals(normalizeLineEndings(expected));
+}
+
+function normalizeLineEndings(buffer) {
+  return Buffer.from(buffer.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
 }
 
 function dataUrl(mime, buffer) {
