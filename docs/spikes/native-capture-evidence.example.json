@@ -1,6 +1,12 @@
 {
   "schema": "gamebook.native-capture-evidence-set.v1",
   "issue": 6,
+  "applicationBuild": {
+    "name": "gamebook",
+    "version": "0.5.3",
+    "sourceRevision": "replace-with-full-commit-sha",
+    "profile": "debug"
+  },
   "reports": [
     {
       "id": "1080p60-monitor-pass-01",

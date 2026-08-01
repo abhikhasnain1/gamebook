@@ -33,6 +33,7 @@ type SpikeError = Box<dyn Error + Send + Sync>;
 #[derive(Clone)]
 struct RunConfig {
     scenario: Scenario,
+    build_id: String,
     declared_target_kind: &'static str,
     target_label: String,
     source_width: u32,
@@ -112,6 +113,7 @@ struct SpikeReport {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct EnvironmentReport {
+    application_build: ApplicationBuild,
     exe: String,
     current_dir: String,
     os: &'static str,
@@ -119,6 +121,15 @@ struct EnvironmentReport {
     family: &'static str,
     windows_capture_version: &'static str,
     probes: Vec<EnvironmentProbe>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ApplicationBuild {
+    name: &'static str,
+    version: &'static str,
+    source_revision: String,
+    profile: &'static str,
 }
 
 #[derive(Serialize)]
@@ -312,7 +323,7 @@ impl CaptureRun {
             cleaned_partial_output,
             result,
             error_message: None,
-            environment: EnvironmentReport::current()?,
+            environment: EnvironmentReport::current(&self.config.build_id)?,
             notes: vec![
                 "Audio is disabled in this harness; WASAPI loopback is covered by the dependent audio synchronization spike.".to_string(),
                 "The harness writes to a staging output path and removes cancellation/source-close partial output.".to_string(),
@@ -335,8 +346,18 @@ impl CaptureRun {
 }
 
 impl EnvironmentReport {
-    fn current() -> Result<Self, SpikeError> {
+    fn current(build_id: &str) -> Result<Self, SpikeError> {
         Ok(Self {
+            application_build: ApplicationBuild {
+                name: env!("CARGO_PKG_NAME"),
+                version: env!("CARGO_PKG_VERSION"),
+                source_revision: build_id.to_string(),
+                profile: if cfg!(debug_assertions) {
+                    "debug"
+                } else {
+                    "release"
+                },
+            },
             exe: env::current_exe()?
                 .file_name()
                 .and_then(|value| value.to_str())
@@ -362,11 +383,11 @@ impl EnvironmentReport {
                 ),
                 powershell_probe(
                     "audio-devices",
-                    "Get-CimInstance Win32_SoundDevice | Select-Object Name,Status,Manufacturer | ConvertTo-Json -Compress",
+                    "$devices = @(Get-CimInstance Win32_SoundDevice); $statuses = @($devices | Group-Object Status | ForEach-Object { [pscustomobject]@{ Status = $_.Name; Count = $_.Count } }); [pscustomobject]@{ Count = $devices.Count; Statuses = $statuses } | ConvertTo-Json -Compress -Depth 4",
                 ),
                 powershell_probe(
                     "storage-volumes",
-                    "Get-Volume | Select-Object DriveLetter,FileSystemType,Size,SizeRemaining,HealthStatus | ConvertTo-Json -Compress",
+                    "Get-Volume | Select-Object FileSystemType,Size,SizeRemaining,HealthStatus | ConvertTo-Json -Compress",
                 ),
                 powershell_probe(
                     "webview2-runtime",
@@ -387,20 +408,14 @@ fn main() -> Result<(), SpikeError> {
             let monitor = Monitor::primary()?;
             let width = monitor.width()?;
             let height = monitor.height()?;
-            let label = format!(
-                "primary-monitor:{}",
-                monitor.name().unwrap_or_else(|_| "unknown".to_string())
-            );
+            let label = "primary-monitor".to_string();
             run_capture(monitor, width, height, "monitor", label, options)
         }
         TargetOption::MonitorIndex(index) => {
             let monitor = Monitor::from_index(index)?;
             let width = monitor.width()?;
             let height = monitor.height()?;
-            let label = format!(
-                "monitor-index-{index}:{}",
-                monitor.name().unwrap_or_else(|_| "unknown".to_string())
-            );
+            let label = format!("monitor-index-{index}");
             run_capture(monitor, width, height, "monitor", label, options)
         }
         TargetOption::Picker(declared_kind) => {
@@ -452,6 +467,7 @@ where
 
     let config = RunConfig {
         scenario: options.scenario,
+        build_id: options.build_id,
         declared_target_kind,
         target_label,
         source_width,
@@ -494,6 +510,7 @@ where
 struct Options {
     target: TargetOption,
     scenario: Scenario,
+    build_id: String,
     duration_seconds: u64,
     frame_rate: u32,
     countdown_seconds: u64,
@@ -538,6 +555,7 @@ impl Options {
     fn parse(args: Vec<String>) -> Result<Self, SpikeError> {
         let mut target = TargetOption::PrimaryMonitor;
         let mut scenario = Scenario::Encode;
+        let mut build_id = None;
         let mut duration_seconds = 30;
         let mut frame_rate = 60;
         let mut countdown_seconds = 0;
@@ -566,6 +584,12 @@ impl Options {
                                     .into(),
                             ),
                         };
+                }
+                "--build-id" => {
+                    index += 1;
+                    build_id = Some(validate_build_id(
+                        args.get(index).ok_or("--build-id requires a value")?,
+                    )?);
                 }
                 "--duration" => {
                     index += 1;
@@ -615,9 +639,14 @@ impl Options {
             index += 1;
         }
 
+        let build_id = build_id.ok_or(
+            "--build-id is required and must identify the exact committed source revision",
+        )?;
+
         Ok(Self {
             target,
             scenario,
+            build_id,
             duration_seconds,
             frame_rate,
             countdown_seconds,
@@ -654,7 +683,7 @@ fn print_help() {
     println!(
         "Native capture spike\n\n\
          cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- \\\n\
-           --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --countdown 5\n\n\
+           --build-id COMMIT_SHA --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --countdown 5\n\n\
          Targets: primary-monitor, monitor-index:N, picker-window, picker-monitor, picker\n\
          Scenarios: encode, cancel, source-close, encoder-failure\n\
          Outputs: MP4 and JSON report under src-tauri/target/native-capture-spike by default"
@@ -694,7 +723,7 @@ fn write_startup_failure_report(config: &RunConfig, error_message: &str) -> Resu
         cleaned_partial_output: false,
         result: "startup-failed",
         error_message: Some(sanitize_error_message(error_message, config)),
-        environment: EnvironmentReport::current()?,
+        environment: EnvironmentReport::current(&config.build_id)?,
         notes: vec![
             "Startup failure reports exercise capture or encoder initialization failure before a project can reference media.".to_string(),
             "The encoder-failure scenario deliberately points the encoder at the output directory path to force initialization failure.".to_string(),
@@ -780,6 +809,15 @@ fn validate_run_id(value: &str) -> Result<String, SpikeError> {
         );
     }
     Ok(value.to_string())
+}
+
+fn validate_build_id(value: &str) -> Result<String, SpikeError> {
+    let valid_length = (7..=64).contains(&value.len());
+    let valid_characters = value.bytes().all(|byte| byte.is_ascii_hexdigit());
+    if !valid_length || !valid_characters {
+        return Err("--build-id must be a 7-64 character hexadecimal commit ID".into());
+    }
+    Ok(value.to_ascii_lowercase())
 }
 
 fn run_countdown(seconds: u64) -> Result<(), SpikeError> {
@@ -899,7 +937,7 @@ fn unix_millis() -> u128 {
 mod tests {
     use super::{
         artifact_label, even_dimension, frame_interval, parse_target, sanitize_command,
-        validate_run_id, Options, PickerTargetKind, Scenario, TargetOption,
+        validate_build_id, validate_run_id, Options, PickerTargetKind, Scenario, TargetOption,
     };
 
     #[test]
@@ -945,6 +983,8 @@ mod tests {
             "native_capture_spike".to_string(),
             "--scenario".to_string(),
             "encoder-failure".to_string(),
+            "--build-id".to_string(),
+            "a73e733".to_string(),
             "--run-id".to_string(),
             "encoder-failure-test".to_string(),
         ])
@@ -959,6 +999,8 @@ mod tests {
             "native_capture_spike".to_string(),
             "--scenario".to_string(),
             "source-close".to_string(),
+            "--build-id".to_string(),
+            "a73e733".to_string(),
         ])
         .unwrap();
 
@@ -976,6 +1018,8 @@ mod tests {
 
         let options = Options::parse(vec![
             "native_capture_spike".to_string(),
+            "--build-id".to_string(),
+            "a73e733".to_string(),
             "--countdown".to_string(),
             "5".to_string(),
         ])
@@ -984,10 +1028,19 @@ mod tests {
 
         assert!(Options::parse(vec![
             "native_capture_spike".to_string(),
+            "--build-id".to_string(),
+            "a73e733".to_string(),
             "--countdown".to_string(),
             "31".to_string(),
         ])
         .is_err());
+    }
+
+    #[test]
+    fn requires_a_hexadecimal_source_revision() {
+        assert_eq!(validate_build_id("A73E733").unwrap(), "a73e733");
+        assert!(validate_build_id("not-a-commit").is_err());
+        assert!(Options::parse(vec!["native_capture_spike".to_string()]).is_err());
     }
 
     #[test]

@@ -133,6 +133,7 @@ function verifyReport(report, options, label = "report") {
     ["monitor", "window", "unspecified"].includes(report.declaredTargetKind),
     `${label}: invalid declaredTargetKind`,
   );
+  verifyTargetLabel(report, label);
   assert.match(report.outputPath, /^artifact(?::[^\\/]+)?$/, `${label}: outputPath is not redacted`);
   assertNoPathMarkers(report, label);
 
@@ -231,6 +232,7 @@ function verifySourceCloseReport(report, label) {
 
 function verifyEnvironment(report, label) {
   assert.ok(report.environment, `${label}: missing environment`);
+  verifyApplicationBuild(report.environment.applicationBuild, label);
   assert.equal(report.environment.exe, "native_capture_spike.exe", `${label}: exe is not redacted`);
   assert.equal(report.environment.currentDir, ".", `${label}: currentDir is not redacted`);
   assert.equal(
@@ -245,6 +247,34 @@ function verifyEnvironment(report, label) {
   }
 }
 
+function verifyApplicationBuild(build, label) {
+  assert.ok(build, `${label}: missing applicationBuild`);
+  assert.equal(build.name, "gamebook", `${label}: unexpected applicationBuild name`);
+  assert.match(
+    build.version,
+    /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/,
+    `${label}: invalid applicationBuild version`,
+  );
+  assert.match(
+    build.sourceRevision,
+    /^[0-9a-f]{7,64}$/,
+    `${label}: invalid applicationBuild sourceRevision`,
+  );
+  assert.ok(
+    ["debug", "release"].includes(build.profile),
+    `${label}: invalid applicationBuild profile`,
+  );
+}
+
+function verifyTargetLabel(report, label) {
+  const expected = {
+    monitor: /^(primary-monitor|monitor-index-\d+|picker-selected-monitor)$/,
+    window: /^picker-selected-window$/,
+    unspecified: /^picker-selected-unspecified$/,
+  }[report.declaredTargetKind];
+  assert.match(report.targetLabel, expected, `${label}: targetLabel is not anonymous`);
+}
+
 function assertNoPathMarkers(report, label) {
   const serialized = JSON.stringify(report);
   for (const marker of PATH_MARKERS) {
@@ -256,6 +286,7 @@ function verifyManifest(manifest, manifestPath) {
   const label = basename(manifestPath);
   assert.equal(manifest.schema, REQUIRED_MANIFEST_SCHEMA, `${label}: manifest schema mismatch`);
   assert.equal(manifest.issue, 6, `${label}: manifest must target issue 6`);
+  verifyApplicationBuild(manifest.applicationBuild, label);
   assertNoPathMarkers(manifest, label);
   assert.ok(Array.isArray(manifest.reports), `${label}: reports must be an array`);
   assert.ok(manifest.reports.length > 0, `${label}: reports cannot be empty`);
@@ -298,6 +329,11 @@ function verifyManifest(manifest, manifestPath) {
         minSubmittedFrames: entry.minSubmittedFrames ?? 1,
       },
       `${label}:${entry.id}`,
+    );
+    assert.deepEqual(
+      report.environment.applicationBuild,
+      manifest.applicationBuild,
+      `${label}:${entry.id}: applicationBuild does not match the evidence set`,
     );
     verifyReportRole(entry, report, `${label}:${entry.id}`);
     roleCounts.set(entry.role, (roleCounts.get(entry.role) ?? 0) + 1);
@@ -374,7 +410,7 @@ function verifyMonitorTarget(report, label) {
   assert.equal(report.declaredTargetKind, "monitor", `${label}: target must be a monitor`);
   assert.match(
     report.targetLabel,
-    /^(primary-monitor:|monitor-index-\d+:)/,
+    /^(primary-monitor|monitor-index-\d+)$/,
     `${label}: target label is not a direct monitor target`,
   );
 }
@@ -423,7 +459,7 @@ function syntheticBase(overrides = {}) {
     command: ["native_capture_spike.exe", "--scenario", "encode"],
     scenario: "encode",
     declaredTargetKind: "monitor",
-    targetLabel: "synthetic",
+    targetLabel: "primary-monitor",
     sourceWidth: 1920,
     sourceHeight: 1080,
     requestedWidth: 1920,
@@ -449,6 +485,12 @@ function syntheticBase(overrides = {}) {
     result: "completed",
     errorMessage: null,
     environment: {
+      applicationBuild: {
+        name: "gamebook",
+        version: "0.5.3",
+        sourceRevision: "a73e733",
+        profile: "debug",
+      },
       exe: "native_capture_spike.exe",
       currentDir: ".",
       os: "windows",
@@ -534,10 +576,33 @@ function runSelfTest() {
     ),
   );
   assert.throws(() =>
+    verifyReport(
+      syntheticBase({ targetLabel: "primary-monitor:\\\\.\\DISPLAY1" }),
+      { ...defaultOptions(), scenario: "encode" },
+      "named-monitor",
+    ),
+  );
+  assert.throws(() =>
+    verifyReport(
+      syntheticBase({
+        environment: {
+          ...syntheticBase().environment,
+          applicationBuild: {
+            ...syntheticBase().environment.applicationBuild,
+            sourceRevision: "uncommitted",
+          },
+        },
+      }),
+      { ...defaultOptions(), scenario: "encode" },
+      "unidentified-build",
+    ),
+  );
+  assert.throws(() =>
     verifyManifest(
       {
         schema: REQUIRED_MANIFEST_SCHEMA,
         issue: 6,
+        applicationBuild: syntheticBase().environment.applicationBuild,
         reports: [],
         manualEvidence: [],
       },
@@ -559,13 +624,13 @@ function runSelfTest() {
 
   verifyReportRole(
     { role: "monitor-1080p60", scenario: "encode" },
-    syntheticBase({ targetLabel: "primary-monitor:synthetic" }),
+    syntheticBase({ targetLabel: "primary-monitor" }),
     "1080p-role",
   );
   assert.throws(() =>
     verifyReportRole(
       { role: "monitor-1440p60", scenario: "encode" },
-      syntheticBase({ targetLabel: "primary-monitor:synthetic" }),
+      syntheticBase({ targetLabel: "primary-monitor" }),
       "wrong-1440p-role",
     ),
   );

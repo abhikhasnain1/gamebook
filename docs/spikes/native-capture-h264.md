@@ -26,14 +26,16 @@ Move the browser window to the target display and press `F` inside the fixture t
 Run from the repository root:
 
 ```powershell
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --countdown 5 --run-id 1080p60-monitor-pass-01
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target picker-window --scenario encode --duration 30 --frame-rate 60 --countdown 5 --run-id selected-window-pass-01
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario cancel --duration 5 --frame-rate 60 --countdown 5 --run-id cancellation-cleanup-01
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target picker-window --scenario source-close --duration 30 --frame-rate 60 --countdown 5 --run-id source-close-cleanup-01
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario encoder-failure --duration 1 --frame-rate 60 --run-id encoder-failure-01
+$buildId = git rev-parse HEAD
+git status --short
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --countdown 5 --run-id 1080p60-monitor-pass-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target picker-window --scenario encode --duration 30 --frame-rate 60 --countdown 5 --run-id selected-window-pass-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target primary-monitor --scenario cancel --duration 5 --frame-rate 60 --countdown 5 --run-id cancellation-cleanup-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target picker-window --scenario source-close --duration 30 --frame-rate 60 --countdown 5 --run-id source-close-cleanup-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --build-id $buildId --target primary-monitor --scenario encoder-failure --duration 1 --frame-rate 60 --run-id encoder-failure-01
 ```
 
-Target options are `primary-monitor`, `monitor-index:N`, `picker-window`, `picker-monitor`, and the non-closeout `picker` fallback. The picker API does not expose the selected item type after selection, so `picker-window` and `picker-monitor` are operator declarations: the operator must choose the declared target kind. Scenario options are `encode`, `cancel`, `source-close`, and `encoder-failure`. For `source-close`, close the selected window before the configured timeout; a timeout produces a failing `source-not-closed` report and removes the partial MP4. Run IDs are restricted to 1-80 ASCII letters, numbers, hyphens, or underscores so they cannot escape the configured output directory.
+Run only from a clean committed branch: `git status --short` must have no output. `--build-id` is required and accepts a 7-64 character hexadecimal commit ID so every report identifies the exact source revision. Target options are `primary-monitor`, `monitor-index:N`, `picker-window`, `picker-monitor`, and the non-closeout `picker` fallback. The picker API does not expose the selected item type after selection, so `picker-window` and `picker-monitor` are operator declarations: the operator must choose the declared target kind. Scenario options are `encode`, `cancel`, `source-close`, and `encoder-failure`. For `source-close`, close the selected window before the configured timeout; a timeout produces a failing `source-not-closed` report and removes the partial MP4. Run IDs are restricted to 1-80 ASCII letters, numbers, hyphens, or underscores so they cannot escape the configured output directory.
 
 Verify generated JSON reports before attaching them to the issue:
 
@@ -44,7 +46,7 @@ npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/sourc
 npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/encoder-failure-01.json --scenario encoder-failure
 ```
 
-After the full evidence set is collected, create a local evidence manifest based on `docs/spikes/native-capture-evidence.example.json`, update the paths and manual evidence statuses, and run:
+After the full evidence set is collected, create a local evidence manifest based on `docs/spikes/native-capture-evidence.example.json`, replace its application-build values with the exact shared build, update the paths and manual evidence statuses, and run:
 
 ```powershell
 npm.cmd run native-capture:verify -- --manifest path/to/native-capture-evidence.json
@@ -64,9 +66,9 @@ Each closeout evidence set must include the generated JSON summaries for:
 - one deliberate encoder-initialization failure report;
 - at least two protected-content attempts with explicit blocked or blank-source outcomes.
 
-The JSON report records the redacted command and artifact label, declared target kind, target label, source dimensions, dimensions requested from the encoder after even-dimension padding, requested frame rate and duration, submitted frame count, capture timestamp span, finalized MP4 duration from the Windows media property system, estimated dropped frames from timestamp gaps, largest timestamp gap, duplicate or backwards timestamps, finalization time, output size, cancellation cleanup, startup failure message where applicable, and runtime environment probes. Environment probes include Windows version and memory, CPU, GPU/display driver and current display mode, audio devices, storage volumes, WebView2 runtime, and active power scheme.
+The JSON report records the Gamebook package version, exact source revision, build profile, redacted command and artifact label, anonymous target kind/index label, source dimensions, dimensions requested from the encoder after even-dimension padding, requested frame rate and duration, submitted frame count, capture timestamp span, finalized MP4 duration from the Windows media property system, estimated dropped frames from timestamp gaps, largest timestamp gap, duplicate or backwards timestamps, finalization time, output size, cancellation cleanup, startup failure message where applicable, and runtime environment probes. Environment probes include Windows version and memory, CPU, GPU/display driver and current display mode, anonymized audio-device status counts, storage-volume capabilities without drive letters, WebView2 runtime, and active power scheme.
 
-The verifier checks schema, path redaction, required probes, scenario-specific state, the one-frame finalized output-duration tolerance, and the five-second finalization threshold. Manifest verification also requires every automated evidence role, repeated-run counts, at least 95% of the requested 30-second 60 FPS frame count for pass roles, two attempts each for device-loss and protected-content evidence, and completed manual rows with notes. A manual row cannot pass as `not-applicable`.
+The verifier checks schema, exact build identity, anonymous target labels, path redaction, required probes, scenario-specific state, the one-frame finalized output-duration tolerance, and the five-second finalization threshold. Manifest verification also requires every report to use the same declared application build, every automated evidence role, repeated-run counts, at least 95% of the requested 30-second 60 FPS frame count for pass roles, two attempts each for device-loss and protected-content evidence, and completed manual rows with notes. A manual row cannot pass as `not-applicable`.
 
 ## Preliminary Architecture Finding
 
@@ -89,7 +91,7 @@ This isolated CLI harness has no shipped user-facing UI. Manual issue evidence s
 
 ## Security And Privacy Notes
 
-The harness uses desktop capture APIs only. It does not inject into game processes, read game memory, open network connections, or write project records. The controlled fixture is self-contained and its verifier rejects external scripts, styles, network APIs, and local path markers. Audio is disabled in this issue's harness because WASAPI loopback and A/V synchronization are owned by the dependent audio spike. Cancellation and source-close paths ensure partial MP4 output is absent instead of leaving a referenced artifact. Report commands, output labels, and startup errors redact local paths before JSON is written.
+The harness uses desktop capture APIs only. It does not inject into game processes, read game memory, open network connections, or write project records. The controlled fixture is self-contained and its verifier rejects external scripts, styles, network APIs, and local path markers. Audio is disabled in this issue's harness because WASAPI loopback and A/V synchronization are owned by the dependent audio spike. Cancellation and source-close paths ensure partial MP4 output is absent instead of leaving a referenced artifact. Report commands, output labels, and startup errors redact local paths; target labels omit monitor names, audio probes omit device names, and storage probes omit drive letters before JSON is written.
 
 The harness output can contain sensitive screen contents and must stay local validation evidence unless the user intentionally shares it.
 
