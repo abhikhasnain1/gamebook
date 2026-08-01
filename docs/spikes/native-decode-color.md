@@ -93,4 +93,20 @@ Synthetic MP4s, requested PNGs, and complete local reports remain ignored and un
 
 ## Current Validation
 
-The checked-in reference report and final measurements are populated only from the clean release evidence run used to close issue #8. Debug smoke runs are not acceptance evidence.
+The release evidence set used source revision `eb9cba1efee25f5e3249e6236e9ea7c295c05463` and one clean release binary with SHA-256 `8CE0DC2EE94CB5A22BA9F63684ACC0D89E0D162F4EF58C3B595AFE243CA484DC`. The machine-verified local manifest contains eleven independent reports from that exact build. The checked-in [odd-aperture reference report](native-decode-reference-report.json) is a redacted copy from the same set.
+
+| Scenario | Submitted samples | Retained media | Result |
+| --- | ---: | ---: | --- |
+| CFR 30 | 30 | 4,208 bytes | Exact timestamps, order, identities, and samples 0/15/29 |
+| CFR 60 | 60 | 7,644 bytes | Exact timestamps, order, identities, and samples 0/30/59 |
+| VFR | 12 | 2,240 bytes | Exact nonuniform timeline, order, identities, and samples 0/4/11 |
+| SDR Rec.709 | 6 | 1,574 bytes | Seven patches passed; maximum channel error 1 |
+| Odd aperture | 6 | 1,508 bytes | One-pixel replicated padding and 161 by 91 PNG restoration passed |
+| PQ/BT.2020 and HLG/BT.2020 | Not decoded | None | Both blocked before output; no tone-mapping claim |
+| Malformed, out of range, cancellation, decoder failure | Not applicable | None | Rejection or failure passed with no retained partial artifacts |
+
+Media Foundation Source Reader returned every submitted CFR and VFR presentation timestamp exactly. Decoder-reported durations were normalized downward by at most one 100-nanosecond tick, while submitted integer durations and presentation timestamps remained recorded. All requested PNGs matched their requested sample identities and logical dimensions.
+
+The odd-size result confirmed that the MP4 container did not retain the submitted `MFVideoArea`; the negotiated decode type preserved the trusted 161 by 91 aperture and extraction restored those dimensions. This requires issue #9 and the Milestone 5 format decision to retain logical dimensions outside the MP4 container.
+
+Targeted Rust formatting, six focused Rust tests, all-target Clippy with warnings denied, JavaScript syntax and verifier self-tests, the eleven-report release manifest, TypeScript, 21 deterministic fixtures, ten frontend tests, the frontend production build, four existing Rust application tests, the full Tauri build, and NSIS/MSI packaging pass. Debug smoke runs were used only to refine the harness and are not acceptance evidence.
