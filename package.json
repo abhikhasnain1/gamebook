@@ -12,6 +12,8 @@
     "frontend:build": "tsc && vite build",
     "frontend:test": "vitest run",
     "frontend:test:watch": "vitest",
+    "fixtures:generate": "node tools/fixtures/generate-fixtures.mjs --write",
+    "fixtures:verify": "node tools/fixtures/generate-fixtures.mjs --verify",
     "check": "tsc --noEmit"
   },
   "dependencies": {

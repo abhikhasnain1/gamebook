@@ -1,0 +1,15 @@
+{
+  "fixture": "basic-screenshot",
+  "generatedAt": "2026-08-01T00:00:00.000Z",
+  "expected": {
+    "formatVersion": 1,
+    "pageCount": 1,
+    "activePageId": "fixture-page-1",
+    "sourceImageSha256": "b046e22601151b31c395d18ee2d51b4a86cfb29131b2acf732065f8abc44d714",
+    "annotationIds": [
+      "fixture-box-1",
+      "fixture-note-1"
+    ],
+    "extractedText": "Deterministic fixture note"
+  }
+}

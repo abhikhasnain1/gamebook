@@ -1,0 +1,227 @@
+{
+  "generatedAt": "2026-08-01T00:00:00.000Z",
+  "generator": "tools/fixtures/generate-fixtures.mjs",
+  "provenance": "Deterministic synthetic test data; contains no captured user or game media.",
+  "regeneration": "npm.cmd run fixtures:generate",
+  "verification": "npm.cmd run fixtures:verify",
+  "fixtures": [
+    {
+      "path": "archives/absolute-path-entry.zip.fixture",
+      "sha256": "252340e6c9e256f549bb2f304db4a6e64581f0b78cd4f3805e7434cf4ae78b79",
+      "bytes": 142,
+      "type": "malformed-archive",
+      "description": "ZIP entry uses a Windows drive prefix.",
+      "accessibilityText": "Archive fixture for drive-prefix path rejection.",
+      "expectedFailure": "reject-absolute-path"
+    },
+    {
+      "path": "archives/case-duplicate-entries.zip.fixture",
+      "sha256": "f50a8cdffc481679a626d6a7452284be1f40c8f87944af09af19dfb33833c9f8",
+      "bytes": 256,
+      "type": "malformed-archive",
+      "description": "ZIP entries collide after case-insensitive normalization.",
+      "accessibilityText": "Archive fixture for case-insensitive duplicate path rejection.",
+      "expectedFailure": "reject-case-duplicate"
+    },
+    {
+      "path": "archives/declared-oversize-json.zip.fixture",
+      "sha256": "5dfe7d4c52074bea79a95c8df7b4a1684ba58b0fac240d1a76df6df9ca8f26e8",
+      "bytes": 172,
+      "type": "malformed-archive",
+      "description": "Archive manifest declares a JSON record over the 16 MB validation limit.",
+      "accessibilityText": "Archive fixture for declared JSON size limit rejection.",
+      "expectedFailure": "reject-json-size-limit"
+    },
+    {
+      "path": "archives/nul-name-entry.zip.fixture",
+      "sha256": "cc6a76f9fd5098229a743617f8b0946d539ab633a3ac1d3f75371a6f62fba48f",
+      "bytes": 249,
+      "type": "malformed-archive",
+      "description": "ZIP entry contains a NUL character in the name bytes.",
+      "accessibilityText": "Archive fixture for NUL path rejection.",
+      "expectedFailure": "reject-nul-path"
+    },
+    {
+      "path": "archives/parent-traversal-entry.zip.fixture",
+      "sha256": "5563657ef3280ebb674080df4e826814eaab46ad52f9403d32409c75e69958e7",
+      "bytes": 142,
+      "type": "malformed-archive",
+      "description": "ZIP entry attempts parent-directory traversal.",
+      "accessibilityText": "Archive fixture for dot-dot traversal rejection.",
+      "expectedFailure": "reject-parent-traversal"
+    },
+    {
+      "path": "imports/not-a-png.png.fixture",
+      "sha256": "91a3072fe20c0552bfa0c3c90362af3d455a5fd4b9ec5c0c3035ade2b2258d70",
+      "bytes": 10,
+      "type": "malformed-import",
+      "description": "File has a PNG-like name but invalid bytes.",
+      "accessibilityText": "Invalid import fixture with text bytes instead of an image.",
+      "expectedFailure": "reject-before-project-mutation"
+    },
+    {
+      "path": "imports/truncated-png.png.fixture",
+      "sha256": "88020b186baa3d913fcf13890df62ab1cf6cca75e3023882264676b1a7c4a4a6",
+      "bytes": 32,
+      "type": "malformed-import",
+      "description": "Truncated PNG signature and header.",
+      "accessibilityText": "Malformed image fixture that ends before complete PNG chunks.",
+      "expectedFailure": "reject-before-project-mutation"
+    },
+    {
+      "path": "media/color/hdr-blocking-samples.json",
+      "sha256": "ce6788d2c105e61e51cad75f07ff568446c3e694f4e83633b33058c4008d135d",
+      "bytes": 551,
+      "type": "hdr-color",
+      "description": "Textual HDR fixture samples for unsupported HDR/10-bit boundaries.",
+      "accessibilityText": "JSON describes HDR transfer functions and expected blocking behavior."
+    },
+    {
+      "path": "media/color/sdr-rec709-bars.png",
+      "sha256": "5fea936df8c87cf9f2723ad65b447d043c9c71890f35b2842ff4f53c4ded703c",
+      "bytes": 708,
+      "type": "sdr-color",
+      "description": "8-bit sRGB/Rec.709 color bars for static color regression checks.",
+      "accessibilityText": "Eight vertical SDR color bars: white, yellow, cyan, green, magenta, red, blue, and black.",
+      "metadata": {
+        "colorSpace": "sRGB/Rec.709",
+        "bitDepth": 8,
+        "width": 256,
+        "height": 96
+      }
+    },
+    {
+      "path": "media/numbered-frames-30fps/frame-0000.png",
+      "sha256": "807770ef21b247fd04fdb2c7ef135b0d65a33c831500616e0b9d82db7715b2d3",
+      "bytes": 568,
+      "type": "numbered-frame",
+      "description": "Synthetic 30 FPS frame 0 at 0 microseconds.",
+      "accessibilityText": "Frame 0 of a 30 FPS numbered-frame fixture.",
+      "metadata": {
+        "fps": 30,
+        "sampleIndex": 0,
+        "timestampUs": 0,
+        "width": 160,
+        "height": 90
+      }
+    },
+    {
+      "path": "media/numbered-frames-30fps/frame-0015.png",
+      "sha256": "e0896baf67da0223bec77c0e715cf15fbd0dd8b5c9e68ec38017b3abe21d1a7c",
+      "bytes": 569,
+      "type": "numbered-frame",
+      "description": "Synthetic 30 FPS frame 15 at 500000 microseconds.",
+      "accessibilityText": "Frame 15 of a 30 FPS numbered-frame fixture.",
+      "metadata": {
+        "fps": 30,
+        "sampleIndex": 15,
+        "timestampUs": 500000,
+        "width": 160,
+        "height": 90
+      }
+    },
+    {
+      "path": "media/numbered-frames-30fps/frame-0029.png",
+      "sha256": "21cb89461291b940302bae0baa6738c7a4ea26b4e4301418f4c77dbab4d0254c",
+      "bytes": 585,
+      "type": "numbered-frame",
+      "description": "Synthetic 30 FPS frame 29 at 966667 microseconds.",
+      "accessibilityText": "Frame 29 of a 30 FPS numbered-frame fixture.",
+      "metadata": {
+        "fps": 30,
+        "sampleIndex": 29,
+        "timestampUs": 966667,
+        "width": 160,
+        "height": 90
+      }
+    },
+    {
+      "path": "media/numbered-frames-30fps/metadata.json",
+      "sha256": "93d2a100274a313d3f798104009caa5bd5f24fed92940eebda598742edb52cd9",
+      "bytes": 880,
+      "type": "numbered-frame-metadata",
+      "description": "30 FPS numbered-frame metadata.",
+      "accessibilityText": "Metadata lists each synthetic frame, sample index, timestamp, and hash."
+    },
+    {
+      "path": "media/numbered-frames-60fps/frame-0000.png",
+      "sha256": "8f15d4818f0f3680349b75098b6e0a0a0551a60883e9bcf15743cb90521cf537",
+      "bytes": 557,
+      "type": "numbered-frame",
+      "description": "Synthetic 60 FPS frame 0 at 0 microseconds.",
+      "accessibilityText": "Frame 0 of a 60 FPS numbered-frame fixture.",
+      "metadata": {
+        "fps": 60,
+        "sampleIndex": 0,
+        "timestampUs": 0,
+        "width": 160,
+        "height": 90
+      }
+    },
+    {
+      "path": "media/numbered-frames-60fps/frame-0030.png",
+      "sha256": "e44a4784c49913bd73c39af7ccbb3ecb73cade6c2ab95927cffd438e4ec87aab",
+      "bytes": 577,
+      "type": "numbered-frame",
+      "description": "Synthetic 60 FPS frame 30 at 500000 microseconds.",
+      "accessibilityText": "Frame 30 of a 60 FPS numbered-frame fixture.",
+      "metadata": {
+        "fps": 60,
+        "sampleIndex": 30,
+        "timestampUs": 500000,
+        "width": 160,
+        "height": 90
+      }
+    },
+    {
+      "path": "media/numbered-frames-60fps/frame-0059.png",
+      "sha256": "1063218aef8ace66739f1699da1841ae10f1c06a01a001df68d304023d757f47",
+      "bytes": 585,
+      "type": "numbered-frame",
+      "description": "Synthetic 60 FPS frame 59 at 983333 microseconds.",
+      "accessibilityText": "Frame 59 of a 60 FPS numbered-frame fixture.",
+      "metadata": {
+        "fps": 60,
+        "sampleIndex": 59,
+        "timestampUs": 983333,
+        "width": 160,
+        "height": 90
+      }
+    },
+    {
+      "path": "media/numbered-frames-60fps/metadata.json",
+      "sha256": "2adb05467c7d535b130306203de309ea55c0ac5e33b8df2e89bfca650eeff754",
+      "bytes": 880,
+      "type": "numbered-frame-metadata",
+      "description": "60 FPS numbered-frame metadata.",
+      "accessibilityText": "Metadata lists each synthetic frame, sample index, timestamp, and hash."
+    },
+    {
+      "path": "projects/version1/basic-screenshot.expected.json",
+      "sha256": "efdc6765f6159da92d36537afb0fa79bfbeaf02579217a380ec262c04050cfcf",
+      "bytes": 403,
+      "type": "version1-project-metadata",
+      "description": "Expected values for the basic version 1 project fixture.",
+      "accessibilityText": "JSON lists expected project identifiers, source hash, annotation identifiers, and extracted text."
+    },
+    {
+      "path": "projects/version1/basic-screenshot.gamebook.fixture",
+      "sha256": "8ac289887f952ff6ab00fdfea894c5a3a245044d64bfdf628a49dc43cb1a4319",
+      "bytes": 114920,
+      "type": "version1-project",
+      "description": "Gzip-compressed version 1 project containing one synthetic screenshot and two annotations.",
+      "accessibilityText": "Version 1 project fixture with one page, a rectangle annotation, and a note annotation.",
+      "metadata": {
+        "formatVersion": 1,
+        "pageCount": 1,
+        "screenshotSha256": "b046e22601151b31c395d18ee2d51b4a86cfb29131b2acf732065f8abc44d714",
+        "thumbnailSha256": "9024876ffd77cb96522259f815bd3a1a6f5b79f92b1c9de2f29b3e9f92025153"
+      }
+    },
+    {
+      "path": "README.md",
+      "sha256": "763b9a959270e7d86498eb2e27bc13e5e57787da169b268113bc7f918a080343",
+      "bytes": 539
+    }
+  ]
+}
