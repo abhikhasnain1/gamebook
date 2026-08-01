@@ -495,7 +495,12 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_data_url, overlay_bounds, safe_stem};
+    use std::{fs, path::PathBuf, time::SystemTime};
+
+    use flate2::Compression;
+    use serde_json::json;
+
+    use super::{decode_data_url, overlay_bounds, read_project, safe_stem, write_compressed};
 
     #[test]
     fn decodes_plain_and_prefixed_base64() {
@@ -521,5 +526,44 @@ mod tests {
         let (position, size) = overlay_bounds(-1920, 0, 1920, 1080);
         assert_eq!(position, tauri::PhysicalPosition::new(-1815, 65));
         assert_eq!(size, tauri::PhysicalSize::new(1709, 950));
+    }
+
+    #[test]
+    fn reads_compressed_and_plain_version_one_projects() {
+        let dir = temp_test_dir("read-project");
+        fs::create_dir_all(&dir).unwrap();
+        let compressed_path = dir.join("compressed.gamebook");
+        let plain_path = dir.join("plain.gamebook");
+        let content = json!({
+            "formatVersion": 1,
+            "id": "fixture-session-v1-basic",
+            "pages": []
+        });
+
+        write_compressed(&compressed_path, &content, Compression::fast()).unwrap();
+        fs::write(
+            &plain_path,
+            r#"{"formatVersion":1,"id":"plain-version-one","pages":[]}"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            read_project(&compressed_path).unwrap(),
+            r#"{"formatVersion":1,"id":"fixture-session-v1-basic","pages":[]}"#,
+        );
+        assert_eq!(
+            read_project(&plain_path).unwrap(),
+            r#"{"formatVersion":1,"id":"plain-version-one","pages":[]}"#,
+        );
+
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    fn temp_test_dir(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("gamebook-{name}-{nonce}"))
     }
 }

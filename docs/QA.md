@@ -16,6 +16,12 @@
 - Serious and critical axe-core accessibility violations fail the test run.
 - Baseline component coverage must include accessible names, roles, state, focus, and keyboard operation where applicable.
 
+## Screenshot regression baseline
+
+- Frontend regression tests cover version 1 session parsing, legacy page default backfills, capture-page metadata, unsupported-format rejection, text export order, and fixture manifest contracts.
+- Regression fixtures must preserve page order, source pixel references, screenshot transforms, annotation IDs, extracted text, textual descriptions, and expected malformed-input failures.
+- Current manual coverage remains required for native screenshot capture, save/recovery dialogs, PNG/PDF/Markdown render output, keyboard-only editing, NVDA, display scale, and high-contrast checks until those paths have dedicated automation.
+
 ## Deterministic fixtures
 
 - `npm.cmd run fixtures:verify` checks every generated fixture against the committed manifest.
