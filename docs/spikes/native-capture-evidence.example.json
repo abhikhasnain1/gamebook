@@ -1,0 +1,69 @@
+{
+  "schema": "gamebook.native-capture-evidence-set.v1",
+  "issue": 6,
+  "reports": [
+    {
+      "id": "1080p60-monitor-pass-01",
+      "path": "../../src-tauri/target/native-capture-spike/1080p60-monitor-pass-01.json",
+      "scenario": "encode",
+      "minSourceWidth": 1920,
+      "minSourceHeight": 1080
+    },
+    {
+      "id": "1440p60-monitor-pass-01",
+      "path": "../../src-tauri/target/native-capture-spike/1440p60-monitor-pass-01.json",
+      "scenario": "encode",
+      "minSourceWidth": 2560,
+      "minSourceHeight": 1440
+    },
+    {
+      "id": "selected-window-pass-01",
+      "path": "../../src-tauri/target/native-capture-spike/selected-window-pass-01.json",
+      "scenario": "encode",
+      "minSourceWidth": 1,
+      "minSourceHeight": 1
+    },
+    {
+      "id": "cancellation-cleanup-01",
+      "path": "../../src-tauri/target/native-capture-spike/cancellation-cleanup-01.json",
+      "scenario": "cancel"
+    },
+    {
+      "id": "encoder-failure-01",
+      "path": "../../src-tauri/target/native-capture-spike/encoder-failure-01.json",
+      "scenario": "encoder-failure"
+    }
+  ],
+  "manualEvidence": [
+    {
+      "id": "4k-capability-or-fallback",
+      "status": "pending",
+      "notes": "Record capability report or fallback rationale from the reference system."
+    },
+    {
+      "id": "source-close",
+      "status": "pending",
+      "notes": "Record source-close run result or not-applicable rationale."
+    },
+    {
+      "id": "device-loss",
+      "status": "pending",
+      "notes": "Record device-loss run result or not-applicable rationale."
+    },
+    {
+      "id": "protected-content",
+      "status": "pending",
+      "notes": "Record protected-content behavior from the reference system."
+    },
+    {
+      "id": "hud-exclusion-fallback",
+      "status": "pending",
+      "notes": "Record HUD exclusion and fallback notification evidence."
+    },
+    {
+      "id": "accessibility-contract",
+      "status": "pending",
+      "notes": "Record keyboard, focus, announcement, High Contrast, reduced-motion, scale, and assistive-technology evidence for the production recording contract."
+    }
+  ]
+}

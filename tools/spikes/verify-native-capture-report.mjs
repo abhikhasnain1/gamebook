@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 
 const REQUIRED_SCHEMA = "gamebook.native-capture-spike.v1";
+const REQUIRED_MANIFEST_SCHEMA = "gamebook.native-capture-evidence-set.v1";
 const REQUIRED_PROBES = new Set([
   "windows-os-memory",
   "cpu",
@@ -28,6 +29,7 @@ function parseArgs(argv) {
     minSubmittedFrames: 1,
     minSourceWidth: 0,
     minSourceHeight: 0,
+    manifest: undefined,
     reports: [],
     scenario: undefined,
     selfTest: false,
@@ -38,6 +40,9 @@ function parseArgs(argv) {
     switch (arg) {
       case "--self-test":
         options.selfTest = true;
+        break;
+      case "--manifest":
+        options.manifest = readValue(argv, ++index, arg);
         break;
       case "--scenario":
         options.scenario = readValue(argv, ++index, arg);
@@ -91,12 +96,14 @@ Usage:
   npm.cmd run native-capture:verify -- <report.json> --scenario encode --min-source-width 1920 --min-source-height 1080
   npm.cmd run native-capture:verify -- <report.json> --scenario cancel
   npm.cmd run native-capture:verify -- <report.json> --scenario encoder-failure
+  npm.cmd run native-capture:verify -- --manifest <evidence-set.json>
 
 Options:
   --duration-tolerance-frames N   Encoded duration tolerance for encode reports. Default: 1
   --max-finalization-ms N         Maximum finalization time for encode reports. Default: 5000
   --min-output-bytes N            Minimum MP4 byte count for encode reports. Default: 1
   --min-submitted-frames N        Minimum submitted frames for encode reports. Default: 1
+  --manifest PATH                 Verify an evidence-set manifest and every referenced report.
   --self-test                     Run synthetic verifier tests.`);
 }
 
@@ -198,6 +205,65 @@ function assertNoPathMarkers(report, label) {
   }
 }
 
+function verifyManifest(manifest, manifestPath) {
+  const label = basename(manifestPath);
+  assert.equal(manifest.schema, REQUIRED_MANIFEST_SCHEMA, `${label}: manifest schema mismatch`);
+  assert.equal(manifest.issue, 6, `${label}: manifest must target issue 6`);
+  assertNoPathMarkers(manifest, label);
+  assert.ok(Array.isArray(manifest.reports), `${label}: reports must be an array`);
+  assert.ok(manifest.reports.length > 0, `${label}: reports cannot be empty`);
+
+  const baseDir = dirname(resolve(manifestPath));
+  const seenIds = new Set();
+  for (const entry of manifest.reports) {
+    assert.ok(entry.id, `${label}: report entry missing id`);
+    assert.ok(!seenIds.has(entry.id), `${label}: duplicate report id ${entry.id}`);
+    seenIds.add(entry.id);
+    assert.ok(entry.path, `${label}: report ${entry.id} missing path`);
+    const reportPath = resolve(baseDir, entry.path);
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    verifyReport(
+      report,
+      {
+        ...defaultOptions(),
+        scenario: entry.scenario,
+        minSourceWidth: entry.minSourceWidth ?? 0,
+        minSourceHeight: entry.minSourceHeight ?? 0,
+        durationToleranceFrames: entry.durationToleranceFrames ?? 1,
+        maxFinalizationMs: entry.maxFinalizationMs ?? 5000,
+        minOutputBytes: entry.minOutputBytes ?? 1,
+        minSubmittedFrames: entry.minSubmittedFrames ?? 1,
+      },
+      `${label}:${entry.id}`,
+    );
+  }
+
+  assertRequiredManualEvidence(manifest.manualEvidence ?? [], label);
+}
+
+function assertRequiredManualEvidence(manualEvidence, label) {
+  const requiredIds = new Set([
+    "4k-capability-or-fallback",
+    "source-close",
+    "device-loss",
+    "protected-content",
+    "hud-exclusion-fallback",
+    "accessibility-contract",
+  ]);
+  assert.ok(Array.isArray(manualEvidence), `${label}: manualEvidence must be an array`);
+  const entries = new Map(manualEvidence.map((entry) => [entry.id, entry]));
+
+  for (const id of requiredIds) {
+    assert.ok(entries.has(id), `${label}: missing manual evidence ${id}`);
+    const entry = entries.get(id);
+    assert.ok(
+      entry.status === "passed" || entry.status === "not-applicable",
+      `${label}: manual evidence ${id} is not complete`,
+    );
+    assert.ok(entry.notes && entry.notes.trim(), `${label}: manual evidence ${id} missing notes`);
+  }
+}
+
 function syntheticBase(overrides = {}) {
   return {
     schema: REQUIRED_SCHEMA,
@@ -290,6 +356,29 @@ function runSelfTest() {
       "unredacted",
     ),
   );
+  assert.throws(() =>
+    verifyManifest(
+      {
+        schema: REQUIRED_MANIFEST_SCHEMA,
+        issue: 6,
+        reports: [],
+        manualEvidence: [],
+      },
+      "empty-manifest.json",
+    ),
+  );
+  assert.throws(() =>
+    assertRequiredManualEvidence(
+      [
+        {
+          id: "4k-capability-or-fallback",
+          status: "pending",
+          notes: "Not run.",
+        },
+      ],
+      "pending-manual",
+    ),
+  );
 }
 
 function defaultOptions() {
@@ -308,6 +397,13 @@ function main() {
   if (options.selfTest) {
     runSelfTest();
     console.log("Native capture report verifier self-test passed.");
+    return;
+  }
+
+  if (options.manifest) {
+    const manifest = JSON.parse(readFileSync(options.manifest, "utf8"));
+    verifyManifest(manifest, options.manifest);
+    console.log(`Verified evidence manifest ${options.manifest}`);
     return;
   }
 

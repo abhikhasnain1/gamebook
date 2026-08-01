@@ -29,6 +29,12 @@ npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/cance
 npm.cmd run native-capture:verify -- src-tauri/target/native-capture-spike/encoder-failure-01.json --scenario encoder-failure
 ```
 
+After the full evidence set is collected, create a local evidence manifest based on `docs/spikes/native-capture-evidence.example.json`, update the paths and manual evidence statuses, and run:
+
+```powershell
+npm.cmd run native-capture:verify -- --manifest path/to/native-capture-evidence.json
+```
+
 ## Evidence Contract
 
 Each committed closeout must attach the generated JSON summaries for:
@@ -42,7 +48,7 @@ Each committed closeout must attach the generated JSON summaries for:
 - device-loss or encoder-failure behavior where the reference environment can reproduce it;
 - protected-content behavior.
 
-The JSON report records the command, target label, source dimensions, dimensions requested from the encoder after even-dimension padding, requested frame rate and duration, submitted frame count, capture timestamp span, largest timestamp gap, duplicate or backwards timestamps, finalization time, output size, cancellation cleanup, startup failure message where applicable, and runtime environment probes. Environment probes include Windows version and memory, CPU, GPU/display driver and current display mode, audio devices, storage volumes, WebView2 runtime, and active power scheme. The verifier checks schema, redaction, required probes, scenario-specific state, the one-frame encoded-duration tolerance, and the five-second finalization threshold.
+The JSON report records the command, target label, source dimensions, dimensions requested from the encoder after even-dimension padding, requested frame rate and duration, submitted frame count, capture timestamp span, largest timestamp gap, duplicate or backwards timestamps, finalization time, output size, cancellation cleanup, startup failure message where applicable, and runtime environment probes. Environment probes include Windows version and memory, CPU, GPU/display driver and current display mode, audio devices, storage volumes, WebView2 runtime, and active power scheme. The verifier checks schema, redaction, required probes, scenario-specific state, the one-frame encoded-duration tolerance, and the five-second finalization threshold. Manifest verification additionally checks that manual-only evidence entries are explicitly completed with notes before issue closeout.
 
 ## Preliminary Architecture Finding
 
