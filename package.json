@@ -21,6 +21,7 @@
     "direct-stack:verify": "node tools/spikes/verify-direct-capture-stack-report.mjs",
     "media-placement:verify": "node tools/spikes/verify-media-placement-geometry-report.mjs",
     "media-playback:verify": "node tools/spikes/verify-media-playback-report.mjs",
+    "viewport:verify": "node tools/spikes/verify-viewport-report.mjs",
     "check": "tsc --noEmit"
   },
   "dependencies": {
