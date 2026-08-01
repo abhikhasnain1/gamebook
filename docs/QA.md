@@ -51,6 +51,8 @@ Current dry-run gaps for the screenshot workflow:
 - `npm.cmd run direct-stack:verify -- --manifest PATH` validates issue #9 reports, retained-media hashes, fixed scenario counts, and the exact release binary hash.
 - `npm.cmd run media-placement:verify -- --self-test` checks the isolated placement-geometry report verifier.
 - `npm.cmd run media-placement:verify -- --report PATH` validates issue #10 stable serialization, Fabric reconstruction, geometry, connector, z-order, history, page-switch, static-export, and semantic-control evidence against one exact commit.
+- `npm.cmd run viewport:verify -- --self-test` checks the isolated view-only viewport report verifier.
+- `npm.cmd run viewport:verify -- --report PATH` validates issue #12 Fit, 25-200 percent zoom, reset, every pan path, resize, serialization/history/connector invariants, and exact static-export and thumbnail hashes against one exact commit.
 - Fixture files live under `src/test/fixtures/` and must contain generated synthetic content only.
 - `src/test/fixtures/manifest.json` records hashes, byte counts, textual descriptions, expected failures, and accessibility descriptions.
 - Fixture updates must keep regeneration instructions and validation evidence with the fixture change.
@@ -107,6 +109,17 @@ Current dry-run gaps for the screenshot workflow:
 - Typing a paragraph produces grouped history and persistence work without a per-keystroke pause.
 - Autosave begins only after the quiet period, returns through the async command path, and does not freeze object interaction while Rust compresses the project.
 - New captures use a small JPEG page-strip thumbnail rather than decoding the full screenshot for every thumbnail instance.
+
+## View-only viewport
+
+- The logical page remains 1600 by 900; Fit is the default and reset selects centered 100 percent.
+- Exercise 25, 50, 100, and 200 percent view zoom plus compact and large viewport resize paths.
+- Exercise dedicated four-way pan controls, Space+Arrow, Space+primary-button drag, and middle-button drag.
+- Arrow moves a selected object by one logical pixel, Shift+Arrow by ten, and Space+Arrow pans without moving it.
+- After every view-only path, compare the exact page snapshot, undo/redo position, connector scene endpoints, static PNG hash and byte count, and thumbnail PNG hash and byte count.
+- Verify malformed zoom, pan, and resize inputs preserve the prior valid view.
+- Verify named icon controls, labeled slider, visible focus, polite zoom/position announcements, forced-colors rules, reduced-motion rules, 900 by 620 layout, and deterministic 200 percent UI-scale layout.
+- Keep the production editor, Gamebook 0.5.3 screenshot behavior, and version 1 project serialization unchanged until issue #13 accepts a rendering architecture.
 
 ## Sessions and export
 

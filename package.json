@@ -20,6 +20,7 @@
     "native-decode:verify": "node tools/spikes/verify-native-decode-report.mjs",
     "direct-stack:verify": "node tools/spikes/verify-direct-capture-stack-report.mjs",
     "media-placement:verify": "node tools/spikes/verify-media-placement-geometry-report.mjs",
+    "viewport:verify": "node tools/spikes/verify-viewport-report.mjs",
     "check": "tsc --noEmit"
   },
   "dependencies": {
