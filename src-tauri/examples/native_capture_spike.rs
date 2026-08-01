@@ -55,7 +55,15 @@ enum Scenario {
     Cancel,
     SourceClose,
     EncoderFailure,
+    EncoderCapability,
 }
+
+const CAPABILITY_PROFILES: [EncoderProfile; 4] = [
+    EncoderProfile::new(3840, 2160, 60),
+    EncoderProfile::new(3840, 2160, 30),
+    EncoderProfile::new(2560, 1440, 60),
+    EncoderProfile::new(1920, 1080, 60),
+];
 
 struct CaptureRun {
     config: RunConfig,
@@ -130,6 +138,59 @@ struct ApplicationBuild {
     version: &'static str,
     source_revision: String,
     profile: &'static str,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EncoderProfile {
+    width: u32,
+    height: u32,
+    frame_rate: u32,
+}
+
+impl EncoderProfile {
+    const fn new(width: u32, height: u32, frame_rate: u32) -> Self {
+        Self {
+            width,
+            height,
+            frame_rate,
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EncoderCapabilityReport {
+    schema: &'static str,
+    started_at: String,
+    completed_at: String,
+    command: Vec<String>,
+    codec: &'static str,
+    capability_scope: &'static str,
+    capture_started: bool,
+    synthetic_frames_only: bool,
+    four_k_60_supported: bool,
+    fallback_required: bool,
+    selected_profile: Option<EncoderProfile>,
+    result: &'static str,
+    attempts: Vec<EncoderCapabilityAttempt>,
+    environment: EnvironmentReport,
+    notes: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EncoderCapabilityAttempt {
+    profile: EncoderProfile,
+    output_path: String,
+    initialization_ms: u128,
+    finalization_ms: Option<u128>,
+    frames_submitted: u64,
+    frame_bytes: u64,
+    output_bytes: Option<u64>,
+    cleaned_output: bool,
+    result: &'static str,
+    error_message: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -399,9 +460,167 @@ impl EnvironmentReport {
     }
 }
 
+fn run_encoder_capability(options: Options) -> Result<(), SpikeError> {
+    let started_at = unix_time_label();
+    let mut attempts = Vec::with_capacity(CAPABILITY_PROFILES.len());
+
+    for profile in CAPABILITY_PROFILES {
+        attempts.push(attempt_encoder_profile(&options, profile)?);
+    }
+
+    let selected_profile = attempts
+        .iter()
+        .find(|attempt| attempt.result == "supported")
+        .map(|attempt| attempt.profile);
+    let four_k_60_supported = attempts
+        .first()
+        .is_some_and(|attempt| attempt.result == "supported");
+    let report = EncoderCapabilityReport {
+        schema: "gamebook.native-encoder-capability.v1",
+        started_at,
+        completed_at: unix_time_label(),
+        command: sanitize_command(&options.args),
+        codec: "h264",
+        capability_scope: "synthetic-two-frame-initialization-and-finalization",
+        capture_started: false,
+        synthetic_frames_only: true,
+        four_k_60_supported,
+        fallback_required: !four_k_60_supported,
+        selected_profile,
+        result: if selected_profile.is_some() {
+            "supported"
+        } else {
+            "unsupported"
+        },
+        attempts,
+        environment: EnvironmentReport::current(&options.build_id)?,
+        notes: vec![
+            "This capability-only scenario does not construct or start Windows Graphics Capture and never reads screen pixels.".to_string(),
+            "Each profile must initialize H.264, accept two deterministic BGRA frames, finalize a non-empty MP4, and remove the MP4 before it is reported as supported.".to_string(),
+            "The result proves encoder profile initialization and finalization on this stack; it does not prove sustained capture throughput or frame pacing.".to_string(),
+        ],
+    };
+    let report_path = options.output_dir.join(format!("{}.json", options.run_id));
+    fs::write(&report_path, serde_json::to_string_pretty(&report)?)?;
+    println!("Report: {}", report_path.display());
+    Ok(())
+}
+
+fn attempt_encoder_profile(
+    options: &Options,
+    profile: EncoderProfile,
+) -> Result<EncoderCapabilityAttempt, SpikeError> {
+    let output_path = options.output_dir.join(format!(
+        "{}-{}x{}-{}.mp4",
+        options.run_id, profile.width, profile.height, profile.frame_rate
+    ));
+    ensure_output_absent(&output_path)?;
+
+    let frame_bytes = capability_frame_bytes(profile)?;
+    let mut frame = vec![0_u8; usize::try_from(frame_bytes)?];
+    let initialization_started = Instant::now();
+    let encoder = VideoEncoder::new(
+        VideoSettingsBuilder::new(profile.width, profile.height)
+            .sub_type(VideoSettingsSubType::H264)
+            .frame_rate(profile.frame_rate),
+        AudioSettingsBuilder::new().disabled(true),
+        ContainerSettingsBuilder::new(),
+        &output_path,
+    );
+    let initialization_ms = initialization_started.elapsed().as_millis();
+
+    let mut finalization_ms = None;
+    let mut frames_submitted = 0;
+    let mut error_message = None;
+    let result = match encoder {
+        Ok(mut encoder) => {
+            let frame_duration_ticks = 10_000_000 / i64::from(profile.frame_rate);
+            let last_byte = frame.len() - 1;
+            for frame_index in 0..2_i64 {
+                frame[0] = u8::try_from(frame_index + 1)?;
+                frame[last_byte] = u8::try_from(frame_index + 1)?;
+                match encoder.send_frame_buffer(&frame, frame_index * frame_duration_ticks) {
+                    Ok(()) => frames_submitted += 1,
+                    Err(error) => {
+                        error_message =
+                            Some(sanitize_capability_error(&error.to_string(), &output_path));
+                        break;
+                    }
+                }
+            }
+
+            if error_message.is_none() {
+                let finalization_started = Instant::now();
+                match encoder.finish() {
+                    Ok(()) => {
+                        finalization_ms = Some(finalization_started.elapsed().as_millis());
+                        "supported"
+                    }
+                    Err(error) => {
+                        finalization_ms = Some(finalization_started.elapsed().as_millis());
+                        error_message =
+                            Some(sanitize_capability_error(&error.to_string(), &output_path));
+                        "unsupported"
+                    }
+                }
+            } else {
+                drop(encoder);
+                "unsupported"
+            }
+        }
+        Err(error) => {
+            error_message = Some(sanitize_capability_error(&error.to_string(), &output_path));
+            "unsupported"
+        }
+    };
+
+    let output_bytes = file_bytes(&output_path);
+    let cleaned_output = ensure_output_absent(&output_path)?;
+    let final_result = if result == "supported" && output_bytes.unwrap_or(0) > 0 {
+        "supported"
+    } else {
+        if result == "supported" {
+            error_message = Some("Encoder finalized without a non-empty MP4 artifact.".to_string());
+        }
+        "unsupported"
+    };
+
+    Ok(EncoderCapabilityAttempt {
+        profile,
+        output_path: artifact_label(&output_path),
+        initialization_ms,
+        finalization_ms,
+        frames_submitted,
+        frame_bytes,
+        output_bytes,
+        cleaned_output,
+        result: final_result,
+        error_message,
+    })
+}
+
+fn capability_frame_bytes(profile: EncoderProfile) -> Result<u64, SpikeError> {
+    u64::from(profile.width)
+        .checked_mul(u64::from(profile.height))
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or_else(|| "Capability frame size overflowed.".into())
+}
+
+fn sanitize_capability_error(error_message: &str, output_path: &Path) -> String {
+    let mut candidates = vec![output_path.display().to_string()];
+    if let Ok(current_dir) = env::current_dir() {
+        candidates.push(current_dir.display().to_string());
+    }
+    sanitize_paths(error_message, &candidates)
+}
+
 fn main() -> Result<(), SpikeError> {
     let options = Options::parse(env::args().collect())?;
     fs::create_dir_all(&options.output_dir)?;
+
+    if matches!(options.scenario, Scenario::EncoderCapability) {
+        return run_encoder_capability(options);
+    }
 
     match options.target {
         TargetOption::PrimaryMonitor => {
@@ -579,9 +798,9 @@ impl Options {
                             "cancel" => Scenario::Cancel,
                             "source-close" => Scenario::SourceClose,
                             "encoder-failure" => Scenario::EncoderFailure,
+                            "encoder-capability" => Scenario::EncoderCapability,
                             _ => return Err(
-                                "scenario must be encode, cancel, source-close, or encoder-failure"
-                                    .into(),
+                                "scenario must be encode, cancel, source-close, encoder-failure, or encoder-capability".into(),
                             ),
                         };
                 }
@@ -685,7 +904,7 @@ fn print_help() {
          cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- \\\n\
            --build-id COMMIT_SHA --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --countdown 5\n\n\
          Targets: primary-monitor, monitor-index:N, picker-window, picker-monitor, picker\n\
-         Scenarios: encode, cancel, source-close, encoder-failure\n\
+         Scenarios: encode, cancel, source-close, encoder-failure, encoder-capability\n\
          Outputs: MP4 and JSON report under src-tauri/target/native-capture-spike by default"
     );
 }
@@ -840,7 +1059,6 @@ fn artifact_label(path: &Path) -> String {
 }
 
 fn sanitize_error_message(error_message: &str, config: &RunConfig) -> String {
-    let mut sanitized = error_message.to_string();
     let mut candidates = vec![
         config.output_path.display().to_string(),
         config.report_path.display().to_string(),
@@ -849,11 +1067,16 @@ fn sanitize_error_message(error_message: &str, config: &RunConfig) -> String {
         candidates.push(current_dir.display().to_string());
     }
 
+    sanitize_paths(error_message, &candidates)
+}
+
+fn sanitize_paths(value: &str, candidates: &[String]) -> String {
+    let mut sanitized = value.to_string();
     for candidate in candidates {
         if candidate.is_empty() {
             continue;
         }
-        sanitized = sanitized.replace(&candidate, "<local-path>");
+        sanitized = sanitized.replace(candidate, "<local-path>");
         sanitized = sanitized.replace(&candidate.replace('\\', "/"), "<local-path>");
     }
     sanitized
@@ -936,8 +1159,9 @@ fn unix_millis() -> u128 {
 #[cfg(test)]
 mod tests {
     use super::{
-        artifact_label, even_dimension, frame_interval, parse_target, sanitize_command,
-        validate_build_id, validate_run_id, Options, PickerTargetKind, Scenario, TargetOption,
+        artifact_label, capability_frame_bytes, even_dimension, frame_interval, parse_target,
+        sanitize_command, validate_build_id, validate_run_id, EncoderProfile, Options,
+        PickerTargetKind, Scenario, TargetOption, CAPABILITY_PROFILES,
     };
 
     #[test]
@@ -1005,6 +1229,33 @@ mod tests {
         .unwrap();
 
         assert!(matches!(options.scenario, Scenario::SourceClose));
+    }
+
+    #[test]
+    fn parses_no_capture_encoder_capability_scenario() {
+        let options = Options::parse(vec![
+            "native_capture_spike".to_string(),
+            "--scenario".to_string(),
+            "encoder-capability".to_string(),
+            "--build-id".to_string(),
+            "a73e733".to_string(),
+        ])
+        .unwrap();
+
+        assert!(matches!(options.scenario, Scenario::EncoderCapability));
+        assert_eq!(
+            CAPABILITY_PROFILES,
+            [
+                EncoderProfile::new(3840, 2160, 60),
+                EncoderProfile::new(3840, 2160, 30),
+                EncoderProfile::new(2560, 1440, 60),
+                EncoderProfile::new(1920, 1080, 60),
+            ]
+        );
+        assert_eq!(
+            capability_frame_bytes(CAPABILITY_PROFILES[0]).unwrap(),
+            33_177_600
+        );
     }
 
     #[test]

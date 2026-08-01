@@ -7,6 +7,12 @@
     "sourceRevision": "replace-with-full-commit-sha",
     "profile": "debug"
   },
+  "capabilityReports": [
+    {
+      "id": "encoder-capability-01",
+      "path": "../../src-tauri/target/native-capture-spike/encoder-capability-01.json"
+    }
+  ],
   "reports": [
     {
       "id": "1080p60-monitor-pass-01",
@@ -88,12 +94,6 @@
     }
   ],
   "manualEvidence": [
-    {
-      "id": "4k-capability-or-fallback",
-      "status": "pending",
-      "attempts": 0,
-      "notes": "Record capability report or fallback rationale from the reference system."
-    },
     {
       "id": "device-loss",
       "status": "pending",

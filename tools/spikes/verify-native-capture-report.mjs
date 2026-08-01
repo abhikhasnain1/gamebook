@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 
 const REQUIRED_SCHEMA = "gamebook.native-capture-spike.v1";
+const REQUIRED_CAPABILITY_SCHEMA = "gamebook.native-encoder-capability.v1";
 const REQUIRED_MANIFEST_SCHEMA = "gamebook.native-capture-evidence-set.v1";
 const REQUIRED_PROBES = new Set([
   "windows-os-memory",
@@ -22,12 +23,17 @@ const REQUIRED_REPORT_ROLES = new Map([
   ["encoder-failure", { scenario: "encoder-failure", minimumCount: 1 }],
 ]);
 const REQUIRED_MANUAL_EVIDENCE = new Map([
-  ["4k-capability-or-fallback", 1],
   ["device-loss", 2],
   ["protected-content", 2],
   ["hud-exclusion-fallback", 1],
   ["accessibility-contract", 1],
 ]);
+const REQUIRED_CAPABILITY_PROFILES = [
+  { width: 3840, height: 2160, frameRate: 60 },
+  { width: 3840, height: 2160, frameRate: 30 },
+  { width: 2560, height: 1440, frameRate: 60 },
+  { width: 1920, height: 1080, frameRate: 60 },
+];
 const PATH_MARKERS = [
   /[A-Z]:\\\\Users\\\\/i,
   /OneDrive[\\\\/]/i,
@@ -112,6 +118,7 @@ Usage:
   npm.cmd run native-capture:verify -- <report.json> --scenario cancel
   npm.cmd run native-capture:verify -- <report.json> --scenario source-close
   npm.cmd run native-capture:verify -- <report.json> --scenario encoder-failure
+  npm.cmd run native-capture:verify -- <encoder-capability.json>
   npm.cmd run native-capture:verify -- --manifest <evidence-set.json>
 
 Options:
@@ -247,6 +254,88 @@ function verifyEnvironment(report, label) {
   }
 }
 
+function verifyCapabilityReport(report, label = "capability report") {
+  assert.equal(report.schema, REQUIRED_CAPABILITY_SCHEMA, `${label}: schema mismatch`);
+  assert.ok(report.startedAt, `${label}: missing startedAt`);
+  assert.ok(report.completedAt, `${label}: missing completedAt`);
+  assert.ok(Array.isArray(report.command) && report.command.length > 0, `${label}: command is empty`);
+  assert.equal(report.codec, "h264", `${label}: codec must be h264`);
+  assert.equal(
+    report.capabilityScope,
+    "synthetic-two-frame-initialization-and-finalization",
+    `${label}: capability scope mismatch`,
+  );
+  assert.equal(report.captureStarted, false, `${label}: capability probe must not start capture`);
+  assert.equal(report.syntheticFramesOnly, true, `${label}: capability probe must be synthetic`);
+  assert.ok(Array.isArray(report.attempts), `${label}: attempts must be an array`);
+  assert.equal(
+    report.attempts.length,
+    REQUIRED_CAPABILITY_PROFILES.length,
+    `${label}: fallback ladder is incomplete`,
+  );
+  verifyEnvironment(report, label);
+  assertNoPathMarkers(report, label);
+
+  for (let index = 0; index < REQUIRED_CAPABILITY_PROFILES.length; index += 1) {
+    const attempt = report.attempts[index];
+    const expected = REQUIRED_CAPABILITY_PROFILES[index];
+    assert.deepEqual(attempt.profile, expected, `${label}: profile ${index} is out of order`);
+    assert.match(
+      attempt.outputPath,
+      /^artifact:[^\\/]+\.mp4$/,
+      `${label}: attempt ${index} outputPath is not redacted`,
+    );
+    assert.ok(
+      Number.isInteger(attempt.initializationMs) && attempt.initializationMs >= 0,
+      `${label}: attempt ${index} missing initializationMs`,
+    );
+    assert.equal(
+      attempt.frameBytes,
+      expected.width * expected.height * 4,
+      `${label}: attempt ${index} frameBytes mismatch`,
+    );
+    assert.ok(
+      Number.isInteger(attempt.framesSubmitted) &&
+        attempt.framesSubmitted >= 0 &&
+        attempt.framesSubmitted <= 2,
+      `${label}: attempt ${index} invalid framesSubmitted`,
+    );
+    assert.equal(attempt.cleanedOutput, true, `${label}: attempt ${index} output was not cleaned`);
+    assert.ok(
+      ["supported", "unsupported"].includes(attempt.result),
+      `${label}: attempt ${index} has an invalid result`,
+    );
+
+    if (attempt.result === "supported") {
+      assert.equal(attempt.framesSubmitted, 2, `${label}: supported attempt needs two frames`);
+      assert.ok(attempt.outputBytes > 0, `${label}: supported attempt has no MP4 bytes`);
+      assert.ok(attempt.finalizationMs !== null, `${label}: supported attempt was not finalized`);
+      assert.equal(attempt.errorMessage, null, `${label}: supported attempt has an error`);
+    } else {
+      assert.ok(attempt.errorMessage, `${label}: unsupported attempt needs an error`);
+    }
+  }
+
+  const selected = report.attempts.find((attempt) => attempt.result === "supported")?.profile ?? null;
+  assert.deepEqual(report.selectedProfile, selected, `${label}: selectedProfile is not first supported`);
+  const fourK60Supported = report.attempts[0].result === "supported";
+  assert.equal(
+    report.fourK60Supported,
+    fourK60Supported,
+    `${label}: fourK60Supported does not match the 4K60 attempt`,
+  );
+  assert.equal(
+    report.fallbackRequired,
+    !fourK60Supported,
+    `${label}: fallbackRequired does not match the 4K60 attempt`,
+  );
+  assert.equal(
+    report.result,
+    selected ? "supported" : "unsupported",
+    `${label}: overall result does not match the fallback ladder`,
+  );
+}
+
 function verifyApplicationBuild(build, label) {
   assert.ok(build, `${label}: missing applicationBuild`);
   assert.equal(build.name, "gamebook", `${label}: unexpected applicationBuild name`);
@@ -290,6 +379,14 @@ function verifyManifest(manifest, manifestPath) {
   assertNoPathMarkers(manifest, label);
   assert.ok(Array.isArray(manifest.reports), `${label}: reports must be an array`);
   assert.ok(manifest.reports.length > 0, `${label}: reports cannot be empty`);
+  assert.ok(
+    Array.isArray(manifest.capabilityReports),
+    `${label}: capabilityReports must be an array`,
+  );
+  assert.ok(
+    manifest.capabilityReports.length > 0,
+    `${label}: capabilityReports cannot be empty`,
+  );
 
   const baseDir = dirname(resolve(manifestPath));
   const seenIds = new Set();
@@ -337,6 +434,29 @@ function verifyManifest(manifest, manifestPath) {
     );
     verifyReportRole(entry, report, `${label}:${entry.id}`);
     roleCounts.set(entry.role, (roleCounts.get(entry.role) ?? 0) + 1);
+  }
+
+  for (const entry of manifest.capabilityReports) {
+    assert.ok(entry.id, `${label}: capability report entry missing id`);
+    assert.ok(!seenIds.has(entry.id), `${label}: duplicate evidence id ${entry.id}`);
+    seenIds.add(entry.id);
+    assert.ok(entry.path, `${label}: capability report ${entry.id} missing path`);
+    const reportPath = resolve(baseDir, entry.path);
+    const report = JSON.parse(readFileSync(reportPath, "utf8"));
+    registerUniqueReportEvidence(
+      entry,
+      reportPath,
+      report,
+      seenReportPaths,
+      seenRunFingerprints,
+      label,
+    );
+    verifyCapabilityReport(report, `${label}:${entry.id}`);
+    assert.deepEqual(
+      report.environment.applicationBuild,
+      manifest.applicationBuild,
+      `${label}:${entry.id}: applicationBuild does not match the evidence set`,
+    );
   }
 
   assertRequiredReportRoles(roleCounts, label);
@@ -510,8 +630,55 @@ function syntheticBase(overrides = {}) {
   };
 }
 
+function syntheticCapability(overrides = {}) {
+  const attempts = REQUIRED_CAPABILITY_PROFILES.map((profile, index) => ({
+    profile,
+    outputPath: `artifact:capability-${index}.mp4`,
+    initializationMs: 20,
+    finalizationMs: index === 0 ? null : 80,
+    framesSubmitted: index === 0 ? 0 : 2,
+    frameBytes: profile.width * profile.height * 4,
+    outputBytes: index === 0 ? null : 1024,
+    cleanedOutput: true,
+    result: index === 0 ? "unsupported" : "supported",
+    errorMessage: index === 0 ? "Profile is not supported." : null,
+  }));
+
+  return {
+    schema: REQUIRED_CAPABILITY_SCHEMA,
+    startedAt: "unix-ms-10",
+    completedAt: "unix-ms-11",
+    command: ["native_capture_spike.exe", "--scenario", "encoder-capability"],
+    codec: "h264",
+    capabilityScope: "synthetic-two-frame-initialization-and-finalization",
+    captureStarted: false,
+    syntheticFramesOnly: true,
+    fourK60Supported: false,
+    fallbackRequired: true,
+    selectedProfile: REQUIRED_CAPABILITY_PROFILES[1],
+    result: "supported",
+    attempts,
+    environment: syntheticBase().environment,
+    notes: [],
+    ...overrides,
+  };
+}
+
 function runSelfTest() {
   verifyReport(syntheticBase(), { ...defaultOptions(), scenario: "encode" }, "encode");
+  verifyCapabilityReport(syntheticCapability(), "encoder-capability");
+  assert.throws(() =>
+    verifyCapabilityReport(
+      syntheticCapability({ captureStarted: true }),
+      "capability-started-capture",
+    ),
+  );
+  assert.throws(() =>
+    verifyCapabilityReport(
+      syntheticCapability({ selectedProfile: REQUIRED_CAPABILITY_PROFILES[2] }),
+      "wrong-capability-fallback",
+    ),
+  );
   assert.throws(() =>
     verifyReport(
       syntheticBase({ durationErrorMs: 100 }),
@@ -604,6 +771,7 @@ function runSelfTest() {
         issue: 6,
         applicationBuild: syntheticBase().environment.applicationBuild,
         reports: [],
+        capabilityReports: [],
         manualEvidence: [],
       },
       "empty-manifest.json",
@@ -613,7 +781,7 @@ function runSelfTest() {
     assertRequiredManualEvidence(
       [
         {
-          id: "4k-capability-or-fallback",
+          id: "device-loss",
           status: "pending",
           notes: "Not run.",
         },
@@ -718,7 +886,11 @@ function main() {
 
   for (const path of options.reports) {
     const report = JSON.parse(readFileSync(path, "utf8"));
-    verifyReport(report, options, basename(path));
+    if (report.schema === REQUIRED_CAPABILITY_SCHEMA) {
+      verifyCapabilityReport(report, basename(path));
+    } else {
+      verifyReport(report, options, basename(path));
+    }
     console.log(`Verified ${path}`);
   }
 }
