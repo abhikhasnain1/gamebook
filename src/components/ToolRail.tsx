@@ -123,6 +123,7 @@ export function ToolRail({
         </button>
         <span
           className="stroke-width-preview"
+          role="img"
           data-tooltip={`Stroke width: ${strokeWidth} px`}
           data-tooltip-side="right"
           aria-label={`Stroke width ${strokeWidth} pixels`}
