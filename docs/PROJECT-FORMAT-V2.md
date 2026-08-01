@@ -15,6 +15,11 @@ manifest.json
 records/sessions/{id}.json
 records/evidence/{id}.json
 records/pages/{id}.json
+records/findings/{id}.json
+records/tags/{id}.json
+records/collections/{id}.json
+records/relationships/{id}.json
+records/trash/{id}.json
 assets/{sha-prefix}/{sha256}.{extension}
 previews/{evidence-id}/thumbnail.jpg
 previews/{evidence-id}/poster.jpg
@@ -36,6 +41,16 @@ An evidence record contains a stable ID, evidence kind, title, timestamps, captu
 
 Pages contain ordered `MediaPlacementRecord` values, Fabric annotation JSON, annotation scopes, page background, structured notes, and the primary evidence ID where applicable.
 
+Canonical research records are fixed before Milestone 6:
+
+- A finding stores Observation, Interpretation, Hypothesis, Follow-up, status, confidence, evidence references, tags, author-local timestamps, and revision metadata.
+- A tag stores stable ID, unique normalized name, visible label, optional description, color/pattern presentation, and sort order.
+- A collection stores stable ID, title, description, ordered evidence references, and timestamps.
+- A relationship stores source ID, target ID, one typed relation (`supports`, `contradicts`, `derived-from`, `compares`, or `follow-up`), optional note, and timestamps.
+- A session stores game, build, platform, level, test label, start/end time, capture defaults, and ordered evidence references.
+
+Search indexes, thumbnail indexes, and derived text caches are rebuildable workspace data and are never canonical archive records.
+
 ## Lazy open and materialization
 
 Opening a project reads only the ZIP central directory, manifest, and records required for the initial UI. Media remains in the archive until playback, decoding, export, or editing requires a filesystem path.
@@ -53,6 +68,7 @@ The workspace contains:
 - Atomic working records and a recovery journal.
 - New or changed assets.
 - Lazily materialized source assets.
+- Interrupted recording staging files and their recovery journals.
 - A lock containing process ID, application instance ID, source fingerprint, and last heartbeat.
 
 Because Gamebook is single-instance, opening the same source path twice activates its existing workspace instead of creating another. Opening a byte-identical project from a different path creates a separate workspace and reports that it is a copy.
@@ -66,6 +82,8 @@ Autosave atomically writes changed records and the recovery journal inside the w
 Unsaved or recovery-pending workspaces are never evicted automatically. Clean materialized cache entries may be evicted using least-recently-used order after their project is closed. Storage settings show clean cache size, recoverable workspace size, and safe cleanup actions.
 
 Removing an evictable cache file does not remove an archive asset or evidence record. Reopening it materializes the entry again and re-verifies its digest.
+
+Interrupted recording files are not ordinary cache entries. They remain quarantined until the user recovers or discards them and are listed separately in Storage settings.
 
 ## Streamed Save and replacement
 
@@ -93,6 +111,22 @@ Materializing a clip uses the native media pipeline to create and verify an inde
 
 Frame evidence is independent once its PNG asset is complete and verified, but it retains historical provenance to the former source even if that source is later removed.
 
+## Deletion and Project Trash
+
+Deleting evidence is an atomic project transaction. Before commit, the application calculates inbound and outbound references and presents the placements, findings, relationships, clips, frames, and annotations that would be affected.
+
+Eligible records move to `records/trash/` with their original record type, deletion timestamp, transaction ID, and dependency snapshot. Project Trash retains records and required assets for 30 days by default. Undo or Restore reinstates the whole transaction and its ordering.
+
+Source evidence with active dependents cannot enter Trash. For other evidence, the user may cancel or explicitly remove eligible placements/links as part of the same transaction; Gamebook never deletes containing findings or notes automatically.
+
+Empty Trash is an explicit irreversible operation. Permanently deleted records disappear from the next archive, and assets are omitted only when no live or trashed record references their digest. Batch operations either complete completely or leave the project unchanged.
+
+## Global settings format
+
+Global preferences live outside `.gamebook` in an atomic `settings.json` under the Tauri application configuration directory. The root contains `settingsVersion`, capture defaults, shortcut mappings, playback/accessibility preferences, storage limits, trash retention, and diagnostic consent.
+
+Migrations run one version at a time and have fixture tests. Unknown future settings are preserved when safe; invalid known values fall back individually. A corrupt file is renamed with a timestamp before defaults are created. Secrets and cloud credentials are stored only in Windows Credential Manager.
+
 ## Version 1 migration
 
 The loader detects Gzip JSON and plain JSON by content signature. Migration runs in a workspace and does not modify the opened file.
@@ -109,6 +143,8 @@ Migration must:
 The first successful replacement of a version 1 path creates a collision-safe timestamped `.v1-backup`. A failed Save leaves the source and backup state unchanged. Re-running migration against the same source is deterministic.
 
 Unsupported future major versions are rejected without creating or mutating a workspace. Missing or corrupt records produce a repair report and expose valid recoverable content without silently inventing replacements.
+
+Archive readers apply the validation, path-safety, decompression, token, and logging requirements in [SECURITY-PRIVACY.md](SECURITY-PRIVACY.md).
 
 ## Archive feasibility gate
 

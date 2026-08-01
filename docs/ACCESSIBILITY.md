@@ -64,6 +64,8 @@ Media controls expose accessible play/pause, mute, volume, playback speed, loop 
 
 Autoplay occurs only when enabled and reduced motion is not requested. Immediate pause and mute controls remain available. User volume and autoplay preferences persist outside project files.
 
+Before the first audio-enabled recording, an accessible disclosure explains that version 1 records the complete selected output-device mix and may include notifications, voice chat, and other applications. Microphone consent is separate and is never inferred from system-audio consent.
+
 Researchers can attach captions and transcripts to evidence. Timed findings and annotations are navigable as a chronological semantic list, so timeline dragging is never required.
 
 Extraction progress reports completed, total, failed, and estimated remaining frames without announcing every generated frame.
@@ -77,6 +79,7 @@ Extraction progress reports completed, total, failed, and estimated remaining fr
 - The interface supports 200% UI scaling and remains operable at the existing 900 by 620 minimum window size.
 - View zoom affects the page view only and never scales application chrome unpredictably.
 - Tooltips appear on hover and focus but are not the only source of an accessible name.
+- HDR blocking, color-conversion warnings, interrupted-recording recovery, Trash impact, and update-recovery states are available as text and announced without relying on color or animation.
 
 ## Accessible export
 
@@ -103,3 +106,5 @@ Every applicable milestone runs:
 - 100%, 150%, and 200% UI scale checks at supported window sizes.
 
 Release QA additionally verifies recording, frame stepping, extraction, search, structured findings, save/recovery, and HTML export without pointer input.
+
+The Settings and Storage surfaces expose keyboard-operable import/export/reset, cache cleanup, recording recovery, Project Trash, diagnostic consent, and shortcut conflict resolution.

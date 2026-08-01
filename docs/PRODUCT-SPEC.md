@@ -16,6 +16,7 @@ The first publishable release is designed primarily for solo researchers: game d
 - Screenshots, recordings, clips, and frames use one consistent research workflow.
 - Pages are finite, predictable report surfaces; large evidence collections live in a searchable library.
 - Accessibility is part of every feature's acceptance criteria.
+- Captured media is potentially sensitive; privacy, disclosure, and local data control are product requirements.
 - The application does not inject into games, inspect game memory, or attempt to bypass capture protections.
 
 ## Current behavior to preserve
@@ -50,6 +51,8 @@ Every derived item retains provenance. A clip knows its source recording and sou
 
 Source recordings are protected while clips, frames, timed annotations, or placements depend on them. Deletion remains unavailable until dependents are removed or materialized. Materializing a clip creates a new independently encoded H.264/AAC asset, redirects its dependents, and records the former source relationship in provenance. A frame is materialized once its PNG has been written and verified.
 
+Eligible deletions move complete evidence records into Project Trash as one transaction. Trash preserves provenance and inbound references for 30 days by default. Undo restores the complete transaction. Empty Trash permanently removes records and omits newly unreferenced assets from the next successful archive Save. Batch deletion is all-or-nothing, and Gamebook lists affected placements, findings, and links before the user confirms any cascade.
+
 ## Capture and playback
 
 Screenshot capture remains `Ctrl+Shift+F12`.
@@ -65,11 +68,21 @@ Video capture defaults are:
 - Microphone: disabled.
 - Cursor: follows the user's capture setting.
 
+Version 1 system audio uses whole-output-device WASAPI loopback, not game-process-only capture. It may include notifications, voice chat, music, and other applications. Gamebook presents this disclosure before the first audio-enabled recording and keeps a visible audio state in recording settings and the HUD. Microphone capture has a separate first-use disclosure and can never be enabled implicitly.
+
 Shortcuts are remappable and checked for conflicts. Pressing the video shortcut during a recording stops it early. A small keyboard-operable recording HUD shows elapsed and remaining time and is excluded from supported capture modes. When exclusion cannot be guaranteed, Gamebook warns the user and falls back to a nonvisual tray/notification signal.
 
 After finalization, the editor opens on a new page containing the recording as the primary placement. It autoplays unless autoplay is disabled, reduced motion is requested, or finalization produced a recoverable warning. Playback controls include play/pause, mute, volume, speed, source timecode, decoded frame number, previous/next frame, and loop range.
 
 Only one placement plays on a page at once in version 1. Other video placements display their selected poster frames.
+
+## Color and HDR policy
+
+Version 1 project media and exports use 8-bit SDR sRGB/Rec.709 for broad playback and export compatibility. The capture pipeline records whether the source display was using HDR and its reported color space.
+
+On an HDR display, Gamebook must either produce a validated SDR tone-mapped recording or block video recording with a clear explanation. It must never silently create washed-out or clipped evidence. HDR/10-bit imports are outside the guaranteed version 1 import contract. Extracted frame PNGs and static exports use sRGB.
+
+If an encoder requires even dimensions, Gamebook preserves the logical source dimensions and adds no more than one pixel of replicated-edge padding on the right or bottom. Display-aperture metadata removes that padding during playback, frame extraction, placement, and export.
 
 ## Editing and frame analysis
 
@@ -102,9 +115,17 @@ Structured findings follow this workflow:
 
 Each stage may reference pages, recordings, clips, frames, annotations, or source timestamps. A clean Review mode presents findings and their evidence without editing controls.
 
+Search indexes are derived caches and never the sole copy of research information. Structured findings, tags, collections, and typed evidence relationships are canonical project records defined by the version 2 schema before implementation begins.
+
+## Settings and preferences
+
+Global settings are versioned separately from project files. They include shortcuts, capture target, duration, frame-rate cap, cursor, system audio, microphone, autoplay, playback volume, reduced-motion override, UI scale, cache limits, trash retention, and diagnostic preferences.
+
+Settings migrations are sequential and testable. Invalid values fall back individually instead of resetting the complete file. A corrupt settings file is preserved for diagnostics, defaults are restored, and the user is informed. Failed shortcut registration restores the previous working shortcut. Credentials for future cloud processors must use Windows Credential Manager and never settings JSON.
+
 ## Import and export
 
-Guaranteed version 1 imports are PNG, JPEG, and H.264/AAC MP4. Unsupported codecs are rejected with a compatibility explanation before the project changes. Import copies and verifies media into the project workspace; it never depends permanently on an external path.
+Guaranteed version 1 imports are PNG, JPEG, and 8-bit SDR H.264/AAC MP4. Unsupported codecs, HDR/10-bit video, and malformed media are rejected with a compatibility explanation before the project changes. Import copies and verifies media into the project workspace; it never depends permanently on an external path.
 
 The canonical multimedia export is a self-contained ZIP containing an offline HTML report and relative media assets. It reconstructs page geometry, placement transforms, crop, rotation, z-order, annotations, and timed visibility while also exposing the same content through semantic headings, evidence lists, notes, captions, and transcripts.
 
@@ -114,7 +135,7 @@ Markdown exports rendered pages plus relative links to included MP4 assets and t
 
 ## Version 1 boundary
 
-Core version 1 includes reliable recording, playback, clips, exact frame stepping, frame extraction, the Evidence Library, structured notes, tags, search, provenance, accessible HTML export, project recovery, accessibility, signed direct-download installers, and release documentation.
+Core version 1 includes reliable recording, playback, clips, exact frame stepping, frame extraction, the Evidence Library, structured notes, tags, search, provenance, accessible HTML export, project recovery, accessibility, privacy controls, versioned settings, signed direct-download installers, update recovery, and release documentation.
 
 Post-version 1 work includes synchronized multi-video comparison, onion skinning, difference and motion views, measurement tools, input-event capture, telemetry tracks, local OCR/transcription, optional cloud processors, team collaboration, and macOS capture.
 
@@ -125,3 +146,7 @@ Post-version 1 work includes synchronized multi-video comparison, onion skinning
 - Existing screenshot projects and exports retain their content and behavior after migration.
 - Primary workflows pass keyboard-only and NVDA testing.
 - No project media or telemetry leaves the device without a specific, informed user action.
+- HDR displays never produce silently incorrect color, and whole-system audio scope is disclosed before recording.
+- Interrupted recordings, deleted evidence, corrupt settings, and failed updates all have explicit recovery paths.
+
+Security, local-data handling, diagnostics, media protocol, and export privacy requirements are defined in [SECURITY-PRIVACY.md](SECURITY-PRIVACY.md).

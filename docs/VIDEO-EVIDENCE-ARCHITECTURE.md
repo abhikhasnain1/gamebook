@@ -33,8 +33,12 @@ The spike must validate:
 - Monitor-under-pointer and selected-window capture.
 - Capture HUD exclusion and fallback notification behavior.
 - System audio initialization, device changes, silence, cancellation, and synchronization.
+- Whole-output-device audio disclosure and proof that microphone capture cannot be enabled implicitly.
+- SDR capture on SDR displays and validated SDR tone mapping or explicit blocking on HDR displays.
+- Odd-dimension source padding and display-aperture restoration.
 - Submitted-frame timestamps, dropped-frame accounting, and final track duration.
 - H.264/AAC finalization, playback, seeking, exact native frame decode, and PNG extraction.
+- Recovery behavior for interruption during recording and finalization.
 - Encoder, decoder, GPU-device, protected-content, and source-closed failures.
 
 `windows-capture` is adopted only if it passes the lifecycle, timing, memory, and device-change gates. Otherwise the application keeps the interfaces below and replaces the implementation with direct Windows API bindings.
@@ -53,6 +57,7 @@ interface CaptureSettings {
   includeSystemAudio: boolean;
   includeMicrophone: boolean;
   includeCursor: boolean;
+  outputColorSpace: "sdr-rec709";
 }
 
 interface MediaPlacementRecord {
@@ -101,11 +106,19 @@ Proposed events are `video-recording-state`, `video-capture-created`, `media-job
 
 Recording follows `idle -> preparing -> recording -> finalizing -> completed | failed | cancelled`. Only one recording may exist at once. Starting a screenshot while video is active is rejected with an accessible status message.
 
+The encoder writes into a staging path with a recording journal containing the recording ID, settings, target metadata, start time, expected output, and current state. A project record never references this path. Clean finalization probes the media, verifies duration and decodability, imports the asset, and only then creates evidence.
+
+At startup, interrupted staging files enter Recovery. If native probing confirms that a file is playable and has at least one decoded video sample, the user may recover it as draft evidence. Unplayable files remain quarantined with size and failure details until the user explicitly discards them. Version 1 does not attempt destructive media repair unless the feasibility spike proves a deterministic native repair path.
+
 Captured media stores each submitted frame's presentation timestamp and dropped-frame metadata. Imported variable-frame-rate media uses decoder sample order and source presentation timestamps; Gamebook never invents constant-rate frame numbers for it.
 
 Clips and timed annotations store source-video time, not clip-relative time. A clip maps its local playhead into the source interval. Splitting or trimming therefore changes only clip boundaries.
 
+System audio uses whole-output-device WASAPI loopback in version 1. The recording metadata stores the selected endpoint ID, format, discontinuities, and whether the user acknowledged the current disclosure version. Per-process game audio is not claimed or simulated.
+
 If system audio fails after recording starts, video continues, the audio discontinuity is recorded in metadata, and the editor presents a warning. Capture or encoder initialization failure aborts without creating referenced partial evidence.
+
+The encoder output is 8-bit H.264 SDR Rec.709. HDR source state and color-space metadata are recorded separately. HDR capture must pass reference color-pattern and representative-game comparisons after tone mapping; otherwise recording is blocked while HDR is active. At most one replicated-edge pixel is added to satisfy even encoder dimensions, and the logical aperture is retained in media metadata.
 
 ## `MediaPlacement` rendering contract
 
@@ -154,6 +167,8 @@ HTML export reconstructs each page with positioned media elements using the save
 - Cancellation is idempotent.
 - Late native events are ignored unless their recording/job ID is current.
 - Partial generated assets remain unreferenced and are removed after the job stops.
+- Interrupted recording outputs are quarantined for explicit recovery or deletion rather than silently removed.
 - Device loss or page disposal releases render callbacks and native handles.
 - Source evidence cannot be deleted while dependents remain.
 - Unsupported imported codecs are rejected before an evidence record is created.
+- Media protocol and diagnostic behavior follow [SECURITY-PRIVACY.md](SECURITY-PRIVACY.md).

@@ -9,6 +9,7 @@
 - Do not finalize the version 2 schema before all three feasibility spikes are reviewed.
 - Do not merge disposable spike code into production paths unless the architecture review explicitly adopts it.
 - Accessibility, diagnostics, tests, and QA updates ship with each feature rather than at the end.
+- Security and privacy requirements in `SECURITY-PRIVACY.md` are release-blocking acceptance criteria.
 - Every milestone leaves the application runnable and existing screenshot behavior passing.
 
 ## Milestone 0: Baseline and documentation
@@ -22,7 +23,7 @@ Exit: clean Git history contains an untouched baseline followed by documentation
 
 ## Milestone 1: Test foundation
 
-Add frontend unit and component testing, accessibility checks, synthetic numbered-frame fixtures, deterministic version 1 migration fixtures, and native integration-test scaffolding. Extend release QA without changing product behavior.
+Add frontend unit and component testing, accessibility checks, synthetic numbered-frame fixtures, SDR/HDR color fixtures, malformed archive/import fixtures, deterministic version 1 migration fixtures, and native integration-test scaffolding. Extend release QA without changing product behavior.
 
 Exit: existing screenshot workflows have automated coverage sufficient to detect schema, rendering, keyboard, and export regressions.
 
@@ -38,6 +39,10 @@ Required results:
 - No more than 50 ms A/V drift after 30 seconds.
 - Exact numbered-frame stepping and extraction for 30 FPS and 60 FPS fixtures.
 - Correct variable-frame-rate sample order and presentation timestamps.
+- Valid SDR Rec.709 output from SDR input and validated tone-mapped SDR output or explicit blocking for HDR input.
+- Correct logical dimensions after any one-pixel encoder padding.
+- First-use whole-system-audio and microphone disclosures with no implicit microphone enablement.
+- Recovery or explicit quarantine of interruptions during recording and finalization.
 - No referenced partial evidence after cancellation or failure.
 
 Exit: approve `windows-capture` or document the direct-Windows-API fallback without changing the public interfaces.
@@ -73,13 +78,13 @@ Exit: approve ZIP64 or compare it with the documented SQLite-container fallback 
 
 ## Milestone 5: Architecture freeze
 
-Update the proposed interfaces and format from measured spike results. Freeze evidence, asset, page, placement, timing, workspace, and migration contracts. Add architecture decision records for the selected capture, rendering, and storage approaches.
+Update the proposed interfaces and format from measured spike results. Freeze evidence, asset, page, placement, timing, workspace, settings, Trash, research-record, and migration contracts. Define canonical finding, tag, collection, relationship, and session schemas; keep search indexes derived. Add architecture decision records for the selected capture, rendering, storage, color, audio, and interrupted-recording approaches.
 
 Exit: the implementation schema has no unresolved media transport, timing, rendering, save, migration, or accessibility decisions.
 
 ## Milestone 6: Version 2 screenshot compatibility
 
-Implement assets, pages, placements, atomic workspaces, archive persistence, version 1 migration, and repair reporting using screenshots only. Preserve screenshot capture and all current editing/export behavior.
+Implement assets, pages, placements, canonical research-record foundations, versioned global settings, Project Trash transactions, atomic workspaces, archive persistence, version 1 migration, and repair reporting using screenshots only. Preserve screenshot capture and all current editing/export behavior.
 
 Exit: version 1 fixtures migrate deterministically; source images are byte-identical; normalized annotations and transforms are equivalent; 1600 by 900 renders keep fewer than 0.1% of pixels above a per-channel difference of 8; repeated save/reopen introduces no semantic changes.
 
@@ -93,7 +98,7 @@ Exit: hotkey -> record -> autoplay -> annotate -> save -> reopen -> export passe
 
 Implement normal playback, native previous/next frame, source timecode, looping, non-destructive trim/split, timed annotations, source protection, frame capture, and clip materialization.
 
-Exit: frame and clip operations remain exact across split, page duplication, save/reopen, export, source protection, and materialization.
+Exit: frame and clip operations remain exact across split, page duplication, save/reopen, export, source protection, materialization, Trash, restore, and batch-deletion rollback.
 
 ## Milestone 9: Evidence Library and Frame Bin
 
@@ -130,7 +135,9 @@ PDF acceptance:
 
 ## Milestone 12: Publication
 
-Complete long-session reliability, accessibility, diagnostics, privacy controls, signed NSIS/MSI installers, update metadata, user documentation, sample projects, upgrade/uninstall testing, and direct-download release procedures.
+Complete long-session reliability, accessibility, diagnostics, privacy controls, signed NSIS/MSI installers, staged update verification, rollback recovery, minimum-supported-version policy, user documentation, sample projects, upgrade/uninstall testing, and direct-download release procedures.
+
+Updates are never forced. Packages require both release-metadata signature verification and Authenticode validation. Installation is staged so failure leaves the installed version runnable. The previous signed installer is retained until the new build passes first-launch health checks; failed health checks offer reinstall of that previous version without modifying project files.
 
 External prerequisites are publisher identity, code-signing certificate, public release/update host, license selection, and trademark clearance.
 
