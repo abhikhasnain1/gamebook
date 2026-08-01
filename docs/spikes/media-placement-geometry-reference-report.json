@@ -1,8 +1,8 @@
 {
   "schema": "gamebook.media-placement-geometry.v1",
   "status": "passed",
-  "generatedAt": "2026-08-01T21:25:17.647Z",
-  "buildRevision": "76d489bd97e66ea138950e337c3b0eda51773fc8",
+  "generatedAt": "2026-08-01T21:34:53.323Z",
+  "buildRevision": "c6c25c37603cd93b004c56b9705cf6a378e74919",
   "fixture": "deterministic-poster-pages-v1",
   "environment": {
     "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
@@ -26,7 +26,7 @@
     {
       "id": "fabric-round-trip",
       "passed": true,
-      "detail": "Fabric custom-class reconstruction preserved the placement record."
+      "detail": "Fabric loadFromJSON reconstructed both placements, including the cropped record."
     },
     {
       "id": "hit-testing",
@@ -51,7 +51,7 @@
     {
       "id": "page-switch",
       "passed": true,
-      "detail": "Page switching preserved geometry, crop, connector, and poster records."
+      "detail": "Recomposing the secondary page and returning preserved geometry, crop, connector, and poster records."
     },
     {
       "id": "static-export",

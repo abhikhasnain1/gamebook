@@ -45,7 +45,7 @@ Issue #11 owns offscreen playback and exact-frame substitution. Issue #12 owns c
 
 ## Reference Result
 
-The retained report in `media-placement-geometry-reference-report.json` was produced from exact implementation commit `76d489bd97e66ea138950e337c3b0eda51773fc8` on Windows using Chromium 150 at 1280 by 720. All ten checks passed. The static export contained 111,730 data-URL characters, and the verified composition order was both media placements by z-index followed by the annotation and connector.
+The retained report in `media-placement-geometry-reference-report.json` was produced from exact implementation commit `c6c25c37603cd93b004c56b9705cf6a378e74919` on Windows using Chromium 150 at 1280 by 720. All ten checks passed. Fabric `loadFromJSON` reconstructed both placements, including the cropped record, and the harness recomposed the secondary page before returning to the primary page for export. The static export contained 111,730 data-URL characters, and the verified composition order was both media placements by z-index followed by the annotation and connector.
 
 Keyboard numeric editing, undo/redo, placement selection, and page switching passed in the browser. At the supported 900 by 620 minimum viewport, the document remained exactly 900 by 620 with no page-level overflow; the 250-pixel Outline retained an internal vertical scroll area for its complete controls. Browser diagnostics contained no warnings or errors. Automated axe coverage reported no serious or critical violations for the semantic Outline.
 
