@@ -51,7 +51,9 @@ Current dry-run gaps for the screenshot workflow:
 - `npm.cmd run direct-stack:verify -- --manifest PATH` validates issue #9 reports, retained-media hashes, fixed scenario counts, and the exact release binary hash.
 - `npm.cmd run media-placement:verify -- --self-test` checks the isolated placement-geometry report verifier.
 - `npm.cmd run media-placement:verify -- --report PATH` validates issue #10 stable serialization, Fabric reconstruction, geometry, connector, z-order, history, page-switch, static-export, and semantic-control evidence against one exact commit.
-- Fixture files live under `src/test/fixtures/` and must contain generated synthetic content only.
+- `npm.cmd run media-playback:verify -- --self-test` checks the isolated offscreen-playback report verifier.
+- `npm.cmd run media-playback:verify -- --report PATH` validates issue #11 browser video-frame callbacks, one-active-placement behavior, exact-frame substitution, timed visibility, poster restoration, token boundaries, lifecycle cleanup, and semantic controls against one exact commit.
+- Deterministic regression fixtures live under `src/test/fixtures/`; isolated spike media may live under `src/spikes/fixtures/`. Both locations contain synthetic content only.
 - `src/test/fixtures/manifest.json` records hashes, byte counts, textual descriptions, expected failures, and accessibility descriptions.
 - Fixture updates must keep regeneration instructions and validation evidence with the fixture change.
 
