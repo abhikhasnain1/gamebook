@@ -27,7 +27,7 @@ export interface BrowserRenderingReport {
   status: "browser-complete" | "failed";
   generatedAt: string;
   buildRevision: string;
-  renderingApproach: "fabric-offscreen-surface";
+  renderingApproach: "fabric-offscreen-surface" | "layered-dom-video";
   environment: {
     userAgent: string;
     hardwareConcurrency: number;
@@ -91,18 +91,19 @@ export function MediaRenderingPerformanceHarness() {
       { id: "1080p60", width: 1920, height: 1080, url: params.get("source1080") ?? DEFAULT_1080 },
       { id: "1440p60", width: 2560, height: 1440, url: params.get("source1440") ?? DEFAULT_1440 },
     ];
+    const approach = params.get("approach") === "dom" ? "layered-dom-video" : "fabric-offscreen-surface";
     try {
       const sources: SourceBenchmark[] = [];
       for (const fixture of fixtures) {
         setStatus(`Measuring ${fixture.id}`);
-        sources.push(await benchmarkSource(canvasRuntimeRef.current, fixture, setStatus));
+        sources.push(await benchmarkSource(canvasRuntimeRef.current, fixture, approach, setStatus));
       }
-      const result = createReport(sources, null, null);
+      const result = createReport(sources, null, approach, null);
       window.__GAMEBOOK_MEDIA_RENDERING_SPIKE__ = result;
       setReport(result);
       setStatus("Browser measurements complete");
     } catch (error) {
-      const result = createReport([], null, error instanceof Error ? error.message : "Benchmark failed");
+      const result = createReport([], null, approach, error instanceof Error ? error.message : "Benchmark failed");
       window.__GAMEBOOK_MEDIA_RENDERING_SPIKE__ = result;
       setReport(result);
       setStatus("Benchmark failed");
@@ -167,6 +168,7 @@ export function MediaRenderingPerformanceHarness() {
 async function benchmarkSource(
   canvas: Canvas,
   fixture: FixtureConfig,
+  approach: BrowserRenderingReport["renderingApproach"],
   announce: (message: string) => void,
 ): Promise<SourceBenchmark> {
   canvas.clear();
@@ -176,7 +178,7 @@ async function benchmarkSource(
   surface.height = fixture.height;
   const context = surface.getContext("2d", { alpha: false });
   if (!context) throw new Error("Offscreen drawing surface is unavailable");
-  const placement = new MediaPlacement({
+  const placementRecord = {
     id: `placement-${fixture.id}`,
     evidenceId: `evidence-${fixture.id}`,
     left: 180,
@@ -185,7 +187,10 @@ async function benchmarkSource(
     scaleY: 1_050 / fixture.width,
     angle: 0,
     zIndex: 1,
-  }, surface);
+  };
+  const placement = approach === "fabric-offscreen-surface"
+    ? new MediaPlacement(placementRecord, surface)
+    : new Rect({ ...placementRecord, width: fixture.width, height: fixture.height, fill: "transparent", strokeWidth: 0 });
   const annotation = new Rect({
     left: 560,
     top: 250,
@@ -211,8 +216,8 @@ async function benchmarkSource(
   video.playsInline = true;
   video.preload = "auto";
   video.src = fixture.url;
-  video.className = "rendering-source-video";
-  document.body.append(video);
+  video.className = approach === "layered-dom-video" ? "rendering-source-video rendering-source-video--dom" : "rendering-source-video";
+  (approach === "layered-dom-video" ? document.querySelector(".rendering-canvas-wrap") : document.body)?.append(video);
   await waitForVideo(video);
   if (video.videoWidth !== fixture.width || video.videoHeight !== fixture.height) {
     releaseVideo(video);
@@ -264,10 +269,14 @@ async function benchmarkSource(
       }
       priorMediaTime = metadata.mediaTime;
       presentedFrames += 1;
-      context.drawImage(video, 0, 0, fixture.width, fixture.height);
-      pendingVideoFrame = true;
-      placement.dirty = true;
-      canvas.requestRenderAll();
+      if (approach === "fabric-offscreen-surface") {
+        context.drawImage(video, 0, 0, fixture.width, fixture.height);
+        pendingVideoFrame = true;
+        placement.dirty = true;
+        canvas.requestRenderAll();
+      } else {
+        renderedFrames += 1;
+      }
       requestFrame();
     });
   };
@@ -368,6 +377,7 @@ async function benchmarkSource(
 function createReport(
   sources: SourceBenchmark[],
   memoryDeltaBytes: number | null,
+  approach: BrowserRenderingReport["renderingApproach"],
   error: string | null,
 ): BrowserRenderingReport {
   const params = new URLSearchParams(window.location.search);
@@ -378,7 +388,7 @@ function createReport(
     status: error ? "failed" : "browser-complete",
     generatedAt: new Date().toISOString(),
     buildRevision: params.get("build") ?? "uncommitted",
-    renderingApproach: "fabric-offscreen-surface",
+    renderingApproach: approach,
     environment: {
       userAgent: navigator.userAgent,
       hardwareConcurrency: navigator.hardwareConcurrency,

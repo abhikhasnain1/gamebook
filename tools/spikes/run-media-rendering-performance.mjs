@@ -13,6 +13,7 @@ const debuggingPort = 9333;
 const pageUrl = new URL("http://127.0.0.1:1420/tools/spikes/media-rendering-performance.html");
 pageUrl.searchParams.set("build", args.build);
 pageUrl.searchParams.set("durationMs", String(args.durationMs));
+pageUrl.searchParams.set("approach", args.approach);
 
 async function main() {
   await assertFixture("src-tauri/target/media-rendering-performance/fixture-1080p60.mp4");
@@ -86,7 +87,7 @@ async function main() {
 }
 
 function parseArgs(values) {
-  const parsed = { durationMs: 30_000 };
+  const parsed = { durationMs: 30_000, approach: "fabric" };
   for (let index = 0; index < values.length; index += 2) {
     const option = values[index];
     const value = values[index + 1];
@@ -95,10 +96,12 @@ function parseArgs(values) {
     else if (option === "--output") parsed.output = value;
     else if (option === "--duration-ms") parsed.durationMs = Number(value);
     else if (option === "--edge") parsed.edge = value;
+    else if (option === "--approach") parsed.approach = value;
     else throw new Error(`Unknown option: ${option}`);
   }
   if (!/^[a-f0-9]{7,64}$/i.test(parsed.build ?? "")) throw new Error("--build must be a Git revision");
   if (!parsed.output) throw new Error("--output is required");
+  if (!["fabric", "dom"].includes(parsed.approach)) throw new Error("--approach must be fabric or dom");
   if (!Number.isInteger(parsed.durationMs) || parsed.durationMs < 5_000 || parsed.durationMs > 30_000) {
     throw new Error("--duration-ms must be an integer from 5000 through 30000");
   }
