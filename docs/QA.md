@@ -22,6 +22,25 @@
 - Regression fixtures must preserve page order, source pixel references, screenshot transforms, annotation IDs, extracted text, textual descriptions, and expected malformed-input failures.
 - Current manual coverage remains required for native screenshot capture, save/recovery dialogs, PNG/PDF/Markdown render output, keyboard-only editing, NVDA, display scale, and high-contrast checks until those paths have dedicated automation.
 
+## Accessibility Evidence
+
+For every issue, record accessibility evidence in the owning GitHub issue or pull request using this format:
+
+- Roadmap milestone and workflow under test.
+- Automated commands and results, including axe or component accessibility coverage when applicable.
+- Keyboard-only path, expected focus order, and result.
+- NVDA version, Windows version, speech output summary, and result when assistive-technology validation applies.
+- High Contrast theme, reduced-motion setting, UI scale, minimum-window size, and result.
+- Reviewer responsible for manual accessibility evidence.
+- Blockers, linked follow-up issues, or explicit not-applicable rationale.
+
+Unmet accessibility criteria block milestone closure when they affect the milestone workflow. A follow-up issue may defer only independent work that is outside the milestone scope and does not leave the shipped workflow with a serious or critical barrier.
+
+Current dry-run gaps for the screenshot workflow:
+
+- Native capture, save/recovery dialogs, rendered PNG/PDF/Markdown output, keyboard-only editing, NVDA, High Contrast, reduced-motion, and 150%/200% scale remain manual until dedicated automation is added.
+- Existing frontend tests cover automated axe/component checks for the tool rail and regression assertions for version 1 session compatibility, fixture contracts, and text export order.
+
 ## Deterministic fixtures
 
 - `npm.cmd run fixtures:verify` checks every generated fixture against the committed manifest.

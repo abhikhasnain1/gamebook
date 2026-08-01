@@ -30,6 +30,7 @@ Describe keyboard, focus, semantic, announcement, High Contrast, reduced-motion,
 
 - [ ] Applicable accessibility requirements pass.
 - [ ] Not applicable, with justification below.
+- [ ] Evidence follows the milestone matrix and reviewer format in `docs/ACCESSIBILITY.md` and `docs/QA.md`.
 
 ## Security and privacy
 
