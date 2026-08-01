@@ -1,0 +1,268 @@
+:root {
+  color: #172026;
+  background: #eef0ef;
+  font-family: Inter, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 900px;
+  min-height: 620px;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 1px solid #9ba5a8;
+  border-radius: 4px;
+  color: #172026;
+  background: #ffffff;
+  min-height: 34px;
+}
+
+button:hover {
+  border-color: #007f73;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid #005fcc;
+  outline-offset: 2px;
+}
+
+button[aria-current="page"],
+button[aria-pressed="true"] {
+  border-color: #007f73;
+  box-shadow: inset 4px 0 0 #007f73;
+  font-weight: 700;
+}
+
+button:disabled {
+  opacity: 0.45;
+}
+
+.spike-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: 100vh;
+  min-height: 620px;
+}
+
+.spike-header {
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) auto auto;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #b8c0c2;
+  background: #ffffff;
+}
+
+.spike-header p,
+.spike-header h1 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.spike-header p {
+  color: #526066;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.spike-header h1 {
+  font-size: 21px;
+  line-height: 1.25;
+}
+
+.spike-header nav,
+.spike-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.spike-header nav button {
+  padding: 5px 12px;
+}
+
+.spike-actions button {
+  display: inline-grid;
+  width: 36px;
+  place-items: center;
+}
+
+.spike-actions svg {
+  width: 18px;
+  height: 18px;
+}
+
+.spike-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  min-height: 0;
+}
+
+.spike-canvas-wrap {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  overflow: auto;
+  place-items: center;
+  background: #dfe3e2;
+}
+
+.spike-canvas-wrap .canvas-container {
+  width: min(100%, calc((100vh - 142px) * 16 / 9)) !important;
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+  border: 1px solid #7e898c;
+  box-shadow: 0 6px 20px rgba(23, 32, 38, 0.14);
+}
+
+.spike-canvas-wrap canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.spike-outline {
+  min-width: 0;
+  padding: 14px;
+  overflow: auto;
+  border-left: 1px solid #b8c0c2;
+  background: #f8f9f8;
+}
+
+.spike-outline h2 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  letter-spacing: 0;
+}
+
+.spike-outline ul {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.spike-outline li button {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.spike-outline li span,
+.spike-outline li small {
+  overflow-wrap: anywhere;
+}
+
+.spike-outline li small {
+  color: #526066;
+}
+
+.spike-outline fieldset {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #b8c0c2;
+  border-radius: 4px;
+}
+
+.spike-outline legend {
+  padding: 0 4px;
+  font-weight: 700;
+}
+
+.spike-outline label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  color: #39464b;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.spike-outline input {
+  width: 100%;
+  min-width: 0;
+  height: 32px;
+  padding: 4px 6px;
+  border: 1px solid #8e999c;
+  border-radius: 3px;
+  color: #172026;
+  background: #ffffff;
+}
+
+.spike-crop-grid {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.spike-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 8px 16px;
+  border-top: 1px solid #b8c0c2;
+  background: #ffffff;
+  font-size: 13px;
+}
+
+.spike-footer p {
+  margin: 0;
+}
+
+.spike-footer output[data-status="passed"] {
+  color: #006b4f;
+  font-weight: 700;
+}
+
+.spike-footer output[data-status="failed"] {
+  color: #b42318;
+  font-weight: 700;
+}
+
+@media (max-width: 1050px) {
+  .spike-workspace {
+    grid-template-columns: minmax(0, 1fr) 250px;
+  }
+}
+
+@media (forced-colors: active) {
+  button[aria-current="page"],
+  button[aria-pressed="true"] {
+    border: 2px solid Highlight;
+    box-shadow: none;
+  }
+
+  .spike-canvas-wrap .canvas-container {
+    border: 2px solid CanvasText;
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

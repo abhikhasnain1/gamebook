@@ -49,6 +49,8 @@ Current dry-run gaps for the screenshot workflow:
 - `npm.cmd run native-decode:verify -- --manifest PATH` validates a complete issue #8 release evidence set against one exact build and binary hash.
 - `npm.cmd run direct-stack:verify -- --self-test` checks the isolated direct-capture report verifier.
 - `npm.cmd run direct-stack:verify -- --manifest PATH` validates issue #9 reports, retained-media hashes, fixed scenario counts, and the exact release binary hash.
+- `npm.cmd run media-placement:verify -- --self-test` checks the isolated placement-geometry report verifier.
+- `npm.cmd run media-placement:verify -- --report PATH` validates issue #10 stable serialization, Fabric reconstruction, geometry, connector, z-order, history, page-switch, static-export, and semantic-control evidence against one exact commit.
 - Fixture files live under `src/test/fixtures/` and must contain generated synthetic content only.
 - `src/test/fixtures/manifest.json` records hashes, byte counts, textual descriptions, expected failures, and accessibility descriptions.
 - Fixture updates must keep regeneration instructions and validation evidence with the fixture change.
