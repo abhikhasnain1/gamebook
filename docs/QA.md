@@ -55,6 +55,8 @@ Current dry-run gaps for the screenshot workflow:
 - `npm.cmd run media-playback:verify -- --report PATH` validates issue #11 browser video-frame callbacks, one-active-placement behavior, exact-frame substitution, timed visibility, poster restoration, token boundaries, lifecycle cleanup, and semantic controls against one exact commit.
 - `npm.cmd run viewport:verify -- --self-test` checks the isolated view-only viewport report verifier.
 - `npm.cmd run viewport:verify -- --report PATH` validates issue #12 Fit, 25-200 percent zoom, reset, every pan path, resize, serialization/history/connector invariants, and exact static-export and thumbnail hashes against one exact commit.
+- `npm.cmd run media-rendering:verify -- --self-test` checks the isolated rendering-performance report verifier.
+- `npm.cmd run media-rendering:verify -- --report PATH` validates issue #13 full-resolution 1080p60/1440p60 frame rate, transform latency, operation timing, ten-loop cleanup, process private-memory return, CPU/GPU evidence, semantic controls, and report privacy against one exact commit.
 - Deterministic regression fixtures live under `src/test/fixtures/`; isolated spike media may live under `src/spikes/fixtures/`. Both locations contain synthetic content only.
 - `src/test/fixtures/manifest.json` records hashes, byte counts, textual descriptions, expected failures, and accessibility descriptions.
 - Fixture updates must keep regeneration instructions and validation evidence with the fixture change.
@@ -122,6 +124,16 @@ Current dry-run gaps for the screenshot workflow:
 - Verify malformed zoom, pan, and resize inputs preserve the prior valid view.
 - Verify named icon controls, labeled slider, visible focus, polite zoom/position announcements, forced-colors rules, reduced-motion rules, 900 by 620 layout, and deterministic 200 percent UI-scale layout.
 - Keep the production editor, Gamebook 0.5.3 screenshot behavior, and version 1 project serialization unchanged until issue #13 accepts a rendering architecture.
+
+## Media rendering performance
+
+- Generate exact 30-second, 1,800-sample 1920 by 1080 and 2560 by 1440 H.264 fixtures with the isolated Media Foundation example.
+- Run each source for 30 seconds with a full-resolution offscreen surface, representative annotation and connector objects, and strictly advancing source-time frame accounting.
+- Require at least 55 rendered FPS for both sources and pointer-event-to-render latency below 50 ms at p95.
+- Record pause, seek, exact-frame, and page-switch timings plus CPU, GPU, process private memory, presented frames, rendered frames, source-time gaps, and coalesced render callbacks.
+- Complete ten playback lifecycle loops; post-cleanup callbacks, sources, decoded frames, and attached media elements must all be zero, and private memory must return within 100 MB of baseline.
+- Verify named keyboard controls, focus, polite status, forced colors, reduced motion, 900 by 620 layout, 100/150/200 percent scale, and NVDA output.
+- Keep generated media, temporary browser profiles, and raw reports uncommitted; retain only redacted reference evidence and a Proposed rendering ADR.
 
 ## Sessions and export
 

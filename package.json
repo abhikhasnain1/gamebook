@@ -22,6 +22,8 @@
     "media-placement:verify": "node tools/spikes/verify-media-placement-geometry-report.mjs",
     "media-playback:verify": "node tools/spikes/verify-media-playback-report.mjs",
     "viewport:verify": "node tools/spikes/verify-viewport-report.mjs",
+    "media-rendering:run": "node tools/spikes/run-media-rendering-performance.mjs",
+    "media-rendering:verify": "node tools/spikes/verify-media-rendering-performance-report.mjs",
     "check": "tsc --noEmit"
   },
   "dependencies": {
