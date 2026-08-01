@@ -96,4 +96,22 @@ The controlled tone, silence fixture, encoded MP4s, and JSON reports remain loca
 
 ## Current Validation
 
-The harness and verifier currently pass targeted formatting, Clippy with warnings denied, four focused Rust tests, JavaScript syntax validation, and verifier self-tests. Reference-system audio measurements remain pending controlled runs from one exact clean release build.
+The reference set used source revision `43d3f2d15338b75263f4e69985af5ce5b3e4baa1` and one clean release binary with SHA-256 `0FA775A6A61F8E49E9F04451B27637DCB0FAABBD04C3572E96FF8A811EB0EB8F`. The machine-verified local manifest contains nine independent reports from that exact build.
+
+The reference system was Windows 11 Pro build 26200 on an Intel Core Ultra 9 285K with 24 cores and approximately 63.4 GiB of visible memory, healthy NTFS storage, eight healthy reported audio devices, and the Balanced power scheme. The default render mix was stereo 48 kHz float PCM. The harness converted it to PCM16 for AAC and reported a 4,800-frame, 100 ms shared endpoint buffer.
+
+| Scenario | Reference duration | A/V drift | Encoded duration | Finalization | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Active audio 1 | 30,008.71 ms | -18.45 ms | -5.08 ms error | 2 ms | Passed |
+| Active audio 2 | 30,000.03 ms | -9.34 ms | -4.67 ms error | 3 ms | Passed |
+| Silence 1 | 30,003.00 ms | -22.28 ms | -4.62 ms error | 1 ms | Passed |
+| Silence 2 | 30,004.38 ms | -14.09 ms | -5.04 ms error | 1 ms | Passed |
+| Cancellation 1 | 5,170.66 ms | Not applicable | No output retained | Not applicable | Passed |
+| Cancellation 2 | 5,110.06 ms | Not applicable | No output retained | Not applicable | Passed |
+| Post-start audio failure | 30,007.00 ms | Not gated after intentional stop | 4,992.40 ms retained audio | 2 ms | Passed |
+| Default endpoint change | 60,001.36 ms | -20.98 ms | -10.31 ms error | 1 ms | Passed |
+| Encoder startup failure | Not started | Not applicable | No output retained | Not applicable | Passed |
+
+All completed runs stayed below the 50 ms absolute drift gate, within the 100 ms endpoint-buffer duration gate, and below the five-second finalization gate. They recorded no timestamp errors. Each completed run reported one initial discontinuity packet. The post-start failure retained 4,990.40 ms of audio while the shared reference clock continued for 30,007.00 ms. The manually initiated default-render change was observed without the harness modifying the setting. Microphone capture and capture-endpoint activation remained false in every report; cancellation and encoder startup failure left no retained output.
+
+Targeted formatting, Clippy with warnings denied, four focused Rust tests, JavaScript syntax validation, verifier self-tests, and the complete local evidence-manifest verification pass. The result supports direct WASAPI shared loopback, Media Foundation AAC, and a shared QPC timing basis for issue #9 and the Milestone 5 audio decision. It does not select the complete capture stack or create an accepted ADR before the remaining Milestone 2 gates and architecture freeze.
