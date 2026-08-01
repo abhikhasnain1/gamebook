@@ -1,0 +1,143 @@
+{
+  "accessibility": {
+    "interactiveUi": false,
+    "productionAnnouncementContract": "Announce decode, extraction, color, and HDR blocking failures in text without relying on color or motion."
+  },
+  "applicationBuild": {
+    "name": "gamebook",
+    "profile": "release",
+    "sourceRevision": "eb9cba1efee25f5e3249e6236e9ea7c295c05463",
+    "version": "0.5.3"
+  },
+  "cleanup": {
+    "partialArtifactsRemoved": true,
+    "retainedArtifacts": [
+      "synthetic-mp4",
+      "requested-sample-pngs"
+    ]
+  },
+  "color": null,
+  "command": [
+    "native_decode_spike.exe",
+    "--scenario",
+    "odd-aperture",
+    "--build-id",
+    "eb9cba1efee25f5e3249e6236e9ea7c295c05463",
+    "--run-id",
+    "evidence-odd-aperture-01"
+  ],
+  "completedAt": "unix-ms-1785609457210",
+  "environment": {
+    "arch": "x86_64",
+    "os": "windows",
+    "windowsCrateVersion": "0.61.3"
+  },
+  "errorMessage": null,
+  "failureMode": null,
+  "hdr": null,
+  "issue": 8,
+  "outputBytes": 1508,
+  "privacy": {
+    "localPathsInReport": false,
+    "mediaBytesInReport": false,
+    "networkAccess": false,
+    "projectWrites": false,
+    "syntheticInputOnly": true
+  },
+  "result": "passed",
+  "scenario": "odd-aperture",
+  "schema": "gamebook.native-decode-spike.v1",
+  "sourceArtifact": "artifact:synthetic.mp4",
+  "startedAt": "unix-ms-1785609456515",
+  "timeline": {
+    "decodedDurations100ns": [
+      333333,
+      333333,
+      333333,
+      333333,
+      333333,
+      333333
+    ],
+    "decodedFrameIds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "decodedPts100ns": [
+      0,
+      333333,
+      666666,
+      1000000,
+      1333333,
+      1666666
+    ],
+    "exactSampleOrder": true,
+    "exactTimestamps": true,
+    "extractedSamples": [
+      {
+        "decodedFrameId": 3,
+        "height": 91,
+        "path": "artifact:sample-3.png",
+        "sampleIndex": 3,
+        "width": 161
+      }
+    ],
+    "requestedSampleIndices": [
+      3
+    ],
+    "submitted": [
+      {
+        "duration100ns": 333333,
+        "pts100ns": 0
+      },
+      {
+        "duration100ns": 333333,
+        "pts100ns": 333333
+      },
+      {
+        "duration100ns": 333334,
+        "pts100ns": 666666
+      },
+      {
+        "duration100ns": 333333,
+        "pts100ns": 1000000
+      },
+      {
+        "duration100ns": 333333,
+        "pts100ns": 1333333
+      },
+      {
+        "duration100ns": 333334,
+        "pts100ns": 1666666
+      }
+    ]
+  },
+  "video": {
+    "codedHeight": 92,
+    "codedWidth": 162,
+    "decodeAperture": {
+      "height": 91,
+      "offsetX": {
+        "fract": 0,
+        "value": 0
+      },
+      "offsetY": {
+        "fract": 0,
+        "value": 0
+      },
+      "width": 161
+    },
+    "decodeAperturePreserved": true,
+    "edgeReplicationVerifiedBeforeEncode": true,
+    "logicalHeight": 91,
+    "logicalWidth": 161,
+    "paddingBottom": 1,
+    "paddingRight": 1,
+    "restoredPngLogicalDimensions": true,
+    "sourceContainerAperture": null,
+    "sourceContainerAperturePreserved": false
+  }
+}
