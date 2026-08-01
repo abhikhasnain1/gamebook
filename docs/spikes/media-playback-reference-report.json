@@ -1,0 +1,129 @@
+{
+  "schema": "gamebook.media-playback.v1",
+  "status": "passed",
+  "generatedAt": "2026-08-01T22:13:11.215Z",
+  "buildRevision": "5f2c32fb7d56baf56ceb975ec51c74ee2cf84aa1",
+  "fixture": {
+    "id": "native-decode-cfr60-issue-8",
+    "videoSha256": "b1b33aa040553a781420fcc2d56a0e5f2089c430f85b20deac657d1c9d935795",
+    "exactFrameSha256": "639aba824b4406b29ccfdd5d72f5aa14ab9e11776dccef3a40cc3fc33249ccfd"
+  },
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "hardwareConcurrency": 24,
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "videoFrameCallbackSupported": true
+  },
+  "checks": [
+    {
+      "id": "video-frame-callback",
+      "passed": true,
+      "detail": "Rendered 1 browser video frame callback before the first transition."
+    },
+    {
+      "id": "seek",
+      "passed": true,
+      "detail": "A source-time seek produced a subsequent compositor frame without changing placement geometry."
+    },
+    {
+      "id": "one-active-placement",
+      "passed": true,
+      "detail": "Starting beta released alpha and restored alpha's poster before beta rendered."
+    },
+    {
+      "id": "exact-frame-substitution",
+      "passed": true,
+      "detail": "Native-decoded PNG sample 30 replaced playback on the same offscreen surface at 500000 microseconds."
+    },
+    {
+      "id": "timed-annotation-layering",
+      "passed": true,
+      "detail": "The source-time finding became visible above its target placement only inside its inclusive time range."
+    },
+    {
+      "id": "shared-geometry",
+      "passed": true,
+      "detail": "Playback, seek, and exact substitution retained the original stable placement records."
+    },
+    {
+      "id": "poster-restoration",
+      "passed": true,
+      "detail": "Leaving exact mode restored the deterministic poster and hid the out-of-mode timed finding."
+    },
+    {
+      "id": "failure-preserves-poster",
+      "passed": true,
+      "detail": "An expired exact-frame token failed generically, restored the poster, and retained no callback or source."
+    },
+    {
+      "id": "lifecycle-cleanup",
+      "passed": true,
+      "detail": "pause=0 callbacks/0 sources; page-switch=0 callbacks/0 sources; export=0 callbacks/0 sources; minimize=0 callbacks/0 sources; deletion=0 callbacks/0 sources; disposal=0 callbacks/0 sources"
+    },
+    {
+      "id": "opaque-token-boundary",
+      "passed": true,
+      "detail": "Stable placement serialization excluded media tokens, source URLs, paths, elements, and frame bytes."
+    },
+    {
+      "id": "semantic-controls",
+      "passed": true,
+      "detail": "Labeled placement, playback, seek, frame, poster, state, status, and error controls are present outside the canvas."
+    }
+  ],
+  "renderedVideoFrames": 12,
+  "exactFrame": {
+    "timestampUs": 500000,
+    "sampleIndex": 30
+  },
+  "cleanup": [
+    {
+      "reason": "pause",
+      "activeCallbacks": 0,
+      "liveSources": 0
+    },
+    {
+      "reason": "page-switch",
+      "activeCallbacks": 0,
+      "liveSources": 0
+    },
+    {
+      "reason": "export",
+      "activeCallbacks": 0,
+      "liveSources": 0
+    },
+    {
+      "reason": "minimize",
+      "activeCallbacks": 0,
+      "liveSources": 0
+    },
+    {
+      "reason": "deletion",
+      "activeCallbacks": 0,
+      "liveSources": 0
+    },
+    {
+      "reason": "disposal",
+      "activeCallbacks": 0,
+      "liveSources": 0
+    }
+  ],
+  "geometryFingerprint": "[{\"id\":\"placement-alpha\",\"evidenceId\":\"evidence-alpha\",\"left\":120,\"top\":150,\"scaleX\":0.82,\"scaleY\":0.82,\"angle\":0,\"zIndex\":1,\"posterTimestampUs\":500000},{\"id\":\"placement-beta\",\"evidenceId\":\"evidence-beta\",\"left\":770,\"top\":250,\"scaleX\":0.72,\"scaleY\":0.72,\"angle\":5,\"zIndex\":2,\"posterTimestampUs\":0}]",
+  "sourceUrlsExposed": false,
+  "persistedRuntimeKeys": [
+    "angle",
+    "evidenceId",
+    "id",
+    "left",
+    "placementVersion",
+    "posterTimestampUs",
+    "scaleX",
+    "scaleY",
+    "top",
+    "type",
+    "zIndex"
+  ]
+}
