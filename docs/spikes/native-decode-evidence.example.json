@@ -3,6 +3,14 @@
   "issue": 8,
   "decisionRationale": "Replace with the measured exact-decode, color, aperture, HDR-blocking, and cleanup result.",
   "binarySha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "referenceEnvironment": {
+    "osName": "Windows 11 Pro",
+    "osBuild": 0,
+    "cpuClass": "replace-with-redacted-cpu-class",
+    "logicalProcessors": 0,
+    "memoryGiB": 0,
+    "storageType": "replace-with-filesystem-and-health-summary"
+  },
   "applicationBuild": {
     "name": "gamebook",
     "version": "0.5.3",
@@ -10,11 +18,11 @@
     "profile": "release"
   },
   "reports": [
-    { "id": "cfr-30-01", "path": "../../src-tauri/target/native-decode-spike/cfr-30-01.json", "role": "cfr-30", "scenario": "cfr-30" },
-    { "id": "cfr-60-01", "path": "../../src-tauri/target/native-decode-spike/cfr-60-01.json", "role": "cfr-60", "scenario": "cfr-60" },
-    { "id": "vfr-01", "path": "../../src-tauri/target/native-decode-spike/vfr-01.json", "role": "vfr", "scenario": "vfr" },
-    { "id": "sdr-color-01", "path": "../../src-tauri/target/native-decode-spike/sdr-color-01.json", "role": "sdr-rec709", "scenario": "sdr-color" },
-    { "id": "odd-aperture-01", "path": "../../src-tauri/target/native-decode-spike/odd-aperture-01.json", "role": "odd-aperture", "scenario": "odd-aperture" },
+    { "id": "cfr-30-01", "path": "../../src-tauri/target/native-decode-spike/cfr-30-01.json", "role": "cfr-30", "scenario": "cfr-30", "artifact": { "path": "../../src-tauri/target/native-decode-spike/cfr-30-01.mp4", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" } },
+    { "id": "cfr-60-01", "path": "../../src-tauri/target/native-decode-spike/cfr-60-01.json", "role": "cfr-60", "scenario": "cfr-60", "artifact": { "path": "../../src-tauri/target/native-decode-spike/cfr-60-01.mp4", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" } },
+    { "id": "vfr-01", "path": "../../src-tauri/target/native-decode-spike/vfr-01.json", "role": "vfr", "scenario": "vfr", "artifact": { "path": "../../src-tauri/target/native-decode-spike/vfr-01.mp4", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" } },
+    { "id": "sdr-color-01", "path": "../../src-tauri/target/native-decode-spike/sdr-color-01.json", "role": "sdr-rec709", "scenario": "sdr-color", "artifact": { "path": "../../src-tauri/target/native-decode-spike/sdr-color-01.mp4", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" } },
+    { "id": "odd-aperture-01", "path": "../../src-tauri/target/native-decode-spike/odd-aperture-01.json", "role": "odd-aperture", "scenario": "odd-aperture", "artifact": { "path": "../../src-tauri/target/native-decode-spike/odd-aperture-01.mp4", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" } },
     { "id": "hdr-pq-block-01", "path": "../../src-tauri/target/native-decode-spike/hdr-pq-block-01.json", "role": "hdr-pq-block", "scenario": "hdr-pq-block" },
     { "id": "hdr-hlg-block-01", "path": "../../src-tauri/target/native-decode-spike/hdr-hlg-block-01.json", "role": "hdr-hlg-block", "scenario": "hdr-hlg-block" },
     { "id": "malformed-01", "path": "../../src-tauri/target/native-decode-spike/malformed-01.json", "role": "malformed-input", "scenario": "malformed" },

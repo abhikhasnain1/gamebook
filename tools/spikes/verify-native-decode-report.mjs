@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 
@@ -109,6 +110,7 @@ function verifySuccessfulDecode(report, label) {
   const timeline = report.timeline;
   assert.ok(Array.isArray(timeline?.submitted) && timeline.submitted.length > 0, `${label}: submitted timeline is required`);
   assert.ok(Array.isArray(timeline.decodedPts100ns), `${label}: decoded timestamps are required`);
+  assert.equal(timeline.decodedDurations100ns?.length, timeline.submitted.length, `${label}: decoded duration count mismatch`);
   assert.equal(timeline.exactTimestamps, true, `${label}: timestamps must be exact`);
   assert.equal(timeline.exactSampleOrder, true, `${label}: sample order must be exact`);
   const submittedPts = timeline.submitted.map((sample) => sample.pts100ns);
@@ -119,6 +121,9 @@ function verifySuccessfulDecode(report, label) {
     if (index > 0) {
       assert.ok(sample.pts100ns > timeline.submitted[index - 1].pts100ns, `${label}: PTS must be strictly increasing`);
     }
+    const decodedDuration = timeline.decodedDurations100ns[index];
+    assert.ok(Number.isSafeInteger(decodedDuration) && decodedDuration > 0, `${label}: decoded duration ${index} must be a positive integer`);
+    assert.ok(Math.abs(decodedDuration - sample.duration100ns) <= 1, `${label}: decoded duration ${index} exceeds one-tick normalization`);
   }
   assert.deepEqual(
     timeline.extractedSamples.map((sample) => sample.sampleIndex),
@@ -215,12 +220,19 @@ function verifyManifest(manifest, manifestPath) {
   assert.equal(manifest.issue, 8, `${label}: issue must be 8`);
   assert.ok(manifest.decisionRationale?.trim(), `${label}: decision rationale is required`);
   assert.match(manifest.binarySha256 ?? "", /^[A-F0-9]{64}$/, `${label}: release binary SHA-256 is required`);
+  assert.ok(manifest.referenceEnvironment?.osName?.trim(), `${label}: reference OS name is required`);
+  assert.ok(Number.isInteger(manifest.referenceEnvironment?.osBuild), `${label}: reference OS build is required`);
+  assert.ok(manifest.referenceEnvironment?.cpuClass?.trim(), `${label}: reference CPU class is required`);
+  assert.ok(Number.isInteger(manifest.referenceEnvironment?.logicalProcessors), `${label}: logical processor count is required`);
+  assert.ok(Number.isFinite(manifest.referenceEnvironment?.memoryGiB), `${label}: visible memory is required`);
+  assert.ok(manifest.referenceEnvironment?.storageType?.trim(), `${label}: storage type is required`);
   assertNoPrivateMarkers(manifest, label);
   assert.ok(Array.isArray(manifest.reports), `${label}: reports must be an array`);
   const baseDir = dirname(resolve(manifestPath));
   const ids = new Set();
   const paths = new Set();
   const runs = new Set();
+  const artifacts = new Set();
   const roles = new Map();
 
   for (const entry of manifest.reports) {
@@ -233,6 +245,18 @@ function verifyManifest(manifest, manifestPath) {
     const report = JSON.parse(readFileSync(reportPath, "utf8"));
     verifyReport(report, entry.scenario, `${label}:${entry.id}`);
     assert.deepEqual(report.applicationBuild, manifest.applicationBuild, `${label}:${entry.id}: build identity mismatch`);
+    if (SUCCESS_SCENARIOS.has(entry.scenario)) {
+      assert.ok(entry.artifact?.path, `${label}:${entry.id}: retained artifact path is required`);
+      assert.match(entry.artifact?.sha256 ?? "", /^[A-F0-9]{64}$/, `${label}:${entry.id}: artifact SHA-256 is required`);
+      const artifactPath = resolve(baseDir, entry.artifact.path);
+      assert.ok(!artifacts.has(artifactPath.toLowerCase()), `${label}:${entry.id}: artifact path reused`);
+      artifacts.add(artifactPath.toLowerCase());
+      const bytes = readFileSync(artifactPath);
+      assert.equal(bytes.length, report.outputBytes, `${label}:${entry.id}: artifact byte count mismatch`);
+      assert.equal(createHash("sha256").update(bytes).digest("hex").toUpperCase(), entry.artifact.sha256, `${label}:${entry.id}: artifact SHA-256 mismatch`);
+    } else {
+      assert.equal(entry.artifact, undefined, `${label}:${entry.id}: non-retained scenario cannot declare an artifact`);
+    }
     const fingerprint = JSON.stringify([report.startedAt, report.completedAt, report.command]);
     assert.ok(!runs.has(fingerprint), `${label}:${entry.id}: duplicate run evidence`);
     runs.add(fingerprint);

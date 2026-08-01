@@ -79,7 +79,7 @@ npm.cmd run native-decode:verify -- path/to/report.json --scenario cfr-30
 npm.cmd run native-decode:verify -- --self-test
 ```
 
-The verifier rejects missing roles, duplicate runs, mixed build identities, path or private-marker leakage, non-synthetic input, network or project writes, non-exact timestamps or order, incorrect requested-sample identity, failed color patches, un-restored logical dimensions, unsupported HDR output, and retained failure artifacts.
+The verifier rejects missing roles, duplicate runs, mixed build identities, binary or synthetic-MP4 hash mismatches, missing reference-environment evidence, path or private-marker leakage, non-synthetic input, network or project writes, non-exact timestamps or order, decoder-duration normalization beyond one 100-nanosecond tick, incorrect requested-sample identity, failed color patches, un-restored logical dimensions, unsupported HDR output, and retained failure artifacts.
 
 ## Accessibility Contract For Production
 
@@ -93,7 +93,9 @@ Synthetic MP4s, requested PNGs, and complete local reports remain ignored and un
 
 ## Current Validation
 
-The release evidence set used source revision `eb9cba1efee25f5e3249e6236e9ea7c295c05463` and one clean release binary with SHA-256 `8CE0DC2EE94CB5A22BA9F63684ACC0D89E0D162F4EF58C3B595AFE243CA484DC`. The machine-verified local manifest contains eleven independent reports from that exact build. The checked-in [odd-aperture reference report](native-decode-reference-report.json) is a redacted copy from the same set.
+The release evidence set used source revision `eb9cba1efee25f5e3249e6236e9ea7c295c05463` and one clean release binary with SHA-256 `8CE0DC2EE94CB5A22BA9F63684ACC0D89E0D162F4EF58C3B595AFE243CA484DC`. The machine-verified local manifest contains eleven independent reports and five SHA-256-verified synthetic MP4s from that exact build. The checked-in [odd-aperture reference report](native-decode-reference-report.json) is a redacted copy from the same set.
+
+The reference system was Windows 11 Pro build 26200 on an Intel Core Ultra 9 285K with 24 logical processors, approximately 63.4 GiB of visible memory, and healthy NTFS storage. Reports retain only Windows, architecture, and dependency-version fields; the local manifest carries this redacted machine summary without paths or user identifiers.
 
 | Scenario | Submitted samples | Retained media | Result |
 | --- | ---: | ---: | --- |
