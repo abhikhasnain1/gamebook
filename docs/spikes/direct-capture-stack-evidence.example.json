@@ -1,0 +1,31 @@
+{
+  "schema": "gamebook.direct-capture-stack-evidence.v1",
+  "issue": 9,
+  "applicationBuild": "0000000",
+  "binarySha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "referenceEnvironment": {
+    "osName": "Windows 11 Pro",
+    "osBuild": 0,
+    "cpuClass": "replace-with-redacted-cpu-class",
+    "logicalProcessors": 0,
+    "memoryGiB": 0,
+    "gpuClass": "replace-with-redacted-gpu-class",
+    "displayModes": ["1920x1080@60", "replace-with-1440p-mode"],
+    "storageType": "replace-with-filesystem-and-health-summary"
+  },
+  "requiredRoleCounts": {
+    "1080p60-monitor": 2,
+    "1440p60-monitor": 2,
+    "selected-window": 2,
+    "source-close": 2,
+    "device-loss": 2,
+    "protected-content": 2,
+    "hud-exclusion": 1,
+    "cancellation": 2,
+    "capture-interruption": 1,
+    "capture-recovery": 1,
+    "promotion-interruption": 1,
+    "promotion-recovery": 1
+  },
+  "reports": []
+}

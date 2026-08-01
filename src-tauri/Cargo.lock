@@ -1361,6 +1361,7 @@ dependencies = [
  "chrono",
  "flate2",
  "image",
+ "rayon",
  "rfd",
  "serde",
  "serde_json",
