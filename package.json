@@ -10,6 +10,8 @@
     "build": "tauri build",
     "frontend:dev": "vite",
     "frontend:build": "tsc && vite build",
+    "frontend:test": "vitest run",
+    "frontend:test:watch": "vitest",
     "check": "tsc --noEmit"
   },
   "dependencies": {
@@ -25,10 +27,16 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.8.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
+    "axe-core": "^4.12.1",
+    "jsdom": "^26.1.0",
     "typescript": "^5.7.2",
-    "vite": "^6.0.5"
+    "vite": "^6.0.5",
+    "vitest": "^4.1.10"
   }
 }

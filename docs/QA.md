@@ -3,9 +3,17 @@
 ## Build gates
 
 - `npm.cmd run check`
+- `npm.cmd run frontend:test`
 - `npm.cmd run frontend:build`
 - `cargo check --manifest-path src-tauri/Cargo.toml`
 - `npm.cmd run build`
+
+## Frontend automated tests
+
+- `npm.cmd run frontend:test` runs Vitest in jsdom with React Testing Library.
+- Component tests must render through deterministic browser and native-command boundaries; mock native commands rather than invoking Tauri.
+- Serious and critical axe-core accessibility violations fail the test run.
+- Baseline component coverage must include accessible names, roles, state, focus, and keyboard operation where applicable.
 
 ## Capture and lifecycle
 
