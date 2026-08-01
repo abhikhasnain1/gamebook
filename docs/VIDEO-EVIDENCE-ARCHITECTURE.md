@@ -24,7 +24,7 @@ Fabric owns logical page geometry, object selection, transforms, z-order, connec
 
 ## Native media feasibility gate
 
-The preferred Windows stack is Windows Graphics Capture through `windows-capture`, Media Foundation H.264/AAC encoding and decoding, and WASAPI loopback audio. No FFmpeg executable is bundled in version 1.
+Milestone 2 selected direct Windows Graphics Capture and D3D11 bindings, direct Media Foundation H.264/AAC encoding and decoding, and direct WASAPI loopback audio as the proposed native foundation. The `windows-capture` 2.0.0 integrated recording path is not adopted. No FFmpeg executable is bundled in version 1.
 
 The spike must validate:
 
@@ -41,7 +41,7 @@ The spike must validate:
 - Recovery behavior for interruption during recording and finalization.
 - Encoder, decoder, GPU-device, protected-content, and source-closed failures.
 
-`windows-capture` is adopted only if it passes the lifecycle, timing, memory, and device-change gates. Otherwise the application keeps the interfaces below and replaces the implementation with direct Windows API bindings.
+The direct-binding reference runs retained exact encoded sample counts, one-frame output duration, fast finalization, and explicit lifecycle/recovery behavior, but repeated 1080p, 1440p, and selected-window runs did not meet the strict 95% sustained-frame threshold. Production therefore preserves the interfaces below while capability-gating 60 FPS and exposing a clear lower-rate fallback until that threshold is separately proved.
 
 Every media report records Windows version, CPU, GPU, graphics driver, RAM, display resolution and refresh rate, audio device, WebView2 version, storage type, power mode, and application build.
 

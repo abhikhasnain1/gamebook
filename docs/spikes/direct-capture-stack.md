@@ -96,4 +96,38 @@ Completed validation media, interrupted staging files, recovery journals, and fu
 
 ## Current Validation
 
-Focused tests and Clippy with warnings denied pass. Controlled smoke runs have exercised direct monitor and selected-window capture, one-pixel padding, cancellation and failure cleanup, source close, injected device loss, direct-window protected-content behavior, monitor HUD exclusion, unfinalized and finalized interruption, Media Foundation recovery probing, and true parent-process force termination. These smoke runs used a dirty development revision and are not closeout evidence. Exact clean-release repeated performance, display-mode, artifact-hash, and full manifest evidence remains required before the issue can select the final stack.
+The closeout set used clean release source `f615378cb003b1a7e832ab601d59c56352658928` and one executable with SHA-256 `CF3E208FF67641E0D7CA93238DF7E7EACF274776F556ED2DFD5EF772EF5B5CD9`. The local manifest machine-verifies 27 reports, the executable, and every retained MP4 from that exact build.
+
+The reference system reported Windows 11 Pro build 26200, an Intel Core Ultra 9 285K with 24 logical processors, approximately 63.38 GiB of visible memory, an NVIDIA GeForce RTX 5080 with driver 32.0.15.9579, healthy NTFS storage, the Balanced power scheme, and WebView2 150.0.4078.105. Monitor runs used a temporary verified 1920 by 1080 at 60 Hz mode and the restored 3440 by 1440 at 165 Hz mode. Audio and microphone capture remained disabled.
+
+Every finalized performance report retained exactly one encoded sample for every submitted frame, had no backwards encoded timestamps, stayed within one 60 FPS frame of 30 seconds, and finalized in less than 38 ms. None reached the required 1,710 submitted frames, so all six are explicit blocking results rather than performance passes.
+
+| Role | Submitted frames | Output-duration error | Finalization | Result |
+| --- | ---: | ---: | ---: | --- |
+| 1080p60 monitor 01 | 1,651 | -16.4501 ms | 37.4444 ms | Blocked by throughput |
+| 1080p60 monitor 02 | 1,648 | +0.2499 ms | 36.8513 ms | Blocked by throughput |
+| 1440p60 monitor 01 | 1,641 | -1.2334 ms | 31.6845 ms | Blocked by throughput |
+| 1440p60 monitor 02 | 1,641 | -1.2334 ms | 27.4024 ms | Blocked by throughput |
+| Selected window 01 | 1,621 | +4.8332 ms | 31.8227 ms | Blocked by throughput |
+| Selected window 02 | 1,621 | +4.7999 ms | 31.9638 ms | Blocked by throughput |
+
+The direct conversion and writer calls were not the measured throughput limit. Mean BGRA-to-NV12 conversion ranged from 1.28 ms per selected-window frame to 2.61 ms per 3440 by 1440 frame; mean `WriteSample` time ranged from 0.45 ms to 1.68 ms. The reference compositor/capture cadence remained below the strict 57 FPS floor.
+
+Two source-close runs finalized 37 and 40 samples as unreferenced drafts. The free-threaded WGC item did not raise `Closed`; both runs used the explicit owned-source-process fallback. Two non-destructive device-loss injections finalized 30-sample unreferenced drafts. Two direct selected-window exclusion runs still exposed the controlled pixels, so `WDA_EXCLUDEFROMCAPTURE` is not treated as protected-content enforcement for a directly targeted window. Two 3440 by 1440 monitor runs excluded the distinctive HUD marker without fallback.
+
+Two cancellations and every injected initialization, encoder, decoder, GPU, storage, and finalization failure left no media. Graceful recording interruption and exact parent-process force termination both retained unplayable staging media classified as quarantined. Finalized-but-unpromoted staging media was playable and classified as a recoverable draft. Every recovery result remained local, unreferenced, user-controlled, and undeleted.
+
+Validation passed for the complete local manifest, verifier self-tests, five focused harness tests, all 29 Rust tests, all-target Clippy with warnings denied, TypeScript, 21 deterministic fixtures, 10 frontend tests, the frontend production build, the complete Tauri application build, and NSIS/MSI packaging. The existing 0.5.3 screenshot implementation and version 1 project format were unchanged.
+
+## Architecture Recommendation
+
+Select direct Windows API bindings as the Milestone 2 native implementation foundation:
+
+- Direct Windows Graphics Capture and D3D11 through the `windows` bindings, with owned monitor/window resolution instead of the unreliable system-picker path measured in issue #6.
+- Direct NV12 Media Foundation H.264 submission, Source Reader decoding, source presentation timestamps, trusted logical aperture metadata, and explicit SDR Rec.709 fields from issue #8.
+- Direct shared-mode WASAPI loopback, PCM16-to-AAC encoding, and a shared QPC timing basis from issue #7. Microphone remains a separate, default-off production capability.
+- Staging media plus a journal until final probing, with playable finalized drafts recoverable and unplayable outputs quarantined without automatic deletion or project references.
+
+Do not adopt `windows-capture` 2.0.0's integrated recording path. Preserve the proposed public capture interfaces, but capability-gate 60 FPS and expose an explicit lower-rate fallback until a later implementation proves the strict 95% sustained-frame threshold. Preserve issue #6's successful H.264 4K60 initialization result as capability evidence only; it is not sustained 4K60 capture evidence. Keep PQ/BT.2020 and HLG/BT.2020 recording blocked until separately approved tone mapping exists.
+
+This recommendation is a measured input to Milestone 5. It does not add production recording behavior or create an accepted architecture decision before architecture freeze.
