@@ -1,0 +1,87 @@
+{
+  "schema": "gamebook.media-placement-geometry.v1",
+  "status": "passed",
+  "generatedAt": "2026-08-01T21:34:53.323Z",
+  "buildRevision": "c6c25c37603cd93b004c56b9705cf6a378e74919",
+  "fixture": "deterministic-poster-pages-v1",
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
+    "hardwareConcurrency": 24,
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "checks": [
+    {
+      "id": "stable-record",
+      "passed": true,
+      "detail": "Placement record contains only approved scalar geometry and identifiers."
+    },
+    {
+      "id": "runtime-state-excluded",
+      "passed": true,
+      "detail": "Serialized keys: angle, evidenceId, id, left, placementVersion, posterTimestampUs, scaleX, scaleY, top, type, zIndex"
+    },
+    {
+      "id": "fabric-round-trip",
+      "passed": true,
+      "detail": "Fabric loadFromJSON reconstructed both placements, including the cropped record."
+    },
+    {
+      "id": "hit-testing",
+      "passed": true,
+      "detail": "The placement accepts an interior point and rejects a distant page point."
+    },
+    {
+      "id": "composition-order",
+      "passed": true,
+      "detail": "Composition order: placement-1080p -> placement-1440p -> annotation-finding -> connector-evidence-finding"
+    },
+    {
+      "id": "connector-anchor",
+      "passed": true,
+      "detail": "Connector retained placement-1440p:right."
+    },
+    {
+      "id": "history",
+      "passed": true,
+      "detail": "Undo and redo restored deterministic geometry snapshots."
+    },
+    {
+      "id": "page-switch",
+      "passed": true,
+      "detail": "Recomposing the secondary page and returning preserved geometry, crop, connector, and poster records."
+    },
+    {
+      "id": "static-export",
+      "passed": true,
+      "detail": "Static poster export produced 111730 data URL characters."
+    },
+    {
+      "id": "semantic-outline",
+      "passed": true,
+      "detail": "11 labeled numeric placement controls expose pointer-independent transforms."
+    }
+  ],
+  "serializedKeys": [
+    "angle",
+    "evidenceId",
+    "id",
+    "left",
+    "placementVersion",
+    "posterTimestampUs",
+    "scaleX",
+    "scaleY",
+    "top",
+    "type",
+    "zIndex"
+  ],
+  "compositionOrder": [
+    "placement-1080p",
+    "placement-1440p",
+    "annotation-finding",
+    "connector-evidence-finding"
+  ],
+  "exportDataUrlLength": 111730
+}
