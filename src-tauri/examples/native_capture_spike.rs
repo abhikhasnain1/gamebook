@@ -7,6 +7,7 @@ use std::{
     io::Write,
     path::{Path, PathBuf},
     process::Command,
+    thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -432,6 +433,7 @@ fn run_capture<T>(
 where
     T: TryInto<GraphicsCaptureItemType>,
 {
+    run_countdown(options.countdown_seconds)?;
     let width = even_dimension(source_width);
     let height = even_dimension(source_height);
     let output_path = if matches!(options.scenario, Scenario::EncoderFailure) {
@@ -494,6 +496,7 @@ struct Options {
     scenario: Scenario,
     duration_seconds: u64,
     frame_rate: u32,
+    countdown_seconds: u64,
     output_dir: PathBuf,
     run_id: String,
     args: Vec<String>,
@@ -537,6 +540,7 @@ impl Options {
         let mut scenario = Scenario::Encode;
         let mut duration_seconds = 30;
         let mut frame_rate = 60;
+        let mut countdown_seconds = 0;
         let mut output_dir = PathBuf::from("src-tauri/target/native-capture-spike");
         let mut run_id = format!("capture-{}", unix_seconds());
 
@@ -569,6 +573,9 @@ impl Options {
                         .get(index)
                         .ok_or("--duration requires seconds")?
                         .parse()?;
+                    if !(1..=300).contains(&duration_seconds) {
+                        return Err("--duration must be between 1 and 300 seconds".into());
+                    }
                 }
                 "--frame-rate" => {
                     index += 1;
@@ -580,6 +587,16 @@ impl Options {
                         return Err("--frame-rate must be 30 or 60".into());
                     }
                 }
+                "--countdown" => {
+                    index += 1;
+                    countdown_seconds = args
+                        .get(index)
+                        .ok_or("--countdown requires seconds")?
+                        .parse()?;
+                    if countdown_seconds > 30 {
+                        return Err("--countdown must be between 0 and 30 seconds".into());
+                    }
+                }
                 "--output-dir" => {
                     index += 1;
                     output_dir =
@@ -587,7 +604,7 @@ impl Options {
                 }
                 "--run-id" => {
                     index += 1;
-                    run_id = args.get(index).ok_or("--run-id requires a value")?.clone();
+                    run_id = validate_run_id(args.get(index).ok_or("--run-id requires a value")?)?;
                 }
                 "--help" | "-h" => {
                     print_help();
@@ -603,6 +620,7 @@ impl Options {
             scenario,
             duration_seconds,
             frame_rate,
+            countdown_seconds,
             output_dir,
             run_id,
             args,
@@ -636,7 +654,7 @@ fn print_help() {
     println!(
         "Native capture spike\n\n\
          cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- \\\n\
-           --target primary-monitor --scenario encode --duration 30 --frame-rate 60\n\n\
+           --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --countdown 5\n\n\
          Targets: primary-monitor, monitor-index:N, picker-window, picker-monitor, picker\n\
          Scenarios: encode, cancel, source-close, encoder-failure\n\
          Outputs: MP4 and JSON report under src-tauri/target/native-capture-spike by default"
@@ -751,6 +769,31 @@ fn sanitize_command(args: &[String]) -> Vec<String> {
     sanitized
 }
 
+fn validate_run_id(value: &str) -> Result<String, SpikeError> {
+    let valid_length = !value.is_empty() && value.len() <= 80;
+    let valid_characters = value
+        .bytes()
+        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'));
+    if !valid_length || !valid_characters {
+        return Err(
+            "--run-id must contain 1-80 ASCII letters, numbers, hyphens, or underscores".into(),
+        );
+    }
+    Ok(value.to_string())
+}
+
+fn run_countdown(seconds: u64) -> Result<(), SpikeError> {
+    for remaining in (1..=seconds).rev() {
+        print!("\rCapture starts in {remaining}s ");
+        std::io::stdout().flush()?;
+        thread::sleep(Duration::from_secs(1));
+    }
+    if seconds > 0 {
+        println!("\rCapture starting now.       ");
+    }
+    Ok(())
+}
+
 fn artifact_label(path: &Path) -> String {
     path.file_name()
         .and_then(|value| value.to_str())
@@ -855,8 +898,8 @@ fn unix_millis() -> u128 {
 #[cfg(test)]
 mod tests {
     use super::{
-        artifact_label, even_dimension, frame_interval, parse_target, sanitize_command, Options,
-        PickerTargetKind, Scenario, TargetOption,
+        artifact_label, even_dimension, frame_interval, parse_target, sanitize_command,
+        validate_run_id, Options, PickerTargetKind, Scenario, TargetOption,
     };
 
     #[test]
@@ -920,6 +963,31 @@ mod tests {
         .unwrap();
 
         assert!(matches!(options.scenario, Scenario::SourceClose));
+    }
+
+    #[test]
+    fn validates_bounded_run_ids_and_countdowns() {
+        assert_eq!(
+            validate_run_id("1440p60-pass_02").unwrap(),
+            "1440p60-pass_02"
+        );
+        assert!(validate_run_id("../outside").is_err());
+        assert!(validate_run_id("").is_err());
+
+        let options = Options::parse(vec![
+            "native_capture_spike".to_string(),
+            "--countdown".to_string(),
+            "5".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(options.countdown_seconds, 5);
+
+        assert!(Options::parse(vec![
+            "native_capture_spike".to_string(),
+            "--countdown".to_string(),
+            "31".to_string(),
+        ])
+        .is_err());
     }
 
     #[test]

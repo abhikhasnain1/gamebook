@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gamebook Native Capture Fixture</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Consolas, "Courier New", monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #000000;
+      }
+
+      #fixture {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      #status {
+        position: fixed;
+        inset: 16px auto auto 16px;
+        min-width: 320px;
+        padding: 10px 12px;
+        border: 2px solid #ffffff;
+        background: #080808;
+        color: #ffffff;
+        font-size: 16px;
+        line-height: 1.45;
+        letter-spacing: 0;
+        pointer-events: none;
+      }
+
+      #status strong {
+        display: block;
+        color: #ffe600;
+        font-size: 18px;
+        font-weight: 700;
+      }
+
+      #status span {
+        display: block;
+      }
+
+      @media (max-width: 700px) {
+        #status {
+          inset: 8px auto auto 8px;
+          min-width: 0;
+          max-width: calc(100vw - 16px);
+          font-size: 13px;
+        }
+
+        #status strong {
+          font-size: 15px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas
+      id="fixture"
+      role="img"
+      aria-label="Animated native capture test pattern with SDR color bars, frame numbers, and cadence markers"
+    ></canvas>
+    <div id="status" aria-hidden="true">
+      <strong>GAMEBOOK NATIVE CAPTURE FIXTURE</strong>
+      <span id="run-label">RUN: local</span>
+      <span id="frame-label">FRAME: 000000</span>
+      <span id="time-label">ELAPSED: 00:00.000</span>
+      <span id="rate-label">RAF: measuring</span>
+      <span id="size-label">VIEWPORT: measuring</span>
+      <span id="state-label">STATE: running</span>
+    </div>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const canvas = document.querySelector("#fixture");
+        const context = canvas.getContext("2d", { alpha: false });
+        const labels = {
+          run: document.querySelector("#run-label"),
+          frame: document.querySelector("#frame-label"),
+          time: document.querySelector("#time-label"),
+          rate: document.querySelector("#rate-label"),
+          size: document.querySelector("#size-label"),
+          state: document.querySelector("#state-label"),
+        };
+        const bars = [
+          "#bfbfbf",
+          "#bfbf00",
+          "#00bfbf",
+          "#00bf00",
+          "#bf00bf",
+          "#bf0000",
+          "#0000bf",
+          "#000000",
+        ];
+        const query = new URLSearchParams(window.location.search);
+        const runLabel = (query.get("run") || "local").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64) || "local";
+
+        let frame = 0;
+        let paused = false;
+        let startTime = performance.now();
+        let previousTime = startTime;
+        let rateWindowStart = startTime;
+        let rateWindowFrames = 0;
+        let measuredRate = 0;
+        let width = 0;
+        let height = 0;
+        let pixelRatio = 1;
+
+        labels.run.textContent = `RUN: ${runLabel}`;
+
+        function resize() {
+          pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+          width = Math.max(1, window.innerWidth);
+          height = Math.max(1, window.innerHeight);
+          canvas.width = Math.round(width * pixelRatio);
+          canvas.height = Math.round(height * pixelRatio);
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${height}px`;
+          context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+          context.imageSmoothingEnabled = false;
+          labels.size.textContent = `VIEWPORT: ${width}x${height} CSS / ${canvas.width}x${canvas.height} PX`;
+        }
+
+        function formatElapsed(milliseconds) {
+          const total = Math.max(0, Math.floor(milliseconds));
+          const minutes = Math.floor(total / 60000);
+          const seconds = Math.floor((total % 60000) / 1000);
+          const millis = total % 1000;
+          return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}.${String(millis).padStart(3, "0")}`;
+        }
+
+        function drawCheckerboard() {
+          const top = Math.floor(height * 0.28);
+          const cell = Math.max(32, Math.floor(Math.min(width, height) / 14));
+          for (let y = top; y < height; y += cell) {
+            for (let x = 0; x < width; x += cell) {
+              const parity = (Math.floor(x / cell) + Math.floor(y / cell)) % 2;
+              context.fillStyle = parity === 0 ? "#171717" : "#303030";
+              context.fillRect(x, y, cell, cell);
+            }
+          }
+        }
+
+        function drawColorBars() {
+          const barHeight = Math.floor(height * 0.28);
+          const barWidth = width / bars.length;
+          bars.forEach((color, index) => {
+            context.fillStyle = color;
+            context.fillRect(Math.floor(index * barWidth), 0, Math.ceil(barWidth), barHeight);
+          });
+        }
+
+        function drawCadenceMarkers(elapsed) {
+          const markerSize = Math.max(42, Math.floor(Math.min(width, height) * 0.075));
+          const travel = Math.max(1, width - markerSize);
+          const markerX = (frame * 17) % travel;
+          const markerY = Math.floor(height * 0.48);
+          const alternate = frame % 2 === 0;
+
+          context.fillStyle = alternate ? "#ffe600" : "#ffffff";
+          context.fillRect(markerX, markerY, markerSize, markerSize);
+          context.strokeStyle = alternate ? "#000000" : "#ff1f1f";
+          context.lineWidth = 5;
+          context.strokeRect(markerX + 2.5, markerY + 2.5, markerSize - 5, markerSize - 5);
+
+          const pulseWidth = Math.max(80, Math.floor(width * 0.08));
+          context.fillStyle = alternate ? "#ff1f1f" : "#006bff";
+          context.fillRect(width - pulseWidth - 24, height - pulseWidth - 24, pulseWidth, pulseWidth);
+
+          context.fillStyle = "#ffffff";
+          context.textAlign = "center";
+          context.textBaseline = "middle";
+          context.font = `700 ${Math.max(56, Math.floor(height * 0.13))}px Consolas, monospace`;
+          context.fillText(String(frame).padStart(6, "0"), width / 2, height * 0.68);
+
+          context.font = `700 ${Math.max(28, Math.floor(height * 0.045))}px Consolas, monospace`;
+          context.fillText(formatElapsed(elapsed), width / 2, height * 0.8);
+        }
+
+        function drawGeometry() {
+          context.strokeStyle = "#ffffff";
+          context.lineWidth = 2;
+          context.strokeRect(1, 1, width - 2, height - 2);
+
+          context.beginPath();
+          context.moveTo(width / 2, height * 0.28);
+          context.lineTo(width / 2, height);
+          context.moveTo(0, height * 0.64);
+          context.lineTo(width, height * 0.64);
+          context.stroke();
+
+          context.fillStyle = "#00ff6a";
+          for (let index = 0; index < 60; index += 1) {
+            const x = ((index + 0.5) / 60) * width;
+            const markerHeight = index % 10 === 0 ? 32 : 14;
+            context.fillRect(Math.floor(x), height - markerHeight, 2, markerHeight);
+          }
+        }
+
+        function updateLabels(now, elapsed) {
+          rateWindowFrames += 1;
+          if (now - rateWindowStart >= 1000) {
+            measuredRate = (rateWindowFrames * 1000) / (now - rateWindowStart);
+            rateWindowStart = now;
+            rateWindowFrames = 0;
+          }
+
+          if (frame % 6 === 0) {
+            labels.frame.textContent = `FRAME: ${String(frame).padStart(6, "0")}`;
+            labels.time.textContent = `ELAPSED: ${formatElapsed(elapsed)}`;
+            labels.rate.textContent = measuredRate > 0 ? `RAF: ${measuredRate.toFixed(2)} FPS` : "RAF: measuring";
+          }
+        }
+
+        function render(now) {
+          if (!paused) {
+            const elapsed = now - startTime;
+            context.fillStyle = "#000000";
+            context.fillRect(0, 0, width, height);
+            drawCheckerboard();
+            drawColorBars();
+            drawCadenceMarkers(elapsed);
+            drawGeometry();
+            updateLabels(now, elapsed);
+            frame += 1;
+            previousTime = now;
+          }
+          window.requestAnimationFrame(render);
+        }
+
+        document.addEventListener("keydown", async (event) => {
+          if (event.repeat) return;
+          if (event.key.toLowerCase() === "f") {
+            if (document.fullscreenElement) {
+              await document.exitFullscreen();
+            } else {
+              await document.documentElement.requestFullscreen();
+            }
+          } else if (event.key.toLowerCase() === "p") {
+            paused = !paused;
+            labels.state.textContent = paused ? "STATE: paused" : "STATE: running";
+            if (!paused) {
+              startTime += performance.now() - previousTime;
+            }
+          } else if (event.key.toLowerCase() === "r") {
+            frame = 0;
+            startTime = performance.now();
+            previousTime = startTime;
+            rateWindowStart = startTime;
+            rateWindowFrames = 0;
+            measuredRate = 0;
+          }
+        });
+
+        window.addEventListener("resize", resize);
+        document.addEventListener("fullscreenchange", resize);
+        resize();
+        window.requestAnimationFrame(render);
+      })();
+    </script>
+  </body>
+</html>

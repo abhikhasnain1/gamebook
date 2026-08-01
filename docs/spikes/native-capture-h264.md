@@ -8,19 +8,32 @@ This spike measures Windows Graphics Capture through `windows-capture` 2.0.0 and
 
 The harness lives at `src-tauri/examples/native_capture_spike.rs` and writes a local MP4 plus a JSON metrics report under `src-tauri/target/native-capture-spike/` by default. Generated MP4 and JSON outputs are validation artifacts and are not committed.
 
+## Controlled Capture Fixture
+
+`tools/spikes/native-capture-fixture.html` is a standalone local capture stimulus. It draws SDR color bars, a physical-pixel-aware checkerboard, alternating cadence blocks, frame numbers, elapsed time, viewport dimensions, and measured animation cadence without loading external resources or making network requests.
+
+Verify and open it from the repository root:
+
+```powershell
+npm.cmd run native-capture:fixture:verify
+Start-Process tools/spikes/native-capture-fixture.html
+```
+
+Move the browser window to the target display and press `F` inside the fixture to enter browser fullscreen. Press `P` to pause/resume and `R` to reset its counters. For selected-window and source-close scenarios, use `picker-window` and choose this browser window. Add `?run=RUN_ID` to the local file URL when a visible run label is useful. The harness `--countdown` option gives the operator up to 30 seconds to focus or fullscreen the fixture after selecting a target.
+
 ## Harness Commands
 
 Run from the repository root:
 
 ```powershell
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --run-id 1080p60-monitor-pass-01
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target picker-window --scenario encode --duration 30 --frame-rate 60 --run-id selected-window-pass-01
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario cancel --duration 5 --frame-rate 60 --run-id cancellation-cleanup-01
-cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target picker-window --scenario source-close --duration 30 --frame-rate 60 --run-id source-close-cleanup-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario encode --duration 30 --frame-rate 60 --countdown 5 --run-id 1080p60-monitor-pass-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target picker-window --scenario encode --duration 30 --frame-rate 60 --countdown 5 --run-id selected-window-pass-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario cancel --duration 5 --frame-rate 60 --countdown 5 --run-id cancellation-cleanup-01
+cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target picker-window --scenario source-close --duration 30 --frame-rate 60 --countdown 5 --run-id source-close-cleanup-01
 cargo run --manifest-path src-tauri/Cargo.toml --example native_capture_spike -- --target primary-monitor --scenario encoder-failure --duration 1 --frame-rate 60 --run-id encoder-failure-01
 ```
 
-Target options are `primary-monitor`, `monitor-index:N`, `picker-window`, `picker-monitor`, and the non-closeout `picker` fallback. The picker API does not expose the selected item type after selection, so `picker-window` and `picker-monitor` are operator declarations: the operator must choose the declared target kind. Scenario options are `encode`, `cancel`, `source-close`, and `encoder-failure`. For `source-close`, close the selected window before the configured timeout; a timeout produces a failing `source-not-closed` report and removes the partial MP4.
+Target options are `primary-monitor`, `monitor-index:N`, `picker-window`, `picker-monitor`, and the non-closeout `picker` fallback. The picker API does not expose the selected item type after selection, so `picker-window` and `picker-monitor` are operator declarations: the operator must choose the declared target kind. Scenario options are `encode`, `cancel`, `source-close`, and `encoder-failure`. For `source-close`, close the selected window before the configured timeout; a timeout produces a failing `source-not-closed` report and removes the partial MP4. Run IDs are restricted to 1-80 ASCII letters, numbers, hyphens, or underscores so they cannot escape the configured output directory.
 
 Verify generated JSON reports before attaching them to the issue:
 
@@ -76,7 +89,7 @@ This isolated CLI harness has no shipped user-facing UI. Manual issue evidence s
 
 ## Security And Privacy Notes
 
-The harness uses desktop capture APIs only. It does not inject into game processes, read game memory, open network connections, or write project records. Audio is disabled in this issue's harness because WASAPI loopback and A/V synchronization are owned by the dependent audio spike. Cancellation and source-close paths ensure partial MP4 output is absent instead of leaving a referenced artifact. Report commands, output labels, and startup errors redact local paths before JSON is written.
+The harness uses desktop capture APIs only. It does not inject into game processes, read game memory, open network connections, or write project records. The controlled fixture is self-contained and its verifier rejects external scripts, styles, network APIs, and local path markers. Audio is disabled in this issue's harness because WASAPI loopback and A/V synchronization are owned by the dependent audio spike. Cancellation and source-close paths ensure partial MP4 output is absent instead of leaving a referenced artifact. Report commands, output labels, and startup errors redact local paths before JSON is written.
 
 The harness output can contain sensitive screen contents and must stay local validation evidence unless the user intentionally shares it.
 
