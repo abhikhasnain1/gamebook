@@ -83,7 +83,7 @@ The verifier rejects missing roles, duplicate runs, mixed build identities, bina
 
 ## Accessibility Contract For Production
 
-This isolated CLI has no interactive or shipped interface, so keyboard navigation, focus, NVDA, High Contrast, reduced motion, window sizing, and display scale checks do not apply to the executable. Production decode and extraction failures, unsupported HDR, and color warnings must be exposed as text, announced without relying on color or motion, identify the failed operation, and preserve the prior usable state.
+This isolated CLI has no interactive or shipped interface, so keyboard navigation, focus, NVDA, High Contrast, reduced motion, window sizing, and display scale checks do not apply to the executable. Production exact-frame controls must expose source time and decoded sample index as accessible text, announce user-initiated frame changes, and throttle repeated playback updates. Production decode and extraction failures, unsupported HDR, and color warnings must be exposed as text, announced without relying on color or motion, identify the failed operation, and preserve the prior usable state.
 
 ## Security And Privacy
 
