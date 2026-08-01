@@ -16,6 +16,7 @@ const REQUIRED_ROLE_COUNTS = Object.freeze({
   "1080p60-monitor": 2,
   "1440p60-monitor": 2,
   "selected-window": 2,
+  "monitor-under-pointer": 2,
   "source-close": 2,
   "device-loss": 2,
   "protected-content": 2,
@@ -235,6 +236,7 @@ function verifyRole(role, report, label) {
   assert.ok(Object.hasOwn(REQUIRED_ROLE_COUNTS, role), `${label}: unsupported evidence role ${role}`);
   const expectedScenario = {
     "source-close": "source-close",
+    "monitor-under-pointer": "cancel",
     "device-loss": "device-loss",
     "protected-content": "protected-content",
     "hud-exclusion": "hud-exclusion",
@@ -266,6 +268,8 @@ function verifyRole(role, report, label) {
     assert.equal(report.sourceHeight, 1440, `${label}: 1440p role height mismatch`);
   } else if (role === "selected-window") {
     assert.equal(report.target, "controlled-fixture-window", `${label}: selected-window role target mismatch`);
+  } else if (role === "monitor-under-pointer") {
+    assert.equal(report.target, "monitor-under-pointer", `${label}: monitor-under-pointer role target mismatch`);
   } else if (role === "capture-recovery") {
     assert.equal(report.scenario, "recovery-check", `${label}: recovery role scenario mismatch`);
     assert.equal(report.journalState, "capture-interrupted", `${label}: capture recovery journal state mismatch`);

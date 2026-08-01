@@ -18,6 +18,7 @@
     "1080p60-monitor": 2,
     "1440p60-monitor": 2,
     "selected-window": 2,
+    "monitor-under-pointer": 2,
     "source-close": 2,
     "device-loss": 2,
     "protected-content": 2,

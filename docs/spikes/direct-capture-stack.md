@@ -82,7 +82,7 @@ npm.cmd run direct-stack:verify -- --manifest path/to/evidence-manifest.json
 npm.cmd run direct-stack:verify -- --self-test
 ```
 
-The manifest binds every retained artifact to its byte count and SHA-256 hash, every report to one application build, and required repeated roles to fixed minimum counts. The fixed role set includes two runs each for 1080p60 monitor, 1440p60 monitor, selected window, source close, device loss, protected content, HUD exclusion, and cancellation; recording/finalization interruption and recovery; true force-termination recovery; and every injected initialization, encoder, decoder, GPU, storage, and finalization boundary.
+The manifest binds every retained artifact to its byte count and SHA-256 hash, every report to one application build, and required repeated roles to fixed minimum counts. The fixed role set includes two runs each for 1080p60 monitor, 1440p60 monitor, selected window, monitor under the pointer, source close, device loss, protected content, HUD exclusion, and cancellation; recording/finalization interruption and recovery; true force-termination recovery; and every injected initialization, encoder, decoder, GPU, storage, and finalization boundary.
 
 ## Accessibility Contract For Production
 
@@ -96,7 +96,7 @@ Completed validation media, interrupted staging files, recovery journals, and fu
 
 ## Current Validation
 
-The closeout set used clean release source `f615378cb003b1a7e832ab601d59c56352658928` and one executable with SHA-256 `CF3E208FF67641E0D7CA93238DF7E7EACF274776F556ED2DFD5EF772EF5B5CD9`. The local manifest machine-verifies 27 reports, the executable, and every retained MP4 from that exact build.
+The closeout set used clean release source `f615378cb003b1a7e832ab601d59c56352658928` and one executable with SHA-256 `CF3E208FF67641E0D7CA93238DF7E7EACF274776F556ED2DFD5EF772EF5B5CD9`. The local manifest machine-verifies 29 reports, the executable, and every retained MP4 from that exact build.
 
 The reference system reported Windows 11 Pro build 26200, an Intel Core Ultra 9 285K with 24 logical processors, approximately 63.38 GiB of visible memory, an NVIDIA GeForce RTX 5080 with driver 32.0.15.9579, healthy NTFS storage, the Balanced power scheme, and WebView2 150.0.4078.105. Monitor runs used a temporary verified 1920 by 1080 at 60 Hz mode and the restored 3440 by 1440 at 165 Hz mode. Audio and microphone capture remained disabled.
 
@@ -114,6 +114,8 @@ Every finalized performance report retained exactly one encoded sample for every
 The direct conversion and writer calls were not the measured throughput limit. Mean BGRA-to-NV12 conversion ranged from 1.28 ms per selected-window frame to 2.61 ms per 3440 by 1440 frame; mean `WriteSample` time ranged from 0.45 ms to 1.68 ms. The reference compositor/capture cadence remained below the strict 57 FPS floor.
 
 Two source-close runs finalized 37 and 40 samples as unreferenced drafts. The free-threaded WGC item did not raise `Closed`; both runs used the explicit owned-source-process fallback. Two non-destructive device-loss injections finalized 30-sample unreferenced drafts. Two direct selected-window exclusion runs still exposed the controlled pixels, so `WDA_EXCLUDEFROMCAPTURE` is not treated as protected-content enforcement for a directly targeted window. Two 3440 by 1440 monitor runs excluded the distinctive HUD marker without fallback.
+
+Two additional monitor-under-pointer runs resolved the 3440 by 1440 display, started direct capture and encoding, then cancelled cleanly with no retained media. Together with the repeated owned selected-window runs, these establish repeatable direct target resolution without depending on the failed system-picker path from issue #6.
 
 Two cancellations and every injected initialization, encoder, decoder, GPU, storage, and finalization failure left no media. Graceful recording interruption and exact parent-process force termination both retained unplayable staging media classified as quarantined. Finalized-but-unpromoted staging media was playable and classified as a recoverable draft. Every recovery result remained local, unreferenced, user-controlled, and undeleted.
 
