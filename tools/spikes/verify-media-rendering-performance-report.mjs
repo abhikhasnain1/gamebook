@@ -13,14 +13,22 @@ if (args.includes("--self-test")) {
   const fabricRepeatPath = valueAfter(args, "--fabric-repeat");
   const domPath = valueAfter(args, "--dom");
   const referencePath = valueAfter(args, "--reference");
-  if (!fabricPath || !fabricRepeatPath || !domPath || !referencePath) {
-    throw new Error("Usage: --self-test or --fabric PATH --fabric-repeat PATH --dom PATH --reference PATH");
+  const visualPaths = [
+    valueAfter(args, "--visual-100"),
+    valueAfter(args, "--visual-150"),
+    valueAfter(args, "--visual-200-reduced"),
+    valueAfter(args, "--visual-200-forced-colors"),
+  ];
+  if (!fabricPath || !fabricRepeatPath || !domPath || !referencePath || visualPaths.some((path) => !path)) {
+    throw new Error("Full comparison and four visual report paths are required");
   }
   const fabric = JSON.parse(await readFile(fabricPath, "utf8"));
   const fabricRepeat = JSON.parse(await readFile(fabricRepeatPath, "utf8"));
   const dom = JSON.parse(await readFile(domPath, "utf8"));
   verifyComparison(fabric, fabricRepeat, dom);
-  verifyReference(JSON.parse(await readFile(referencePath, "utf8")), fabric, fabricRepeat, dom);
+  const visuals = await Promise.all(visualPaths.map((path) => readFile(path, "utf8").then(JSON.parse)));
+  verifyVisualMatrix(visuals, fabric);
+  verifyReference(JSON.parse(await readFile(referencePath, "utf8")), fabric, fabricRepeat, dom, visuals);
   console.log(`Verified media rendering comparison and redacted reference: ${referencePath}`);
 }
 
@@ -55,7 +63,35 @@ export function verifyComparison(fabric, fabricRepeat, dom) {
   return { fabric, fabricRepeat, dom };
 }
 
-function verifyReference(reference, fabric, fabricRepeat, dom) {
+function verifyVisualMatrix(visuals, fabric) {
+  const expected = [
+    { uiScale: 1, reducedMotion: false, forcedColors: false },
+    { uiScale: 1.5, reducedMotion: false, forcedColors: false },
+    { uiScale: 2, reducedMotion: true, forcedColors: false },
+    { uiScale: 2, reducedMotion: false, forcedColors: true },
+  ];
+  assert.equal(visuals.length, expected.length);
+  visuals.forEach((report, index) => {
+    assert.equal(report.schema, SCHEMA);
+    assert.equal(report.buildRevision, fabric.buildRevision);
+    assert.equal(report.renderingApproach, "layered-dom-video");
+    assert.deepEqual(report.environment.viewport, { width: 900, height: 620 });
+    Object.entries(expected[index]).forEach(([key, value]) => assert.equal(report.environment[key], value));
+    assert.equal(report.gate.frameRatePassed, true);
+    assert.equal(report.gate.cleanupPassed, true);
+    assert.equal(report.gate.visualPassed, true);
+    assert.equal(report.gate.accessibilityPassed, true);
+    assert.equal(report.gate.memoryPassed, true);
+    assert.deepEqual(Object.values(report.accessibilityChecks), [true, true, true, true, true, true, true]);
+    assert.deepEqual(
+      report.fixtureEvidence.map(({ id, sha256 }) => ({ id, sha256 })),
+      fabric.fixtureEvidence.map(({ id, sha256 }) => ({ id, sha256 })),
+    );
+    PRIVATE_MARKERS.forEach((marker) => assert.doesNotMatch(JSON.stringify(report), marker));
+  });
+}
+
+function verifyReference(reference, fabric, fabricRepeat, dom, visuals) {
   assert.equal(reference.schema, "gamebook.media-rendering-comparison.v1");
   assert.equal(reference.status, "performance-passed");
   assert.equal(reference.buildRevision, fabric.buildRevision);
@@ -87,9 +123,12 @@ function verifyReference(reference, fabric, fabricRepeat, dom) {
   assert.equal(reference.accessibility?.axeSeriousOrCriticalViolations, 0);
   assert.deepEqual(reference.accessibility?.namedControls, ["Run rendering benchmark"]);
   assert.equal(reference.accessibility?.visualMatrix?.length, 4);
-  reference.accessibility.visualMatrix.forEach((entry) => {
+  reference.accessibility.visualMatrix.forEach((entry, index) => {
     assert.equal(entry.viewport, "900x620");
-    assert.equal(entry.visualPassed, true);
+    assert.equal(entry.uiScale, visuals[index].environment.uiScale);
+    assert.equal(entry.reducedMotion, visuals[index].environment.reducedMotion);
+    assert.equal(entry.forcedColors, visuals[index].environment.forcedColors);
+    assert.equal(entry.visualPassed, visuals[index].gate.visualPassed && visuals[index].gate.accessibilityPassed);
   });
   assert.equal(reference.accessibility?.nvda, "pending-external-prerequisite");
   assert.deepEqual(reference.security, fabric.security);
