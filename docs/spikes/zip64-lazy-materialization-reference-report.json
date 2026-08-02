@@ -1,6 +1,6 @@
 {
   "schema": "gamebook.zip64-lazy-materialization-reference.v1",
-  "status": "pending-manual-accessibility-confirmation",
+  "status": "passed",
   "generatedAt": "2026-08-01T23:06:13Z",
   "build": {
     "name": "gamebook",
@@ -158,8 +158,11 @@
     "horizontalOverflowAtSupportedScales": false,
     "accessibilityInsightsVersion": "1.1.2924.1",
     "accessibilityInsightsResult": "Expected Chromium handoff; the web scanner and semantic inspection passed.",
+    "windowsVersion": "10.0.26200.7171",
+    "manualReviewDate": "2026-08-02",
+    "highContrastReview": "passed-manual-confirmation",
     "nvdaVersion": "2026.1.1",
-    "nvdaSpokenReview": "pending-manual-confirmation"
+    "nvdaSpokenReview": "passed-manual-confirmation"
   },
   "compatibility": {
     "productionCommandsChanged": false,
