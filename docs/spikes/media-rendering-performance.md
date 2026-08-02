@@ -65,7 +65,7 @@ http://127.0.0.1:1420/tools/spikes/media-rendering-performance.html?build=COMMIT
 
 At 900 by 620 and 100%, 150%, and 200% UI scale, verify keyboard focus order, visible focus, status announcements, forced colors, reduced motion, and no clipped controls. Record current NVDA and Windows versions plus the spoken benchmark state and measurement summaries in issue #13 or its pull request. The canvas composition has a named semantic alternative; interpreting canvas pixels is not required to operate the harness.
 
-The automated matrix records `--viewport 900x620`, `--ui-scale 1|1.5|2`, `--reduced-motion true|false`, and `--forced-colors true|false`. All four retained runs passed visual synchronization and cleanup; component tests reported no serious or critical axe findings. NVDA speech output remains a required manual check because NVDA is not installed on the reference system.
+The automated matrix records `--viewport 900x620`, `--ui-scale 1|1.5|2`, `--reduced-motion true|false`, and `--forced-colors true|false`. All four retained runs passed visual synchronization and cleanup; component tests reported no serious or critical axe findings. NVDA 2026.1.1 completed the manual spoken review on the reference Windows system. It announced the named Run control, source changes, five-second progress updates, browser completion, and the text measurement summary. The Enter-activated run completed at 59.96/59.81 rendered FPS, and the separate Space-activated run completed at 59.56/59.94 rendered FPS. Both runs reported 6.2 ms p95 transform latency and zero dropped callbacks for the 1080p60 and 1440p60 sources.
 
 ## Security and recovery
 

@@ -58,7 +58,7 @@ Rollback before schema freeze is deletion of the isolated spike. If the fallback
 
 Playback rendering does not replace semantic controls. Commands require accessible names, keyboard operation, visible focus, and polite state announcements. The isolated harness has one named Run command and a named composition alternative; axe found no serious or critical violations.
 
-The 900 by 620 matrix passed at 100, 150, and 200 percent UI scale, including reduced-motion and forced-colors emulation. NVDA speech verification is still required before issue #13 and Milestone 3 can close.
+The 900 by 620 matrix passed at 100, 150, and 200 percent UI scale, including reduced-motion and forced-colors emulation. NVDA 2026.1.1 on the reference Windows system announced the harness landmarks, named controls, selected states, numeric values, progress, completion, and actionable errors. Keyboard-only workflows covered placement geometry and history, playback and exact-frame state, viewport zoom and pan intent, and two complete benchmark runs activated separately with Enter and Space.
 
 ## Security and privacy
 
@@ -71,7 +71,7 @@ Native code owns file access and issues revocable runtime media tokens. The webv
 - Frame rate, transform latency, pause, seek, exact frame, page switch, CPU, GPU, private memory, visual-state, and ten-loop cleanup evidence.
 - Vitest gate tests, component semantics, keyboard focus, and axe serious/critical checks.
 - Edge runs at 900 by 620 and 100, 150, and 200 percent UI scale, reduced motion, and forced colors.
-- Pending: NVDA version and spoken control/status summary on the reference Windows system.
+- NVDA 2026.1.1 spoken review on Windows 11 Pro 10.0.26200 and Edge 150.0.4078.105: named landmarks and controls, selected states, numeric values, polite status/progress/completion, and assertive actionable errors were discoverable across all four exact Milestone 3 harnesses.
 
 Revisit the proposal if representative hardware falls below 55 rendered FPS, reaches 50 ms p95 transform latency, retains more than 100 MB after cleanup, leaks runtime state, or cannot preserve exact frame and annotation composition.
 
