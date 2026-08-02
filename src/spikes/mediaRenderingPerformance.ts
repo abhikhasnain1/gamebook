@@ -26,6 +26,12 @@ export interface SourceBenchmark {
     exactFrame: number;
     pageSwitch: number;
   };
+  visualChecks: {
+    placementGeometrySynchronized: boolean;
+    seekVisible: boolean;
+    exactFrameVisible: boolean;
+    pageSwitchCleared: boolean;
+  };
   cleanup: {
     activeCallbacks: number;
     liveSources: number;
@@ -35,10 +41,11 @@ export interface SourceBenchmark {
 }
 
 export interface RenderingGateResult {
-  fabricPassed: boolean;
+  approachPassed: boolean;
   frameRatePassed: boolean;
   transformLatencyPassed: boolean;
   cleanupPassed: boolean;
+  visualPassed: boolean;
   memoryPassed: boolean | null;
   fallbackEvaluationRequired: boolean;
 }
@@ -68,18 +75,22 @@ export function evaluateRenderingGate(
       && source.transformLatencyMs.p95 < 50);
   const cleanupPassed = sources.length === 2
     && sources.every((source) => Object.values(source.cleanup).every((value) => value === 0));
+  const visualPassed = sources.length === 2
+    && sources.every((source) => Object.values(source.visualChecks).every((value) => value));
   const memoryPassed = memoryDeltaBytes === null ? null : memoryDeltaBytes <= 100 * 1024 * 1024;
-  const fabricPassed = frameRatePassed
+  const approachPassed = frameRatePassed
     && transformLatencyPassed
     && cleanupPassed
+    && visualPassed
     && memoryPassed === true;
   return {
-    fabricPassed,
+    approachPassed,
     frameRatePassed,
     transformLatencyPassed,
     cleanupPassed,
+    visualPassed,
     memoryPassed,
-    fallbackEvaluationRequired: !fabricPassed,
+    fallbackEvaluationRequired: !approachPassed,
   };
 }
 

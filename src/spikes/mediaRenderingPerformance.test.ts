@@ -19,6 +19,7 @@ function source(id: SourceBenchmark["id"], overrides: Partial<SourceBenchmark> =
     renderedFps: 59.333,
     transformLatencyMs: { count: 60, minimum: 2, median: 8, p95: 18, maximum: 23 },
     operationsMs: { pause: 5, seek: 15, exactFrame: 20, pageSwitch: 8 },
+    visualChecks: { placementGeometrySynchronized: true, seekVisible: true, exactFrameVisible: true, pageSwitchCleared: true },
     cleanup: { activeCallbacks: 0, liveSources: 0, decodedFrames: 0, attachedVideoElements: 0 },
     ...overrides,
   };
@@ -34,10 +35,11 @@ describe("media rendering performance gate", () => {
     ], 100 * 1024 * 1024);
 
     expect(result).toEqual({
-      fabricPassed: true,
+      approachPassed: true,
       frameRatePassed: true,
       transformLatencyPassed: true,
       cleanupPassed: true,
+      visualPassed: true,
       memoryPassed: true,
       fallbackEvaluationRequired: false,
     });
@@ -48,7 +50,7 @@ describe("media rendering performance gate", () => {
       source("1080p60"),
       source("1440p60", { renderedFps: 54.999 }),
     ], null)).toMatchObject({
-      fabricPassed: false,
+      approachPassed: false,
       frameRatePassed: false,
       memoryPassed: null,
       fallbackEvaluationRequired: true,

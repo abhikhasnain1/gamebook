@@ -1,5 +1,5 @@
 import { Canvas, Line, Rect } from "fabric";
-import { Pause, Play, SkipForward } from "lucide-react";
+import { Play } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MediaPlacement } from "./MediaPlacement";
 import {
@@ -36,6 +36,7 @@ export interface BrowserRenderingReport {
     videoFrameCallbackSupported: boolean;
     reducedMotion: boolean;
     forcedColors: boolean;
+    uiScale: 1 | 1.5 | 2;
   };
   sources: SourceBenchmark[];
   lifecycleLoops: number;
@@ -64,6 +65,9 @@ export function MediaRenderingPerformanceHarness() {
   const runningRef = useRef(false);
   const [status, setStatus] = useState("Ready to measure");
   const [report, setReport] = useState<BrowserRenderingReport | null>(null);
+  const requestedApproach = new URLSearchParams(window.location.search).get("approach") === "dom"
+    ? "layered DOM video"
+    : "Fabric offscreen surface";
 
   useEffect(() => {
     const element = canvasRef.current;
@@ -129,12 +133,6 @@ export function MediaRenderingPerformanceHarness() {
           <button type="button" onClick={() => void run()} aria-label="Run rendering benchmark">
             <Play aria-hidden="true" />
           </button>
-          <button type="button" disabled aria-label="Pause benchmark">
-            <Pause aria-hidden="true" />
-          </button>
-          <button type="button" disabled aria-label="Advance benchmark phase">
-            <SkipForward aria-hidden="true" />
-          </button>
         </div>
       </header>
       <section className="rendering-workspace" aria-label="Media rendering benchmark workspace">
@@ -155,7 +153,7 @@ export function MediaRenderingPerformanceHarness() {
         </aside>
       </section>
       <footer>
-        <span>Fabric offscreen surface</span>
+        <span>{requestedApproach}</span>
         <output aria-label="Rendering gate browser result">
           {report ? report.status : "Pending"}
         </output>
@@ -172,10 +170,10 @@ async function benchmarkSource(
   announce: (message: string) => void,
 ): Promise<SourceBenchmark> {
   canvas.clear();
-  canvas.backgroundColor = "#f7f7f5";
+  canvas.backgroundColor = approach === "layered-dom-video" ? "rgba(0,0,0,0)" : "#f7f7f5";
   const surface = document.createElement("canvas");
-  surface.width = fixture.width;
-  surface.height = fixture.height;
+  surface.width = approach === "fabric-offscreen-surface" ? fixture.width : 1;
+  surface.height = approach === "fabric-offscreen-surface" ? fixture.height : 1;
   const context = surface.getContext("2d", { alpha: false });
   if (!context) throw new Error("Offscreen drawing surface is unavailable");
   const placementRecord = {
@@ -217,7 +215,12 @@ async function benchmarkSource(
   video.preload = "auto";
   video.src = fixture.url;
   video.className = approach === "layered-dom-video" ? "rendering-source-video rendering-source-video--dom" : "rendering-source-video";
-  (approach === "layered-dom-video" ? document.querySelector(".rendering-canvas-wrap") : document.body)?.append(video);
+  if (approach === "layered-dom-video") {
+    canvas.wrapperEl.prepend(video);
+    syncDomGeometry(video, placement);
+  } else {
+    document.body.append(video);
+  }
   await waitForVideo(video);
   if (video.videoWidth !== fixture.width || video.videoHeight !== fixture.height) {
     releaseVideo(video);
@@ -252,6 +255,7 @@ async function benchmarkSource(
     placement.set("left", placement.left === 180 ? 188 : 180);
     placement.setCoords();
     placement.dirty = true;
+    if (approach === "layered-dom-video") syncDomGeometry(video, placement);
     canvas.requestRenderAll();
   };
   canvas.upperCanvasEl.addEventListener("pointermove", onPointerMove);
@@ -283,6 +287,7 @@ async function benchmarkSource(
 
   const measurementMs = queryNumber("durationMs", 30_000, 5_000, 30_000);
   const startedAt = performance.now();
+  let nextAnnouncementMs = 0;
   requestFrame();
   await video.play();
   const pointerTimer = window.setInterval(() => {
@@ -290,7 +295,10 @@ async function benchmarkSource(
   }, 200);
   while (performance.now() - startedAt < measurementMs) {
     const elapsed = performance.now() - startedAt;
-    announce(`${fixture.id}: ${Math.min(100, Math.round(elapsed / measurementMs * 100))}%`);
+    if (elapsed >= nextAnnouncementMs) {
+      announce(`${fixture.id}: ${Math.min(100, Math.round(elapsed / measurementMs * 100))}%`);
+      nextAnnouncementMs += 5_000;
+    }
     await delay(250);
   }
   window.clearInterval(pointerTimer);
@@ -307,22 +315,41 @@ async function benchmarkSource(
   const seekStarted = performance.now();
   video.currentTime = 10;
   await eventOnce(video, "seeked");
-  context.drawImage(video, 0, 0, fixture.width, fixture.height);
-  placement.dirty = true;
-  canvas.requestRenderAll();
-  await nextRender(canvas);
+  if (approach === "fabric-offscreen-surface") {
+    context.drawImage(video, 0, 0, fixture.width, fixture.height);
+    placement.dirty = true;
+    canvas.requestRenderAll();
+    await nextRender(canvas);
+  } else {
+    await nextAnimationFrame();
+  }
   const seekMs = performance.now() - seekStarted;
+  const seekVisible = approach === "fabric-offscreen-surface"
+    ? surface.width === fixture.width
+    : !video.hidden && Math.abs(video.currentTime - 10) < 0.1;
 
   const exactStarted = performance.now();
   const bitmap = await createImageBitmap(video);
   decodedFrames += 1;
-  context.drawImage(bitmap, 0, 0, fixture.width, fixture.height);
-  placement.dirty = true;
-  canvas.requestRenderAll();
-  await nextRender(canvas);
+  let exactOverlay: HTMLCanvasElement | null = null;
+  if (approach === "fabric-offscreen-surface") {
+    context.drawImage(bitmap, 0, 0, fixture.width, fixture.height);
+    placement.dirty = true;
+    canvas.requestRenderAll();
+    await nextRender(canvas);
+  } else {
+    exactOverlay = createDomExactOverlay(canvas, video, fixture, bitmap);
+    video.hidden = true;
+    await nextAnimationFrame();
+  }
   bitmap.close();
   decodedFrames -= 1;
+  const exactFrameVisible = approach === "fabric-offscreen-surface"
+    ? surface.width === fixture.width
+    : exactOverlay?.isConnected === true && video.hidden;
   const exactFrameMs = performance.now() - exactStarted;
+  exactOverlay?.remove();
+  video.hidden = false;
 
   for (let loop = 0; loop < 10; loop += 1) {
     video.currentTime = 0;
@@ -336,10 +363,12 @@ async function benchmarkSource(
   }
 
   const pageSwitchStarted = performance.now();
+  video.hidden = true;
   canvas.clear();
-  canvas.backgroundColor = "#f7f7f5";
+  canvas.backgroundColor = approach === "layered-dom-video" ? "rgba(0,0,0,0)" : "#f7f7f5";
   canvas.requestRenderAll();
   await nextRender(canvas);
+  const pageSwitchCleared = canvas.getObjects().length === 0 && video.hidden;
   const pageSwitchMs = performance.now() - pageSwitchStarted;
 
   canvas.off("after:render", afterRender);
@@ -363,6 +392,12 @@ async function benchmarkSource(
       seek: round(seekMs),
       exactFrame: round(exactFrameMs),
       pageSwitch: round(pageSwitchMs),
+    },
+    visualChecks: {
+      placementGeometrySynchronized: approach === "fabric-offscreen-surface" || domGeometryMatches(video, placement),
+      seekVisible,
+      exactFrameVisible,
+      pageSwitchCleared,
     },
     cleanup: {
       activeCallbacks: callbackHandle === null ? 0 : 1,
@@ -397,12 +432,15 @@ function createReport(
       videoFrameCallbackSupported: "requestVideoFrameCallback" in HTMLVideoElement.prototype,
       reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
       forcedColors: matchMedia("(forced-colors: active)").matches,
+      uiScale: document.documentElement.dataset.uiScale === "2"
+        ? 2
+        : document.documentElement.dataset.uiScale === "1.5" ? 1.5 : 1,
     },
     sources,
     lifecycleLoops: 10,
     semanticControls: {
       keyboardOperable: true,
-      namedControls: ["Run rendering benchmark", "Pause benchmark", "Advance benchmark phase"],
+      namedControls: ["Run rendering benchmark"],
       statusAnnouncements: true,
     },
     security: {
@@ -451,6 +489,56 @@ function nextRender(canvas: Canvas): Promise<void> {
     canvas.on("after:render", completed);
     canvas.requestRenderAll();
   });
+}
+
+function nextAnimationFrame(): Promise<void> {
+  return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+}
+
+function syncDomGeometry(
+  element: HTMLElement,
+  placement: { left: number; top: number; width: number; height: number; scaleX: number; scaleY: number; angle: number },
+) {
+  element.style.left = `${placement.left / 16}%`;
+  element.style.top = `${placement.top / 9}%`;
+  element.style.width = `${placement.width * placement.scaleX / 16}%`;
+  element.style.height = `${placement.height * placement.scaleY / 9}%`;
+  element.style.transform = `rotate(${placement.angle}deg)`;
+  element.style.transformOrigin = "top left";
+}
+
+function domGeometryMatches(
+  element: HTMLElement,
+  placement: { left: number; top: number; width: number; height: number; scaleX: number; scaleY: number; angle: number },
+): boolean {
+  const angle = Number.parseFloat(element.style.transform.replace(/^rotate\(([-\d.]+)deg\)$/, "$1"));
+  return approximately(Number.parseFloat(element.style.left), placement.left / 16)
+    && approximately(Number.parseFloat(element.style.top), placement.top / 9)
+    && approximately(Number.parseFloat(element.style.width), placement.width * placement.scaleX / 16)
+    && approximately(Number.parseFloat(element.style.height), placement.height * placement.scaleY / 9)
+    && approximately(angle, placement.angle);
+}
+
+function approximately(actual: number, expected: number): boolean {
+  return Number.isFinite(actual) && Math.abs(actual - expected) < 0.001;
+}
+
+function createDomExactOverlay(
+  canvas: Canvas,
+  video: HTMLVideoElement,
+  fixture: FixtureConfig,
+  bitmap: ImageBitmap,
+): HTMLCanvasElement {
+  const overlay = document.createElement("canvas");
+  overlay.width = fixture.width;
+  overlay.height = fixture.height;
+  overlay.className = "rendering-source-video rendering-source-video--dom rendering-exact-overlay";
+  const context = overlay.getContext("2d", { alpha: false });
+  if (!context) throw new Error("Exact-frame overlay is unavailable");
+  context.drawImage(bitmap, 0, 0);
+  overlay.style.cssText += video.style.cssText;
+  canvas.wrapperEl.prepend(overlay);
+  return overlay;
 }
 
 function cancelCallback(video: HTMLVideoElement, handle: number | null) {
