@@ -1,0 +1,123 @@
+:root {
+  color: #202426;
+  background: #e8ebea;
+  font-family: "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 900px; min-height: 620px; }
+button, select { font: inherit; }
+button:focus-visible, select:focus-visible, [tabindex="-1"]:focus-visible { outline: 3px solid #005fcc; outline-offset: 2px; }
+html[data-ui-scale] body { min-width: var(--ui-scale-min-width); min-height: var(--ui-scale-min-height); overflow: hidden; }
+html[data-ui-scale] .archive-shell { width: var(--ui-scale-width); height: var(--ui-scale-height); min-height: var(--ui-scale-min-height); transform: scale(var(--ui-scale)); transform-origin: top left; }
+html[data-ui-scale] .archive-shell > main { display: block; overflow: auto; }
+html[data-ui-scale] .archive-controls,
+html[data-ui-scale] .archive-shell aside { overflow: visible; }
+html[data-ui-scale] .archive-shell aside { border-top: 1px solid #a9b1b3; border-left: 0; }
+html[data-ui-scale] .archive-fields { grid-template-columns: 1fr; }
+html[data-ui-scale="2"] .archive-shell > header { align-items: flex-start; flex-direction: column; gap: 6px; }
+
+.archive-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 620px;
+  height: 100vh;
+}
+
+.archive-shell > header,
+.archive-shell > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #a9b1b3;
+  background: #fff;
+}
+
+.archive-shell header p,
+.archive-shell header h1,
+.archive-shell footer p { margin: 0; letter-spacing: 0; }
+.archive-shell header p { color: #526066; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.archive-shell header h1 { font-size: 21px; }
+.archive-badge { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; }
+.archive-badge svg { width: 18px; height: 18px; color: #12613a; }
+
+.archive-shell > main { display: grid; grid-template-columns: minmax(0, 1fr) 280px; min-height: 0; }
+.archive-controls { padding: 18px; overflow: auto; }
+.archive-controls h2,
+.archive-shell aside h2 { margin: 0 0 14px; font-size: 17px; }
+.archive-fields { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 12px; }
+.archive-fields label { display: grid; gap: 5px; color: #465156; font-size: 13px; font-weight: 700; }
+.archive-fields select { min-width: 0; height: 36px; border: 1px solid #7d898c; border-radius: 4px; padding: 0 9px; color: #202426; background: #fff; }
+.archive-fields select:disabled { color: #667277; background: #edf0ef; }
+.archive-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.archive-actions button,
+.archive-recovery button,
+.archive-error button,
+.archive-warning button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 7px; border: 1px solid #657174; border-radius: 4px; padding: 7px 11px; color: #202426; background: #fff; font-weight: 700; }
+.archive-actions button:disabled { color: #6d777a; border-color: #b8bfc1; background: #e6e9e8; }
+.archive-actions svg,
+.archive-recovery button svg { width: 17px; height: 17px; }
+
+.archive-progress-block,
+.archive-result,
+.archive-error,
+.archive-warning,
+.archive-recovery { margin-top: 18px; border: 1px solid #a9b1b3; border-radius: 6px; padding: 14px; background: #fff; }
+.archive-progress { height: 12px; overflow: hidden; border: 1px solid #657174; border-radius: 3px; background: #dfe4e3; }
+.archive-progress span { display: block; width: 50%; height: 100%; background: #147348; }
+.archive-progress-block > p { margin: 7px 0 0; font-variant-numeric: tabular-nums; }
+.archive-result,
+.archive-error,
+.archive-warning { display: flex; align-items: flex-start; gap: 10px; }
+.archive-result > svg { color: #12613a; }
+.archive-error > svg { color: #a31515; }
+.archive-warning > svg { color: #805500; }
+.archive-result svg,
+.archive-error svg,
+.archive-warning svg { width: 20px; height: 20px; flex: 0 0 auto; }
+.archive-result div,
+.archive-error div,
+.archive-warning div { display: grid; gap: 5px; }
+.archive-result span,
+.archive-error span,
+.archive-warning span { line-height: 1.35; }
+.archive-error button,
+.archive-warning button { width: fit-content; margin-top: 5px; }
+.archive-recovery h3 { margin: 0 0 10px; font-size: 16px; }
+.archive-recovery dl { margin: 0 0 12px; }
+.archive-recovery dl div { display: flex; justify-content: space-between; gap: 14px; padding: 4px 0; }
+.archive-recovery dd { margin: 0; font-weight: 700; }
+
+.archive-shell aside { padding: 18px; overflow: auto; border-left: 1px solid #a9b1b3; background: #f7f8f7; }
+.archive-shell aside dl { margin: 0; }
+.archive-shell aside dl div { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid #d0d5d4; }
+.archive-shell aside dd { margin: 0; text-align: right; font-weight: 700; }
+.archive-boundary { color: #4f5c60; font-size: 13px; line-height: 1.4; }
+.archive-shell > footer { min-height: 46px; border-top: 1px solid #a9b1b3; border-bottom: 0; font-size: 13px; }
+
+@media (max-width: 700px) {
+  .archive-shell > main { grid-template-columns: 1fr; overflow: auto; }
+  .archive-shell aside { border-top: 1px solid #a9b1b3; border-left: 0; }
+  .archive-fields { grid-template-columns: 1fr; }
+}
+
+@media (forced-colors: active) {
+  .archive-progress span { background: Highlight; }
+  .archive-actions button,
+  .archive-recovery button,
+  .archive-error button,
+  .archive-warning button,
+  .archive-fields select,
+  .archive-progress-block,
+  .archive-result,
+  .archive-error,
+  .archive-warning,
+  .archive-recovery { border: 2px solid CanvasText; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}
