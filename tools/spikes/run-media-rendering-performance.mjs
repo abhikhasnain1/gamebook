@@ -56,7 +56,10 @@ async function main() {
     const referenceEnvironment = await probeReferenceEnvironment(edgePath);
     const samples = [];
     samples.push({ phase: "baseline", ...(await sampleProcessTree(edge.pid)) });
-    await cdp.evaluate("const button=document.querySelector('[aria-label=\"Run rendering benchmark\"]');button?.focus();button?.click()", false);
+    await cdp.call("Input.dispatchKeyEvent", { type: "keyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 });
+    await cdp.call("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 });
+    await cdp.call("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    await cdp.call("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
 
     let browserReport = null;
     while (!browserReport) {
