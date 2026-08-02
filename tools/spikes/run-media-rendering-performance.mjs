@@ -56,10 +56,12 @@ async function main() {
     const referenceEnvironment = await probeReferenceEnvironment(edgePath);
     const samples = [];
     samples.push({ phase: "baseline", ...(await sampleProcessTree(edge.pid)) });
+    await cdp.call("Page.bringToFront");
     await cdp.call("Input.dispatchKeyEvent", { type: "keyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 });
     await cdp.call("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 });
-    await cdp.call("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
-    await cdp.call("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    const focusReady = await cdp.evaluate("const button=document.querySelector('[aria-label=\"Run rendering benchmark\"]');if(document.activeElement!==button)button?.focus();document.activeElement===button&&button.matches(':focus-visible')");
+    if (!focusReady) throw new Error("Run control did not receive visible keyboard focus");
+    await cdp.evaluate("document.querySelector('[aria-label=\"Run rendering benchmark\"]')?.click()", false);
 
     let browserReport = null;
     while (!browserReport) {
