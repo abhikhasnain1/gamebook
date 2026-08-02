@@ -58,6 +58,21 @@ npm.cmd run zip64-lazy:run -- --build-id <exact-40-character-revision>
 
 Raw reports, manifests, sparse fixtures, workspaces, and release binaries remain under `src-tauri/target/` and are not committed.
 
+## Reference results
+
+The retained [reference report](zip64-lazy-materialization-reference-report.json) summarizes the complete release matrix from implementation revision `d50f484ad61bf8b7308b25c890cd78d89349e94b`. The 474,112-byte release binary has SHA-256 `02AF3D3A0C9E123998254BF2E35C1E265E7E25E9CDFE13C815E4AB4B2865844E`; the evidence manifest verified that binary and all 11 raw reports before cleanup.
+
+| Scenario | Logical archive | Physical allocation | Open time | Additional private memory | Traced read volume | Asset payload opens | Media extracted |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 GiB metadata open | 1,077,937,225 bytes | 4,325,376 bytes | 17 ms | 4,096 bytes | 1,943 bytes | 0 | 0 bytes |
+| 5 GiB ZIP64 metadata open | 5,372,904,638 bytes | 4,325,376 bytes | 8 ms | 421,888 bytes | 2,040 bytes | 0 | 0 bytes |
+
+The ZIP parser performed 524-620 bytes of bounded read-ahead into adjacent asset ranges while resolving local headers. No asset payload was requested or opened, and no asset was extracted or materialized during metadata open. The 5 GiB result stayed 267,655,568 bytes below the 256 MiB additional-memory limit.
+
+Selected materialization wrote and verified exactly one 4,194,304-byte asset, left the large asset unrequested, and issued one 256-bit workspace/digest/operation/expiry-bound token only after the final file became visible. Digest mismatch and archive checksum failure each wrote the selected bytes only to an exclusive temporary file, exposed no final output or token, and removed the partial. Cancellation at 2,097,152 bytes produced the same clean result.
+
+Malformed central-directory, parent-traversal, case-insensitive duplicate, oversized JSON, and compressed oversized JSON scenarios all failed closed before canonical records changed or output became visible. Every scenario removed its synthetic fixture; materialization scenarios also removed their workspace with zero partial or final files retained.
+
 ## Accessibility review surface
 
 The native benchmark is noninteractive. A separate semantic harness exposes archive condition, open, selected-asset materialization, progress, cancellation, digest failure, traversal failure, recovery review, cleanup, and success through ordinary labeled controls and live regions:
@@ -67,6 +82,8 @@ http://127.0.0.1:1420/tools/spikes/archive-materialization.html
 ```
 
 The review covers keyboard operation, focus transfer to actionable errors and recovery, polite progress/status announcements, assertive validation errors, forced colors, reduced motion, 100/150/200 percent UI scale, the 900 by 620 minimum window, axe, Accessibility Insights, and NVDA. The surface uses generic fixture labels and never displays a project path, media bytes, or token.
+
+Four component tests passed with no serious or critical axe violations. Browser review at 900 by 620 passed at 100, 150, and 200 percent scale with one continuous vertical work area and no horizontal overflow. Keyboard workflows covered metadata open, selected materialization, cancellation, traversal rejection, digest failure, recovery review, cleanup, and success. Actionable errors received focus, recovery headings received focus, and cleanup restored focus to the materialize command. Accessibility Insights for Windows 1.1.2924.1 exposed the expected document, landmarks, labeled controls, disabled states, summary terms, and live status; its automated check correctly delegated Chromium content to the web scanner. NVDA 2026.1.1 was launched against the same Edge surface; spoken-output confirmation remains required before issue closeout.
 
 ## Compatibility and decision boundary
 

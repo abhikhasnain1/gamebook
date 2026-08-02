@@ -1,0 +1,176 @@
+{
+  "schema": "gamebook.zip64-lazy-materialization-reference.v1",
+  "status": "pending-manual-accessibility-confirmation",
+  "generatedAt": "2026-08-01T23:06:13Z",
+  "build": {
+    "name": "gamebook",
+    "version": "0.5.3",
+    "profile": "release",
+    "sourceRevision": "d50f484ad61bf8b7308b25c890cd78d89349e94b",
+    "binaryBytes": 474112,
+    "binarySha256": "02AF3D3A0C9E123998254BF2E35C1E265E7E25E9CDFE13C815E4AB4B2865844E"
+  },
+  "environment": {
+    "os": "windows",
+    "arch": "x86_64",
+    "storage": "local-ntfs-sparse-fixture",
+    "zipCrateVersion": "8.6.0"
+  },
+  "metadataOpen": [
+    {
+      "scenario": "open-1gb",
+      "archiveBytes": 1077937225,
+      "allocatedBytes": 4325376,
+      "fixtureCreationMs": 1289,
+      "zip64Required": false,
+      "openMs": 17,
+      "additionalPrivateBytes": 4096,
+      "tracedBytesRead": 1943,
+      "assetRangeReadAheadBytes": 620,
+      "assetPayloadsOpened": 0,
+      "mediaExtractionBytes": 0,
+      "materializedAssets": 0,
+      "passed": true
+    },
+    {
+      "scenario": "open-5gb",
+      "archiveBytes": 5372904638,
+      "allocatedBytes": 4325376,
+      "fixtureCreationMs": 6459,
+      "zip64Required": true,
+      "openMs": 8,
+      "additionalPrivateBytes": 421888,
+      "tracedBytesRead": 2040,
+      "assetRangeReadAheadBytes": 524,
+      "assetPayloadsOpened": 0,
+      "mediaExtractionBytes": 0,
+      "materializedAssets": 0,
+      "passed": true
+    }
+  ],
+  "materialization": [
+    {
+      "scenario": "materialize-selected",
+      "expectedOutcome": "materialized",
+      "actualOutcome": "materialized",
+      "bytesWritten": 4194304,
+      "onlySelectedAssetRequested": true,
+      "largeAssetRequested": false,
+      "temporaryOutputUsed": true,
+      "finalVisibleOnlyAfterDigest": true,
+      "partialOutputRemoved": true,
+      "tokenBits": 256,
+      "tokenContainsPath": false,
+      "workspaceFilesAfterCleanup": 0,
+      "passed": true
+    },
+    {
+      "scenario": "digest-failure",
+      "expectedOutcome": "digest-mismatch",
+      "actualOutcome": "digest-mismatch",
+      "bytesWritten": 4194304,
+      "finalVisibleOnlyAfterDigest": false,
+      "partialOutputRemoved": true,
+      "tokenBits": 0,
+      "workspaceFilesAfterCleanup": 0,
+      "passed": true
+    },
+    {
+      "scenario": "checksum-failure",
+      "expectedOutcome": "archive-checksum-failure",
+      "actualOutcome": "archive-checksum-failure",
+      "bytesWritten": 4194304,
+      "finalVisibleOnlyAfterDigest": false,
+      "partialOutputRemoved": true,
+      "tokenBits": 0,
+      "workspaceFilesAfterCleanup": 0,
+      "passed": true
+    },
+    {
+      "scenario": "cancellation",
+      "expectedOutcome": "cancelled",
+      "actualOutcome": "cancelled",
+      "bytesWritten": 2097152,
+      "finalVisibleOnlyAfterDigest": false,
+      "partialOutputRemoved": true,
+      "tokenBits": 0,
+      "workspaceFilesAfterCleanup": 0,
+      "passed": true
+    }
+  ],
+  "validation": [
+    {
+      "scenario": "malformed",
+      "rejectionClass": "malformed-archive",
+      "canonicalRecordsChanged": false,
+      "outputExposed": false,
+      "passed": true
+    },
+    {
+      "scenario": "traversal",
+      "rejectionClass": "unsafe-entry-name",
+      "canonicalRecordsChanged": false,
+      "outputExposed": false,
+      "passed": true
+    },
+    {
+      "scenario": "case-duplicate",
+      "rejectionClass": "case-insensitive-duplicate",
+      "canonicalRecordsChanged": false,
+      "outputExposed": false,
+      "passed": true
+    },
+    {
+      "scenario": "oversized-json",
+      "rejectionClass": "record-size-limit",
+      "canonicalRecordsChanged": false,
+      "outputExposed": false,
+      "passed": true
+    },
+    {
+      "scenario": "decompression-bomb",
+      "rejectionClass": "record-size-limit",
+      "canonicalRecordsChanged": false,
+      "outputExposed": false,
+      "passed": true
+    }
+  ],
+  "security": {
+    "relativePosixNamesRequired": true,
+    "absoluteDriveTraversalNulAdsRejected": true,
+    "caseInsensitiveDuplicatesRejected": true,
+    "linksSpecialEntriesAndWorkspaceReparseRejected": true,
+    "declaredAndActualLimitsEnforced": true,
+    "sha256BeforeVisibility": true,
+    "temporaryCreateNew": true,
+    "tokenBoundToWorkspaceDigestOperationAndExpiry": true,
+    "networkAccess": false,
+    "projectWrites": false,
+    "localPathsMediaBytesAndTokensInReports": false
+  },
+  "accessibility": {
+    "componentTests": 4,
+    "axeSeriousOrCriticalViolations": 0,
+    "keyboardOpenMaterializeCancelFailureAndRecovery": "passed",
+    "focusTransferAndRestoration": "passed",
+    "minimumViewport": "900x620",
+    "uiScale": [100, 150, 200],
+    "horizontalOverflowAtSupportedScales": false,
+    "accessibilityInsightsVersion": "1.1.2924.1",
+    "accessibilityInsightsResult": "Expected Chromium handoff; the web scanner and semantic inspection passed.",
+    "nvdaVersion": "2026.1.1",
+    "nvdaSpokenReview": "pending-manual-confirmation"
+  },
+  "compatibility": {
+    "productionCommandsChanged": false,
+    "productionSchemaChanged": false,
+    "screenshotBehaviorChanged": false,
+    "version1ProjectChanged": false
+  },
+  "rawEvidence": {
+    "manifestSchema": "gamebook.zip64-lazy-materialization-evidence-manifest.v1",
+    "reportSchema": "gamebook.zip64-lazy-materialization-spike.v1",
+    "reportCount": 11,
+    "retainedInRepository": false
+  }
+}
