@@ -55,6 +55,8 @@ The retained [comparison report](media-rendering-comparison-reference-report.jso
 
 ## Manual accessibility evidence
 
+Follow the consolidated [Milestone 3 accessibility review](milestone-3-accessibility-review.md) for keyboard-only, NVDA, Accessibility Insights, Windows Contrast Themes, reduced-motion, and UI-scale evidence across issues #10 through #13.
+
 Use the standalone page at:
 
 ```text
