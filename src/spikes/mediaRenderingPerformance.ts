@@ -46,6 +46,7 @@ export interface RenderingGateResult {
   transformLatencyPassed: boolean;
   cleanupPassed: boolean;
   visualPassed: boolean;
+  accessibilityPassed: boolean;
   memoryPassed: boolean | null;
   fallbackEvaluationRequired: boolean;
 }
@@ -67,6 +68,7 @@ export function summarize(values: number[]): DistributionSummary {
 export function evaluateRenderingGate(
   sources: SourceBenchmark[],
   memoryDeltaBytes: number | null,
+  accessibilityPassed = true,
 ): RenderingGateResult {
   const frameRatePassed = sources.length === 2
     && sources.every((source) => source.renderedFps >= 55);
@@ -82,6 +84,7 @@ export function evaluateRenderingGate(
     && transformLatencyPassed
     && cleanupPassed
     && visualPassed
+    && accessibilityPassed
     && memoryPassed === true;
   return {
     approachPassed,
@@ -89,6 +92,7 @@ export function evaluateRenderingGate(
     transformLatencyPassed,
     cleanupPassed,
     visualPassed,
+    accessibilityPassed,
     memoryPassed,
     fallbackEvaluationRequired: !approachPassed,
   };

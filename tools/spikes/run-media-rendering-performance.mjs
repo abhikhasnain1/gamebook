@@ -56,7 +56,7 @@ async function main() {
     const referenceEnvironment = await probeReferenceEnvironment(edgePath);
     const samples = [];
     samples.push({ phase: "baseline", ...(await sampleProcessTree(edge.pid)) });
-    await cdp.evaluate("document.querySelector('[aria-label=\"Run rendering benchmark\"]')?.click()", false);
+    await cdp.evaluate("const button=document.querySelector('[aria-label=\"Run rendering benchmark\"]');button?.focus();button?.click()", false);
 
     let browserReport = null;
     while (!browserReport) {
@@ -69,7 +69,7 @@ async function main() {
     samples.push({ phase: "post-cleanup", ...(await sampleProcessTree(edge.pid)) });
 
     const system = summarizeSystem(samples);
-    const gate = evaluateGate(browserReport.sources, system.privateMemoryDeltaBytes);
+    const gate = evaluateGate(browserReport.sources, system.privateMemoryDeltaBytes, browserReport.accessibilityChecks);
     const fixtureArtifacts = await Promise.all([
       fixtureEvidence("1080p60", "src-tauri/target/media-rendering-performance/fixture-1080p60.mp4", "src-tauri/target/media-rendering-performance/fixture-1080p60.json", args.build),
       fixtureEvidence("1440p60", "src-tauri/target/media-rendering-performance/fixture-1440p60.mp4", "src-tauri/target/media-rendering-performance/fixture-1440p60.json", args.build),
@@ -249,14 +249,15 @@ function distribution(values) {
   };
 }
 
-function evaluateGate(sources, memoryDeltaBytes) {
+function evaluateGate(sources, memoryDeltaBytes, accessibilityChecks) {
   const frameRatePassed = sources.length === 2 && sources.every((source) => source.renderedFps >= 55);
   const transformLatencyPassed = sources.length === 2 && sources.every((source) => source.transformLatencyMs.count >= 30 && source.transformLatencyMs.p95 < 50);
   const cleanupPassed = sources.length === 2 && sources.every((source) => Object.values(source.cleanup).every((value) => value === 0));
   const visualPassed = sources.length === 2 && sources.every((source) => Object.values(source.visualChecks).every((value) => value));
+  const accessibilityPassed = accessibilityChecks && Object.values(accessibilityChecks).every((value) => value);
   const memoryPassed = memoryDeltaBytes <= 100 * 1024 * 1024;
-  const approachPassed = frameRatePassed && transformLatencyPassed && cleanupPassed && visualPassed && memoryPassed;
-  return { approachPassed, frameRatePassed, transformLatencyPassed, cleanupPassed, visualPassed, memoryPassed, fallbackEvaluationRequired: !approachPassed };
+  const approachPassed = frameRatePassed && transformLatencyPassed && cleanupPassed && visualPassed && accessibilityPassed && memoryPassed;
+  return { approachPassed, frameRatePassed, transformLatencyPassed, cleanupPassed, visualPassed, accessibilityPassed, memoryPassed, fallbackEvaluationRequired: !approachPassed };
 }
 
 async function fixtureEvidence(id, mediaPath, reportPath, expectedBuild) {

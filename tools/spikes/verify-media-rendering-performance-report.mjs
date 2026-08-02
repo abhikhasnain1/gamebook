@@ -10,51 +10,90 @@ if (args.includes("--self-test")) {
   selfTest();
 } else {
   const fabricPath = valueAfter(args, "--fabric");
+  const fabricRepeatPath = valueAfter(args, "--fabric-repeat");
   const domPath = valueAfter(args, "--dom");
-  if (!fabricPath || !domPath) throw new Error("Usage: --self-test or --fabric PATH --dom PATH");
-  verifyComparison(
-    JSON.parse(await readFile(fabricPath, "utf8")),
-    JSON.parse(await readFile(domPath, "utf8")),
-  );
-  console.log(`Verified media rendering comparison: ${fabricPath} and ${domPath}`);
+  const referencePath = valueAfter(args, "--reference");
+  if (!fabricPath || !fabricRepeatPath || !domPath || !referencePath) {
+    throw new Error("Usage: --self-test or --fabric PATH --fabric-repeat PATH --dom PATH --reference PATH");
+  }
+  const fabric = JSON.parse(await readFile(fabricPath, "utf8"));
+  const fabricRepeat = JSON.parse(await readFile(fabricRepeatPath, "utf8"));
+  const dom = JSON.parse(await readFile(domPath, "utf8"));
+  verifyComparison(fabric, fabricRepeat, dom);
+  verifyReference(JSON.parse(await readFile(referencePath, "utf8")), fabric, fabricRepeat, dom);
+  console.log(`Verified media rendering comparison and redacted reference: ${referencePath}`);
 }
 
-export function verifyComparison(fabric, dom) {
+export function verifyComparison(fabric, fabricRepeat, dom) {
   verifyCommon(fabric, "fabric-offscreen-surface");
+  verifyCommon(fabricRepeat, "fabric-offscreen-surface");
   verifyCommon(dom, "layered-dom-video");
-  assert.equal(fabric.status, "failed", "Fabric result must retain its failed memory gate");
-  assert.deepEqual(fabric.gate, {
-    approachPassed: false,
-    frameRatePassed: true,
-    transformLatencyPassed: true,
-    cleanupPassed: true,
-    visualPassed: true,
-    memoryPassed: false,
-    fallbackEvaluationRequired: true,
-  });
-  assert.equal(fabric.system.privateMemoryDeltaBytes > 100 * 1024 * 1024, true);
-
-  assert.equal(dom.status, "passed", "layered DOM result must pass every gate");
-  assert.deepEqual(dom.gate, {
+  [fabric, fabricRepeat, dom].forEach((report) => assert.deepEqual(report.gate, {
     approachPassed: true,
     frameRatePassed: true,
     transformLatencyPassed: true,
     cleanupPassed: true,
     visualPassed: true,
+    accessibilityPassed: true,
     memoryPassed: true,
     fallbackEvaluationRequired: false,
+  }));
+  [fabric, fabricRepeat, dom].forEach((report) => {
+    assert.equal(report.status, "passed", `${report.renderingApproach} result must pass every gate`);
+    assert.equal(report.system.privateMemoryDeltaBytes <= 100 * 1024 * 1024, true);
   });
-  assert.equal(dom.system.privateMemoryDeltaBytes <= 100 * 1024 * 1024, true);
-  assert.equal(dom.system.privateMemoryDeltaBytes < fabric.system.privateMemoryDeltaBytes, true);
 
-  assert.equal(dom.buildRevision, fabric.buildRevision, "comparison must use one exact revision");
-  assert.equal(dom.collection.fixtureGeneratorSha256, fabric.collection.fixtureGeneratorSha256);
-  assert.deepEqual(
-    dom.fixtureEvidence.map(({ id, sha256 }) => ({ id, sha256 })),
-    fabric.fixtureEvidence.map(({ id, sha256 }) => ({ id, sha256 })),
-    "comparison fixtures changed between approaches",
-  );
-  return { fabric, dom };
+  [fabricRepeat, dom].forEach((report) => {
+    assert.equal(report.buildRevision, fabric.buildRevision, "comparison must use one exact revision");
+    assert.equal(report.collection.fixtureGeneratorSha256, fabric.collection.fixtureGeneratorSha256);
+    assert.deepEqual(
+      report.fixtureEvidence.map(({ id, sha256 }) => ({ id, sha256 })),
+      fabric.fixtureEvidence.map(({ id, sha256 }) => ({ id, sha256 })),
+      "comparison fixtures changed between approaches",
+    );
+  });
+  return { fabric, fabricRepeat, dom };
+}
+
+function verifyReference(reference, fabric, fabricRepeat, dom) {
+  assert.equal(reference.schema, "gamebook.media-rendering-comparison.v1");
+  assert.equal(reference.status, "performance-passed");
+  assert.equal(reference.buildRevision, fabric.buildRevision);
+  assert.equal(reference.selectedProposal, "fabric-offscreen-surface");
+  assert.equal(reference.fallback, "layered-dom-video");
+  assert.equal(reference.fixtureGeneratorSha256, fabric.collection.fixtureGeneratorSha256);
+  assert.deepEqual(reference.fixtures, fabric.fixtureEvidence.map(({ applicationBuild: _build, ...fixture }) => fixture));
+
+  const rawRuns = [fabric, fabricRepeat, dom];
+  assert.deepEqual(reference.runs.map((run) => run.id), ["fabric-primary", "fabric-repeat", "layered-dom-fallback"]);
+  reference.runs.forEach((run, index) => {
+    const raw = rawRuns[index];
+    assert.equal(run.approach, raw.renderingApproach);
+    assert.equal(run.generatedAt, raw.generatedAt);
+    assert.deepEqual(run.sources, raw.sources.map((source) => ({
+      id: source.id,
+      renderedFps: source.renderedFps,
+      transformP95Ms: source.transformLatencyMs.p95,
+      droppedRenderCallbacks: source.droppedRenderCallbacks,
+    })));
+    assert.equal(run.privateMemoryDeltaBytes, raw.system.privateMemoryDeltaBytes);
+    assert.equal(run.cpuMeanPercent, raw.system.cpuPercent.mean);
+    assert.equal(run.gpuMeanPercent, raw.system.gpuPercent.mean);
+    assert.equal(run.visualPassed, raw.gate.visualPassed);
+    assert.equal(run.cleanupPassed, raw.gate.cleanupPassed);
+    assert.equal(run.gatePassed, raw.gate.approachPassed);
+  });
+
+  assert.equal(reference.accessibility?.axeSeriousOrCriticalViolations, 0);
+  assert.deepEqual(reference.accessibility?.namedControls, ["Run rendering benchmark"]);
+  assert.equal(reference.accessibility?.visualMatrix?.length, 4);
+  reference.accessibility.visualMatrix.forEach((entry) => {
+    assert.equal(entry.viewport, "900x620");
+    assert.equal(entry.visualPassed, true);
+  });
+  assert.equal(reference.accessibility?.nvda, "pending-external-prerequisite");
+  assert.deepEqual(reference.security, fabric.security);
+  PRIVATE_MARKERS.forEach((marker) => assert.doesNotMatch(JSON.stringify(reference), marker));
 }
 
 function verifyCommon(report, approach) {
@@ -96,6 +135,7 @@ function verifyCommon(report, approach) {
   assert.deepEqual(report.semanticControls?.namedControls, ["Run rendering benchmark"]);
   assert.equal(report.semanticControls?.keyboardOperable, true);
   assert.equal(report.semanticControls?.statusAnnouncements, true);
+  assert.deepEqual(Object.values(report.accessibilityChecks), [true, true, true, true, true, true, true]);
 
   assert.ok(report.referenceEnvironment?.windows?.version);
   assert.ok(report.referenceEnvironment?.cpu?.Name);
@@ -127,14 +167,20 @@ function verifyCommon(report, approach) {
 
 function selfTest() {
   const fabric = syntheticReport("fabric-offscreen-surface", 112 * 1024 * 1024);
+  fabric.system.privateMemoryDeltaBytes = 24 * 1024 * 1024;
+  fabric.status = "passed";
+  fabric.gate.approachPassed = true;
+  fabric.gate.memoryPassed = true;
+  fabric.gate.fallbackEvaluationRequired = false;
+  const fabricRepeat = syntheticReport("fabric-offscreen-surface", -4 * 1024 * 1024);
   const dom = syntheticReport("layered-dom-video", 8 * 1024 * 1024);
-  verifyComparison(fabric, dom);
-  assert.throws(() => verifyComparison({ ...fabric, buildRevision: "working-tree" }, dom), /exact commit/);
-  assert.throws(() => verifyComparison(fabric, {
+  verifyComparison(fabric, fabricRepeat, dom);
+  assert.throws(() => verifyComparison({ ...fabric, buildRevision: "working-tree" }, fabricRepeat, dom), /exact commit/);
+  assert.throws(() => verifyComparison(fabric, fabricRepeat, {
     ...dom,
     sources: [dom.sources[0], { ...dom.sources[1], renderedFps: 54.999 }],
   }), /rendered below 55 FPS/);
-  assert.throws(() => verifyComparison(fabric, {
+  assert.throws(() => verifyComparison(fabric, fabricRepeat, {
     ...dom,
     fixtureEvidence: [{ ...dom.fixtureEvidence[0], sha256: "b".repeat(64) }, dom.fixtureEvidence[1]],
   }), /fixtures changed/);
@@ -160,11 +206,12 @@ function syntheticReport(approach, memoryDeltaBytes) {
     fixtureEvidence: SOURCE_IDS.map((id, index) => ({ id, width: index === 0 ? 1920 : 2560, height: index === 0 ? 1080 : 1440, frameRate: 60, durationSeconds: 30, submittedFrames: 1_800, applicationBuild: build, sha256: "a".repeat(64) })),
     lifecycleLoops: 10,
     semanticControls: { namedControls: ["Run rendering benchmark"], keyboardOperable: true, statusAnnouncements: true },
+    accessibilityChecks: { layoutWithinViewport: true, noDocumentOverflow: true, textNotClipped: true, runControlVisible: true, focusVisible: true, politeStatus: true, compositionNamed: true },
     referenceEnvironment: { windows: { version: "10" }, cpu: { Name: "Reference CPU" }, gpu: [{ Name: "Reference GPU" }], ramBytes: 16, displayModes: [], edgeVersion: "150", powerScheme: "Balanced" },
     system: { privateMemoryDeltaBytes: memoryDeltaBytes, sampleCount: 8, cpuPercent: { mean: 5 }, gpuPercent: { mean: 10 } },
     security: { networkOrigins: ["http://127.0.0.1:1420"], sourceUrlsPersisted: false, mediaTokensPersisted: false, projectWrites: false, diagnosticsContainPaths: false },
     collection: { isolatedProfile: true, hardwareAccelerationRequested: true, wallClockSampling: true, requestedViewport: { width: 1280, height: 720 }, requestedUiScale: 1, requestedReducedMotion: false, requestedForcedColors: false, fixtureGeneratorSha256: "c".repeat(64) },
-    gate: { approachPassed, frameRatePassed: true, transformLatencyPassed: true, cleanupPassed: true, visualPassed: true, memoryPassed: approachPassed, fallbackEvaluationRequired: !approachPassed },
+    gate: { approachPassed, frameRatePassed: true, transformLatencyPassed: true, cleanupPassed: true, visualPassed: true, accessibilityPassed: true, memoryPassed: approachPassed, fallbackEvaluationRequired: !approachPassed },
   };
 }
 

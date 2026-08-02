@@ -40,6 +40,7 @@ describe("media rendering performance gate", () => {
       transformLatencyPassed: true,
       cleanupPassed: true,
       visualPassed: true,
+      accessibilityPassed: true,
       memoryPassed: true,
       fallbackEvaluationRequired: false,
     });

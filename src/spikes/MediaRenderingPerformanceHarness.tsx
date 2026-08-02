@@ -45,6 +45,15 @@ export interface BrowserRenderingReport {
     namedControls: string[];
     statusAnnouncements: boolean;
   };
+  accessibilityChecks: {
+    layoutWithinViewport: boolean;
+    noDocumentOverflow: boolean;
+    textNotClipped: boolean;
+    runControlVisible: boolean;
+    focusVisible: boolean;
+    politeStatus: boolean;
+    compositionNamed: boolean;
+  };
   security: {
     networkOrigins: string[];
     sourceUrlsPersisted: false;
@@ -418,6 +427,7 @@ function createReport(
   const params = new URLSearchParams(window.location.search);
   const networkOrigins = Array.from(new Set(performance.getEntriesByType("resource")
     .map((entry) => new URL(entry.name).origin)));
+  const accessibilityChecks = inspectAccessibility();
   return {
     schema: MEDIA_RENDERING_SCHEMA,
     status: error ? "failed" : "browser-complete",
@@ -443,6 +453,7 @@ function createReport(
       namedControls: ["Run rendering benchmark"],
       statusAnnouncements: true,
     },
+    accessibilityChecks,
     security: {
       networkOrigins,
       sourceUrlsPersisted: false,
@@ -450,8 +461,41 @@ function createReport(
       projectWrites: false,
       diagnosticsContainPaths: false,
     },
-    gate: evaluateRenderingGate(sources, memoryDeltaBytes),
+    gate: evaluateRenderingGate(
+      sources,
+      memoryDeltaBytes,
+      Object.values(accessibilityChecks).every((value) => value),
+    ),
     error,
+  };
+}
+
+function inspectAccessibility(): BrowserRenderingReport["accessibilityChecks"] {
+  const shell = document.querySelector<HTMLElement>(".rendering-shell");
+  const run = document.querySelector<HTMLButtonElement>('[aria-label="Run rendering benchmark"]');
+  const status = document.querySelector<HTMLElement>('[role="status"][aria-live="polite"]');
+  const composition = document.querySelector<HTMLCanvasElement>('canvas[aria-label="Representative media placement composition"]');
+  const shellRect = shell?.getBoundingClientRect();
+  const runRect = run?.getBoundingClientRect();
+  const withinViewport = (rect?: DOMRect) => Boolean(rect
+    && rect.left >= -0.5
+    && rect.top >= -0.5
+    && rect.right <= window.innerWidth + 0.5
+    && rect.bottom <= window.innerHeight + 0.5);
+  const textElements = Array.from(document.querySelectorAll<HTMLElement>("h1, h2, p, dt, dd, span, output, button"));
+  const focusStyle = run ? getComputedStyle(run) : null;
+  return {
+    layoutWithinViewport: withinViewport(shellRect),
+    noDocumentOverflow: document.documentElement.scrollWidth <= window.innerWidth
+      && document.documentElement.scrollHeight <= window.innerHeight,
+    textNotClipped: textElements.every((element) => element.scrollWidth <= element.clientWidth + 1
+      && element.scrollHeight <= element.clientHeight + 1),
+    runControlVisible: withinViewport(runRect),
+    focusVisible: run?.matches(":focus-visible") === true
+      && focusStyle?.outlineStyle !== "none"
+      && Number.parseFloat(focusStyle?.outlineWidth ?? "0") >= 2,
+    politeStatus: Boolean(status),
+    compositionNamed: Boolean(composition),
   };
 }
 
