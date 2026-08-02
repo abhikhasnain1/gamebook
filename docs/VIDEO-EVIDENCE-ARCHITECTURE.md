@@ -148,6 +148,8 @@ On the recorded reference environment, test 1080p60 and 1440p60 playback for 30 
 
 The preferred Fabric approach passes when it sustains at least 55 rendered FPS for a 60 FPS source on reference hardware, keeps transform latency below 50 ms at the 95th percentile, and returns within 100 MB of pre-loop memory after cleanup. If it fails, the architecture review evaluates a layered DOM video surface synchronized with Fabric geometry before the schema is frozen.
 
+Issue #13 measured two passing Fabric runs and one passing layered-DOM fallback run from the same exact implementation revision and fixtures. [ADR-0001](decisions/0001-media-placement-rendering.md) therefore proposes retaining the offscreen Fabric surface because it satisfies the gate while keeping playback, annotations, transforms, hit testing, and z-order in one composition system. The decision remains proposed until Milestone 5; no production rendering or schema contract is frozen by the spike.
+
 ## View-only zoom and pan
 
 The logical page remains 1600 by 900. Fit is the default view. Users may choose 25-200% zoom, reset, or Fit without modifying page data.

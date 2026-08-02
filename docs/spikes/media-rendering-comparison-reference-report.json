@@ -1,0 +1,113 @@
+{
+  "schema": "gamebook.media-rendering-comparison.v1",
+  "status": "performance-passed",
+  "generatedAt": "2026-08-02T00:44:36.036Z",
+  "buildRevision": "4f63b5e00d793c4d90e212f6f9aa1e7bde05264c",
+  "selectedProposal": "fabric-offscreen-surface",
+  "fallback": "layered-dom-video",
+  "fixtures": [
+    {
+      "id": "1080p60",
+      "width": 1920,
+      "height": 1080,
+      "frameRate": 60,
+      "durationSeconds": 30,
+      "submittedFrames": 1800,
+      "bytes": 422122,
+      "sha256": "45a095be70821385accfea40afc181aba20c1699220eb3ae9617d9fd19e5308d"
+    },
+    {
+      "id": "1440p60",
+      "width": 2560,
+      "height": 1440,
+      "frameRate": 60,
+      "durationSeconds": 30,
+      "submittedFrames": 1800,
+      "bytes": 719830,
+      "sha256": "0b6d7644bfefee3bd8ad2823f4a78dc7cb27f5f1b7b82ae4f7112435750ea087"
+    }
+  ],
+  "fixtureGeneratorSha256": "123abb349b9b85c5847c032ef52759c8c0f7fb8a6ec9d44611bfdb0cdb0a0f42",
+  "referenceEnvironment": {
+    "windows": "Windows 11 Pro 10.0.26200 build 26200, 64-bit",
+    "cpu": "Intel Core Ultra 9 285K, 24 cores, 24 logical processors",
+    "gpus": [
+      "NVIDIA GeForce RTX 5080, driver 32.0.15.9579",
+      "Intel Graphics, driver 32.0.101.6629"
+    ],
+    "ramBytes": 68053327872,
+    "display": "3440x1440 at 164 Hz",
+    "powerScheme": "Balanced",
+    "edgeVersion": "150.0.4078.105",
+    "webView2Version": "150.0.4078.105",
+    "benchmarkViewport": {
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "runs": [
+    {
+      "id": "fabric-primary",
+      "approach": "fabric-offscreen-surface",
+      "generatedAt": "2026-08-02T00:41:21.248Z",
+      "sources": [
+        { "id": "1080p60", "renderedFps": 59.494, "transformP95Ms": 6.5, "droppedRenderCallbacks": 0 },
+        { "id": "1440p60", "renderedFps": 59.631, "transformP95Ms": 6.4, "droppedRenderCallbacks": 0 }
+      ],
+      "privateMemoryDeltaBytes": 22667264,
+      "cpuMeanPercent": 0.900,
+      "gpuMeanPercent": 5.675,
+      "visualPassed": true,
+      "cleanupPassed": true,
+      "gatePassed": true
+    },
+    {
+      "id": "fabric-repeat",
+      "approach": "fabric-offscreen-surface",
+      "generatedAt": "2026-08-02T00:42:59.121Z",
+      "sources": [
+        { "id": "1080p60", "renderedFps": 59.538, "transformP95Ms": 6.3, "droppedRenderCallbacks": 0 },
+        { "id": "1440p60", "renderedFps": 59.590, "transformP95Ms": 6.3, "droppedRenderCallbacks": 0 }
+      ],
+      "privateMemoryDeltaBytes": 21848064,
+      "cpuMeanPercent": 0.903,
+      "gpuMeanPercent": 2.901,
+      "visualPassed": true,
+      "cleanupPassed": true,
+      "gatePassed": true
+    },
+    {
+      "id": "layered-dom-fallback",
+      "approach": "layered-dom-video",
+      "generatedAt": "2026-08-02T00:44:36.036Z",
+      "sources": [
+        { "id": "1080p60", "renderedFps": 59.532, "transformP95Ms": 6.2, "droppedRenderCallbacks": 0 },
+        { "id": "1440p60", "renderedFps": 59.884, "transformP95Ms": 6.2, "droppedRenderCallbacks": 0 }
+      ],
+      "privateMemoryDeltaBytes": 4481024,
+      "cpuMeanPercent": 0.680,
+      "gpuMeanPercent": 5.913,
+      "visualPassed": true,
+      "cleanupPassed": true,
+      "gatePassed": true
+    }
+  ],
+  "accessibility": {
+    "axeSeriousOrCriticalViolations": 0,
+    "namedControls": ["Run rendering benchmark"],
+    "visualMatrix": [
+      { "viewport": "900x620", "uiScale": 1, "reducedMotion": false, "forcedColors": false, "visualPassed": true },
+      { "viewport": "900x620", "uiScale": 1.5, "reducedMotion": false, "forcedColors": false, "visualPassed": true },
+      { "viewport": "900x620", "uiScale": 2, "reducedMotion": true, "forcedColors": false, "visualPassed": true },
+      { "viewport": "900x620", "uiScale": 2, "reducedMotion": false, "forcedColors": true, "visualPassed": true }
+    ],
+    "nvda": "pending-external-prerequisite"
+  },
+  "security": {
+    "networkOrigins": ["http://127.0.0.1:1420"],
+    "sourceUrlsPersisted": false,
+    "mediaTokensPersisted": false,
+    "projectWrites": false,
+    "diagnosticsContainPaths": false
+  }
+}
