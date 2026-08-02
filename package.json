@@ -24,6 +24,8 @@
     "viewport:verify": "node tools/spikes/verify-viewport-report.mjs",
     "media-rendering:run": "node tools/spikes/run-media-rendering-performance.mjs",
     "media-rendering:verify": "node tools/spikes/verify-media-rendering-performance-report.mjs",
+    "zip64-lazy:run": "node tools/spikes/run-zip64-lazy-materialization.mjs",
+    "zip64-lazy:verify": "node tools/spikes/verify-zip64-lazy-materialization-report.mjs",
     "check": "tsc --noEmit"
   },
   "dependencies": {
