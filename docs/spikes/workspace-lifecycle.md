@@ -63,6 +63,18 @@ npm.cmd run workspace-lifecycle:run -- --build-id <exact-40-character-revision>
 
 Raw reports, manifests, fixtures, workspaces, and release binaries remain outside the repository history.
 
+## Reference results
+
+The retained [reference report](workspace-lifecycle-reference-report.json) summarizes the complete release matrix from implementation revision `d7ef4ac2ffdc58df635f3a3e5ebc1cbebff147e7`. The 360,448-byte release binary has SHA-256 `DA5E9805E200E1DE66B8B0390BAFABA2C2A0D3396ACFB25B1CF43FCA2C867C9D`; the evidence manifest verified that binary and all 11 raw reports before cleanup.
+
+Equivalent source paths reused one opaque workspace and one registry record in 14.132 ms. A byte-identical copy at another source path received a second workspace in 21.678 ms; its content digest matched while its source fingerprint and workspace ID remained distinct. Neither registry record contained a source path.
+
+The live-process case activated the existing instance even with an expired heartbeat. An absent process with a fresh heartbeat waited for its owner. Only an absent process with an expired heartbeat entered recovery, while a malformed lock entered the same conservative recovery path. All four cases retained the lock evidence, recovery journal, and workspace without deletion.
+
+External mutation changed both size and SHA-256, paused Save, exposed Save As, explicit replacement, and cancellation, and preserved the prior project and workspace. Clean close removed its lock; reopen loaded the registry from disk, reused the same workspace ID, and retained the recovery journal.
+
+Cache pressure reduced 6,291,456 bytes of verified clean cache to the 2,097,152-byte limit by removing only the oldest 4,194,304-byte entry. Unsaved work, interrupted recording data, recovery-pending data, and Project Trash remained. Cancellation removed nothing. The real directory-link case was detected as a reparse point, rejected before child creation, and left its outside sentinel unchanged. Every run removed its fixture and user-scoped workspace root with zero partial output or protected-data deletion.
+
 ## Accessibility review surface
 
 The native harness is noninteractive. A separate semantic surface exposes same-source reuse, copied-project separation, stale-lock recovery, external-change choices, cache estimates, protected data, cleanup, cancellation, and completion through ordinary labeled controls, focused recovery regions, alerts, summaries, and live status:
@@ -72,6 +84,8 @@ http://127.0.0.1:1420/tools/spikes/workspace-recovery.html
 ```
 
 The review covers keyboard operation, focus transfer and restoration, polite status, assertive external-change errors, forced colors, reduced motion, 100/150/200 percent UI scale, the 900 by 620 minimum window, axe, Accessibility Insights, and NVDA. The surface uses generic fixture labels and never displays a project path, workspace path, source bytes, or opaque identifier.
+
+Four component tests passed with no serious or critical axe violations. Browser review at 900 by 620 passed at 100, 150, and 200 percent UI scale with no horizontal overflow or clipped control text. Keyboard workflows covered copied-project separation, stale-lock recovery, external-change cancellation, and protected cache cleanup. Recovery headings, external-change alerts, and cleanup headings received focus; completion and cancellation restored focus to the Open command. The forced-colors and reduced-motion rules are present. Accessibility Insights, manual Windows High Contrast, and NVDA spoken-output confirmation remain required before issue closeout.
 
 ## Compatibility and decision boundary
 

@@ -1,0 +1,211 @@
+{
+  "schema": "gamebook.workspace-lifecycle-reference.v1",
+  "status": "pending-manual-accessibility-confirmation",
+  "generatedAt": "2026-08-02T14:31:20Z",
+  "build": {
+    "name": "gamebook",
+    "version": "0.5.3",
+    "profile": "release",
+    "sourceRevision": "d7ef4ac2ffdc58df635f3a3e5ebc1cbebff147e7",
+    "binaryBytes": 360448,
+    "binarySha256": "DA5E9805E200E1DE66B8B0390BAFABA2C2A0D3396ACFB25B1CF43FCA2C867C9D"
+  },
+  "environment": {
+    "os": "windows",
+    "windowsVersion": "10.0.26200.7171",
+    "arch": "x86_64",
+    "storage": "current-user-local-app-data",
+    "heartbeatTimeoutMs": 30000
+  },
+  "identity": [
+    {
+      "scenario": "identity-same-source",
+      "elapsedMs": 14.132,
+      "sameSourceReused": true,
+      "workspaceIdsEqual": true,
+      "sourceFingerprintsEqual": true,
+      "contentDigestsEqual": true,
+      "copyDetected": false,
+      "workspaceCount": 1,
+      "registryContainsSourcePaths": false,
+      "passed": true
+    },
+    {
+      "scenario": "identity-copied-project",
+      "elapsedMs": 21.678,
+      "sameSourceReused": false,
+      "workspaceIdsEqual": false,
+      "sourceFingerprintsEqual": false,
+      "contentDigestsEqual": true,
+      "copyDetected": true,
+      "workspaceCount": 2,
+      "registryContainsSourcePaths": false,
+      "passed": true
+    }
+  ],
+  "locks": [
+    {
+      "scenario": "live-lock",
+      "elapsedMs": 21.277,
+      "lockParsed": true,
+      "processAlive": true,
+      "heartbeatExpired": true,
+      "disposition": "activate-existing",
+      "workspaceDeleted": false,
+      "lockRetained": true,
+      "recoveryJournalRetained": true,
+      "passed": true
+    },
+    {
+      "scenario": "dead-fresh-lock",
+      "elapsedMs": 19.821,
+      "lockParsed": true,
+      "processAlive": false,
+      "heartbeatExpired": false,
+      "disposition": "wait-for-owner",
+      "workspaceDeleted": false,
+      "lockRetained": true,
+      "recoveryJournalRetained": true,
+      "passed": true
+    },
+    {
+      "scenario": "stale-lock-recovery",
+      "elapsedMs": 20.088,
+      "lockParsed": true,
+      "processAlive": false,
+      "heartbeatExpired": true,
+      "disposition": "recovery-required",
+      "workspaceDeleted": false,
+      "lockRetained": true,
+      "recoveryJournalRetained": true,
+      "passed": true
+    },
+    {
+      "scenario": "malformed-lock-recovery",
+      "elapsedMs": 15.106,
+      "lockParsed": false,
+      "processAlive": false,
+      "heartbeatExpired": null,
+      "disposition": "recovery-required",
+      "workspaceDeleted": false,
+      "lockRetained": true,
+      "recoveryJournalRetained": true,
+      "passed": true
+    }
+  ],
+  "externalChange": {
+    "scenario": "external-change",
+    "elapsedMs": 27.004,
+    "baselineMatched": false,
+    "sizeChanged": true,
+    "digestChanged": true,
+    "savePaused": true,
+    "automaticReplacement": false,
+    "choices": ["save-as", "replace-explicit", "cancel"],
+    "priorProjectIntact": true,
+    "workspaceRetained": true,
+    "passed": true
+  },
+  "closeReopen": {
+    "scenario": "close-reopen",
+    "elapsedMs": 21.295,
+    "workspaceReused": true,
+    "workspaceIdsEqual": true,
+    "lockRemovedOnCleanClose": true,
+    "recoveryJournalRetained": true,
+    "registryReloadedFromDisk": true,
+    "passed": true
+  },
+  "cache": [
+    {
+      "scenario": "cache-eviction",
+      "elapsedMs": 11.223,
+      "cancelled": false,
+      "cleanCacheBytesBefore": 6291456,
+      "cleanCacheBytesAfter": 2097152,
+      "storageLimitBytes": 2097152,
+      "evictedEntries": ["cache:old"],
+      "protectedClasses": [
+        "unsaved-work",
+        "interrupted-recording",
+        "recovery-pending",
+        "project-trash"
+      ],
+      "protectedEntriesRetained": true,
+      "onlyVerifiedRecreatableEvicted": true,
+      "closedProjectRequired": true,
+      "passed": true
+    },
+    {
+      "scenario": "eviction-cancellation",
+      "elapsedMs": 11.103,
+      "cancelled": true,
+      "cleanCacheBytesBefore": 6291456,
+      "cleanCacheBytesAfter": 6291456,
+      "storageLimitBytes": 2097152,
+      "evictedEntries": [],
+      "protectedClasses": [
+        "unsaved-work",
+        "interrupted-recording",
+        "recovery-pending",
+        "project-trash"
+      ],
+      "protectedEntriesRetained": true,
+      "onlyVerifiedRecreatableEvicted": true,
+      "cancellationPreservedAllEntries": true,
+      "passed": true
+    }
+  ],
+  "reparse": {
+    "scenario": "reparse-rejection",
+    "elapsedMs": 27.276,
+    "reparseDetected": true,
+    "escapeRejected": true,
+    "workspaceCreatedThroughLink": false,
+    "outsideSentinelPreserved": true,
+    "passed": true
+  },
+  "security": {
+    "workspaceUnderCurrentUserLocalAppData": true,
+    "workspaceAncestorsNonReparse": true,
+    "reparseEscapeRejected": true,
+    "sourceFingerprintSha256": true,
+    "registryStoresPaths": false,
+    "lockIncludesProcessInstanceFingerprintHeartbeat": true,
+    "staleRequiresDeadProcessAndExpiredHeartbeat": true,
+    "malformedLockRequiresRecovery": true,
+    "onlyVerifiedRecreatableCacheEvictable": true,
+    "unsavedInterruptedRecoveryAndTrashProtected": true,
+    "networkAccess": false,
+    "productionProjectWrites": false,
+    "localPathsProjectTitlesAndSourceBytesInReports": false
+  },
+  "accessibility": {
+    "componentTests": 4,
+    "axeSeriousOrCriticalViolations": 0,
+    "keyboardIdentityRecoveryExternalChangeCacheAndCancellation": "passed",
+    "focusTransferAndRestoration": "passed",
+    "minimumViewport": "900x620",
+    "uiScale": [100, 150, 200],
+    "horizontalOverflowAtSupportedScales": false,
+    "clippedControlTextAtSupportedScales": false,
+    "forcedColorsRulePresent": true,
+    "reducedMotionRulePresent": true,
+    "accessibilityInsightsResult": "pending-manual-confirmation",
+    "highContrastReview": "pending-manual-confirmation",
+    "nvdaVersion": "2026.1.1",
+    "nvdaSpokenReview": "pending-manual-confirmation"
+  },
+  "compatibility": {
+    "productionCommandsChanged": false,
+    "productionSchemaChanged": false,
+    "screenshotBehaviorChanged": false,
+    "version1ProjectChanged": false
+  },
+  "rawEvidence": {
+    "manifestSchema": "gamebook.workspace-lifecycle-evidence-manifest.v1",
+    "reportSchema": "gamebook.workspace-lifecycle-spike.v1",
+    "reportCount": 11,
+    "retainedInRepository": false
+  }
+}
