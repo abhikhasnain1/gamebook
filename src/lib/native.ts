@@ -74,6 +74,60 @@ export interface ProjectV2SaveResult {
   replacedExisting: boolean;
   directoryFlushSupported: boolean;
   visibleArchiveReopened: boolean;
+  version1BackupCreated: boolean;
+}
+
+export interface ProjectReportMessage {
+  code: string;
+  severity: "info" | "warning" | "error";
+  recordId: string | null;
+  detail: string;
+}
+
+export interface ProjectV1MigrationReport {
+  recordType: "migration-report";
+  reportVersion: 1;
+  migrationId: string;
+  sourceFormat: "gzip-json-v1" | "plain-json-v1";
+  targetFormat: "zip64-v2";
+  sourceSha256: string;
+  status: "passed" | "failed" | "cancelled";
+  startedAt: string;
+  completedAt: string | null;
+  idMappings: unknown[];
+  assetResults: unknown[];
+  pageResults: unknown[];
+  renderDiff: {
+    width: 1600;
+    height: 900;
+    perChannelThreshold: 8;
+    pixelsOverThresholdRatio: number;
+    maximumAllowedRatio: 0.001;
+    passed: true;
+  };
+  messages: ProjectReportMessage[];
+  sourceMutated: false;
+}
+
+export interface ProjectV1MigrationResult extends ProjectV2OpenResult {
+  report: ProjectV1MigrationReport;
+  sourceFormat: "gzip-json-v1" | "plain-json-v1";
+}
+
+export interface ProjectV2RepairReport {
+  recordType: "repair-report";
+  reportVersion: 1;
+  repairId: string;
+  sourceSha256: string;
+  formatVersion: number;
+  mode: "read-only";
+  status: "recoverable" | "unrecoverable" | "future-version-rejected";
+  validRecordIds: string[];
+  invalidRecordIds: string[];
+  missingAssetDigests: string[];
+  messages: ProjectReportMessage[];
+  sourceMutated: false;
+  inventedReplacements: false;
 }
 
 export interface ProjectV2CacheResult {
@@ -94,6 +148,18 @@ export type ProjectV2ExternalChangeChoice = "cancel" | "save-as" | "replace";
 export async function openProjectV2(): Promise<ProjectV2OpenResult | null> {
   if (!isTauri) return null;
   return invoke<ProjectV2OpenResult | null>("open_project_v2");
+}
+
+export async function migrateProjectV1(
+  operationId: string,
+): Promise<ProjectV1MigrationResult | null> {
+  if (!isTauri) return null;
+  return invoke<ProjectV1MigrationResult | null>("migrate_project_v1", { operationId });
+}
+
+export async function inspectProjectV2Repair(): Promise<ProjectV2RepairReport | null> {
+  if (!isTauri) return null;
+  return invoke<ProjectV2RepairReport | null>("inspect_project_v2_repair");
 }
 
 export async function readProjectV2Record(

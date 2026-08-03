@@ -1,4 +1,5 @@
 mod archive;
+mod migration;
 mod model;
 mod workspace;
 
@@ -7,8 +8,8 @@ use std::sync::Arc;
 use tauri::{Manager, State, WebviewWindow};
 
 pub use model::{
-    CacheEvictionResult, ExternalChangeChoice, MaterializedAssetResult, OpenProjectResult,
-    SaveProjectResult,
+    CacheEvictionResult, ExternalChangeChoice, MaterializedAssetResult, MigrationProjectResult,
+    OpenProjectResult, SaveProjectResult,
 };
 pub use workspace::ProjectV2Manager;
 
@@ -28,6 +29,43 @@ pub async fn open_project_v2(
     tauri::async_runtime::spawn_blocking(move || manager.open_path(&path))
         .await
         .map_err(|error| format!("Version 2 open worker failed: {error}"))?
+        .map(Some)
+}
+
+#[tauri::command]
+pub async fn migrate_project_v1(
+    window: WebviewWindow,
+    manager: State<'_, Arc<ProjectV2Manager>>,
+    operation_id: String,
+) -> Result<Option<MigrationProjectResult>, String> {
+    let Some(path) = rfd::FileDialog::new()
+        .set_parent(&window)
+        .add_filter("Gamebook project", &["gamebook"])
+        .pick_file()
+    else {
+        return Ok(None);
+    };
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.migrate_v1_path(&path, &operation_id))
+        .await
+        .map_err(|error| format!("Version 1 migration worker failed: {error}"))?
+        .map(Some)
+}
+
+#[tauri::command]
+pub async fn inspect_project_v2_repair(
+    window: WebviewWindow,
+) -> Result<Option<serde_json::Value>, String> {
+    let Some(path) = rfd::FileDialog::new()
+        .set_parent(&window)
+        .add_filter("Gamebook project", &["gamebook"])
+        .pick_file()
+    else {
+        return Ok(None);
+    };
+    tauri::async_runtime::spawn_blocking(move || migration::inspect_repair(&path))
+        .await
+        .map_err(|error| format!("Project repair inspection worker failed: {error}"))?
         .map(Some)
 }
 

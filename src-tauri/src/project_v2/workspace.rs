@@ -24,9 +24,10 @@ use super::{
     },
     model::{
         record_entry_name, CacheEvictionResult, ExternalChangeChoice, Manifest,
-        MaterializedAssetResult, OpenProjectResult, RecoveryJournalDocument, SaveJournalDocument,
-        SaveProjectResult, SourceSignature, WorkspaceLockDocument, WorkspaceRegistryDocument,
-        WorkspaceRegistryEntry, WorkspaceStateDocument, MAX_JSON_BYTES, TOKEN_TTL_SECONDS,
+        MaterializedAssetResult, MigrationProjectResult, OpenProjectResult,
+        RecoveryJournalDocument, SaveJournalDocument, SaveProjectResult, SourceSignature,
+        WorkspaceLockDocument, WorkspaceRegistryDocument, WorkspaceRegistryEntry,
+        WorkspaceStateDocument, MAX_JSON_BYTES, TOKEN_TTL_SECONDS,
     },
 };
 
@@ -64,7 +65,14 @@ struct WorkspaceRuntime {
     loaded_records: BTreeMap<String, Value>,
     state: WorkspaceStateDocument,
     recovery_sequence: u64,
+    source_kind: WorkspaceSourceKind,
     closed: bool,
+}
+
+#[derive(Clone)]
+enum WorkspaceSourceKind {
+    Version2,
+    Version1 { source_sha256: String },
 }
 
 struct AssetToken {
@@ -284,6 +292,7 @@ impl ProjectV2Manager {
                 loaded_records,
                 state: workspace_state,
                 recovery_sequence,
+                source_kind: WorkspaceSourceKind::Version2,
                 closed: false,
             },
         );
@@ -296,6 +305,233 @@ impl ProjectV2Manager {
             copy_detected,
             recovery_required,
         })
+    }
+
+    pub fn migrate_v1_path(
+        &self,
+        source: &Path,
+        operation_id: &str,
+    ) -> Result<MigrationProjectResult, String> {
+        let cancelled = {
+            let mut manager = self
+                .inner
+                .lock()
+                .map_err(|_| "workspace-state-poisoned".to_string())?;
+            operation_flag(&mut manager, operation_id)?
+        };
+        let result = (|| {
+            let prepared = super::migration::prepare_migration(source, &cancelled)?;
+            if cancelled.load(Ordering::Relaxed) {
+                return Err("operation-cancelled".to_string());
+            }
+            let source_fingerprint = source_path_fingerprint(source)?;
+            let canonical_source = fs::canonicalize(source)
+                .map_err(|error| format!("source-canonicalization-failed: {error}"))?;
+            let source_signature = source_signature(source, &prepared.source_sha256)?;
+            let mut manager = self
+                .inner
+                .lock()
+                .map_err(|_| "workspace-state-poisoned".to_string())?;
+            let root = initialized_root(&manager)?.clone();
+            let application_instance_id = manager
+                .application_instance_id
+                .clone()
+                .ok_or_else(|| "workspace-manager-not-initialized".to_string())?;
+
+            if let Some(workspace) = manager
+                .workspaces
+                .values()
+                .find(|workspace| {
+                    workspace.source_fingerprint == source_fingerprint && !workspace.closed
+                })
+                .cloned()
+            {
+                if workspace.source_signature != source_signature {
+                    return Err("migration-source-changed-recovery-required".to_string());
+                }
+                write_lock(
+                    &workspace.root,
+                    &workspace.workspace_id,
+                    &workspace.source_fingerprint,
+                    &application_instance_id,
+                )?;
+                return Ok(MigrationProjectResult {
+                    workspace_id: workspace.workspace_id,
+                    project_id: workspace.manifest.project_id.clone(),
+                    manifest: workspace.manifest_value,
+                    records: workspace.loaded_records.into_values().collect(),
+                    report: prepared.report,
+                    source_format: prepared.source_format,
+                    reused_workspace: true,
+                    copy_detected: false,
+                    recovery_required: false,
+                });
+            }
+
+            let mut registry = read_registry(&root)?;
+            let existing = registry
+                .workspaces
+                .iter()
+                .find(|entry| entry.source_fingerprint == source_fingerprint)
+                .cloned();
+            if existing.as_ref().is_some_and(|entry| {
+                entry.manifest_sha256 != prepared.manifest_sha256
+            }) {
+                return Err("migration-source-changed-recovery-required".to_string());
+            }
+            let copy_detected = registry.workspaces.iter().any(|entry| {
+                entry.source_fingerprint != source_fingerprint
+                    && entry.project_id == prepared.manifest.project_id
+                    && entry.manifest_sha256 == prepared.manifest_sha256
+            });
+            let reused_workspace = existing.is_some();
+            let workspace_id = existing
+                .as_ref()
+                .map(|entry| entry.workspace_id.clone())
+                .unwrap_or(random_id("workspace")?);
+            let workspace_root = root.join(&workspace_id);
+            fs::create_dir_all(&workspace_root)
+                .map_err(|error| format!("workspace-create-failed: {error}"))?;
+            validate_workspace_root(&workspace_root, &root)?;
+            let mut recovery_required = inspect_existing_lock(
+                &workspace_root.join("workspace.lock.json"),
+                &workspace_id,
+                &source_fingerprint,
+                &application_instance_id,
+            )?;
+            let working_dir = workspace_root.join("working");
+            fs::create_dir_all(&working_dir)
+                .map_err(|error| format!("workspace-create-failed: {error}"))?;
+
+            let state_path = workspace_root.join("workspace-state.json");
+            let existing_state = if state_path.exists() {
+                read_workspace_document::<WorkspaceStateDocument>(&state_path).ok()
+            } else {
+                None
+            };
+            let can_recover = existing_state.as_ref().is_some_and(|state| {
+                state.workspace_id == workspace_id
+                    && state.project_id == prepared.manifest.project_id
+                    && state.source_fingerprint == source_fingerprint
+                    && working_dir.join("manifest.json").is_file()
+            });
+            let (manifest, manifest_value, loaded_records, workspace_state, recovery_sequence) =
+                if can_recover {
+                    let (manifest, manifest_value, records) =
+                        load_complete_working_migration(&working_dir)?;
+                    recovery_required = true;
+                    (
+                        manifest,
+                        manifest_value,
+                        records,
+                        existing_state.unwrap(),
+                        read_recovery_sequence(&workspace_root).unwrap_or(1),
+                    )
+                } else {
+                    stage_prepared_migration(&working_dir, &prepared)?;
+                    let now = Utc::now().to_rfc3339();
+                    let mut state = clean_workspace_state(
+                        &workspace_id,
+                        &prepared.manifest.project_id,
+                        &source_fingerprint,
+                        &now,
+                    );
+                    state.state = "recovery-pending".to_string();
+                    state.dirty_record_ids = prepared
+                        .records
+                        .values()
+                        .filter_map(|record| record.get("id").and_then(Value::as_str))
+                        .map(str::to_string)
+                        .collect();
+                    state.dirty_record_ids.insert(0, "manifest".to_string());
+                    state.new_asset_digests = prepared
+                        .assets
+                        .iter()
+                        .map(|asset| asset.record.digest.clone())
+                        .collect();
+                    add_protected_class(&mut state, "unsaved");
+                    add_protected_class(&mut state, "recovery");
+                    let journal = RecoveryJournalDocument {
+                        record_type: "recovery-journal".to_string(),
+                        journal_version: 1,
+                        workspace_id: workspace_id.clone(),
+                        sequence: 1,
+                        written_at: now,
+                        operation: "migration".to_string(),
+                        record_ids: state.dirty_record_ids.clone(),
+                        asset_digests: state.new_asset_digests.clone(),
+                        status: "committed".to_string(),
+                    };
+                    write_workspace_document(
+                        &workspace_root.join("recovery-journal.json"),
+                        &journal,
+                    )?;
+                    (
+                        prepared.manifest.clone(),
+                        prepared.manifest_value.clone(),
+                        prepared.records.clone(),
+                        state,
+                        1,
+                    )
+                };
+            write_workspace_document(&state_path, &workspace_state)?;
+            write_lock(
+                &workspace_root,
+                &workspace_id,
+                &source_fingerprint,
+                &application_instance_id,
+            )?;
+
+            registry
+                .workspaces
+                .retain(|entry| entry.workspace_id != workspace_id);
+            registry.workspaces.push(WorkspaceRegistryEntry {
+                workspace_id: workspace_id.clone(),
+                project_id: manifest.project_id.clone(),
+                source_fingerprint: source_fingerprint.clone(),
+                manifest_sha256: prepared.manifest_sha256.clone(),
+            });
+            write_json_atomic(&root.join("registry.json"), &registry)?;
+
+            let project_id = manifest.project_id.clone();
+            let records = loaded_records.values().cloned().collect();
+            manager.workspaces.insert(
+                workspace_id.clone(),
+                WorkspaceRuntime {
+                    workspace_id: workspace_id.clone(),
+                    root: workspace_root,
+                    source_path: canonical_source,
+                    source_file: Arc::new(
+                        File::open(source)
+                            .map_err(|error| format!("archive-open-failed: {error}"))?,
+                    ),
+                    source_fingerprint,
+                    source_signature,
+                    manifest,
+                    manifest_value: manifest_value.clone(),
+                    loaded_records,
+                    state: workspace_state,
+                    recovery_sequence,
+                    source_kind: WorkspaceSourceKind::Version1 {
+                        source_sha256: prepared.source_sha256.clone(),
+                    },
+                    closed: false,
+                },
+            );
+            Ok(MigrationProjectResult {
+                workspace_id,
+                project_id,
+                manifest: manifest_value,
+                records,
+                report: prepared.report,
+                source_format: prepared.source_format,
+                reused_workspace,
+                copy_detected,
+                recovery_required,
+            })
+        })();
+        self.finish_operation(operation_id);
+        result
     }
 
     pub fn stage_document(&self, workspace_id: &str, document: Value) -> Result<(), String> {
@@ -402,7 +638,7 @@ impl ProjectV2Manager {
         digest: &str,
         operation_id: &str,
     ) -> Result<MaterializedAssetResult, String> {
-        let (source_file, cache, asset) = {
+        let (source_file, cache, staged_asset, asset) = {
             let manager = self
                 .inner
                 .lock()
@@ -420,13 +656,20 @@ impl ProjectV2Manager {
                 .try_clone()
                 .map_err(|error| format!("archive-open-failed: {error}"))?;
             let cache = workspace.root.join("cache").join("assets");
-            (source_file, cache, asset)
+            let staged_asset = workspace
+                .root
+                .join("working")
+                .join(posix_to_path(&asset.entry_name()));
+            (source_file, cache, staged_asset, asset)
         };
-        fs::create_dir_all(&cache).map_err(|error| format!("workspace-create-failed: {error}"))?;
-        validate_non_reparse_path(cache.parent().unwrap_or(&cache))?;
-        let available = available_space(&cache)?;
-        if available < asset.byte_length.saturating_add(SAVE_SPACE_MARGIN_BYTES) {
-            return Err("insufficient-space".to_string());
+        if !staged_asset.is_file() {
+            fs::create_dir_all(&cache)
+                .map_err(|error| format!("workspace-create-failed: {error}"))?;
+            validate_non_reparse_path(cache.parent().unwrap_or(&cache))?;
+            let available = available_space(&cache)?;
+            if available < asset.byte_length.saturating_add(SAVE_SPACE_MARGIN_BYTES) {
+                return Err("insufficient-space".to_string());
+            }
         }
         let cancelled = {
             let mut manager = self
@@ -435,7 +678,12 @@ impl ProjectV2Manager {
                 .map_err(|_| "workspace-state-poisoned".to_string())?;
             operation_flag(&mut manager, operation_id)?
         };
-        let path = match materialize_asset(source_file, &cache, &asset, &cancelled) {
+        let materialized = if staged_asset.is_file() {
+            verify_staged_asset(&staged_asset, &asset, &cancelled).map(|_| staged_asset)
+        } else {
+            materialize_asset(source_file, &cache, &asset, &cancelled)
+        };
+        let path = match materialized {
             Ok(value) => value,
             Err(error) => {
                 self.finish_operation(operation_id);
@@ -561,6 +809,7 @@ impl ProjectV2Manager {
             workspace_root,
             source_signature_at_open,
             source_fingerprint,
+            source_kind,
             asset_bytes,
         ) = {
             let manager = self
@@ -577,6 +826,7 @@ impl ProjectV2Manager {
                 workspace.root.clone(),
                 workspace.source_signature.clone(),
                 workspace.source_fingerprint.clone(),
+                workspace.source_kind.clone(),
                 workspace
                     .manifest
                     .assets
@@ -588,11 +838,17 @@ impl ProjectV2Manager {
         let destination = canonical_destination(destination)?;
         let same_source = paths_equal(&source, &destination);
         if same_source {
-            let source_changed = match open_archive_lazy(&source) {
-                Ok(visible) => {
-                    source_signature(&source, &visible.manifest_sha256)? != source_signature_at_open
+            let source_changed = match &source_kind {
+                WorkspaceSourceKind::Version2 => match open_archive_lazy(&source) {
+                    Ok(visible) => {
+                        source_signature(&source, &visible.manifest_sha256)?
+                            != source_signature_at_open
+                    }
+                    Err(_) => true,
+                },
+                WorkspaceSourceKind::Version1 { source_sha256 } => {
+                    source_signature(&source, source_sha256)? != source_signature_at_open
                 }
-                Err(_) => true,
             };
             if source_changed {
                 match external_change_choice {
@@ -611,9 +867,18 @@ impl ProjectV2Manager {
 
         let save_id = random_id("save")?;
         let temporary = sibling_temporary(&destination, &save_id)?;
-        let estimated = asset_bytes
+        let mut estimated = asset_bytes
             .checked_add(estimate_output_bytes(&workspace_root.join("working"))?)
             .ok_or_else(|| "project-size-limit".to_string())?;
+        if same_source && matches!(&source_kind, WorkspaceSourceKind::Version1 { .. }) {
+            estimated = estimated
+                .checked_add(
+                    fs::metadata(&source)
+                        .map_err(|error| format!("source-metadata-failed: {error}"))?
+                        .len(),
+                )
+                .ok_or_else(|| "project-size-limit".to_string())?;
+        }
         let available = available_space(destination.parent().unwrap_or(Path::new(".")))?;
         if available < estimated.saturating_add(SAVE_SPACE_MARGIN_BYTES) {
             return Err("insufficient-space".to_string());
@@ -673,8 +938,13 @@ impl ProjectV2Manager {
             return Err(self.abort_save(&attempt, "failed", error));
         }
 
+        let source_archive = if matches!(&source_kind, WorkspaceSourceKind::Version2) {
+            Some(source_file)
+        } else {
+            None
+        };
         let write_result = write_replacement_archive(
-            Some(source_file),
+            source_archive,
             &workspace_root.join("working"),
             &temporary,
             &cancelled,
@@ -696,10 +966,33 @@ impl ProjectV2Manager {
             return Err(self.abort_save(&attempt, "cancelled", "operation-cancelled".to_string()));
         }
 
+        let version_1_backup =
+            if same_source && matches!(&source_kind, WorkspaceSourceKind::Version1 { .. }) {
+                match create_version_1_backup(&source) {
+                    Ok(path) => Some(path),
+                    Err(error) => {
+                        let _ = fs::remove_file(&temporary);
+                        return Err(self.abort_save(&attempt, "failed", error));
+                    }
+                }
+            } else {
+                None
+            };
+        if cancelled.load(Ordering::Relaxed) {
+            let _ = fs::remove_file(&temporary);
+            if let Some(backup) = &version_1_backup {
+                let _ = fs::remove_file(backup);
+            }
+            return Err(self.abort_save(&attempt, "cancelled", "operation-cancelled".to_string()));
+        }
+
         let replaced_existing = match replace_visible_archive(&temporary, &destination) {
             Ok(value) => value,
             Err(error) => {
                 let _ = fs::remove_file(&temporary);
+                if let Some(backup) = &version_1_backup {
+                    let _ = fs::remove_file(backup);
+                }
                 return Err(self.abort_save(&attempt, "failed", error));
             }
         };
@@ -731,6 +1024,7 @@ impl ProjectV2Manager {
             replaced_existing,
             directory_flush_supported,
             visible_archive_reopened: true,
+            version_1_backup_created: version_1_backup.is_some(),
         };
         let workspace_commit = {
             let mut manager = self
@@ -747,6 +1041,7 @@ impl ProjectV2Manager {
                 );
                 workspace.source_fingerprint = new_fingerprint.clone();
                 workspace.source_signature = new_signature;
+                workspace.source_kind = WorkspaceSourceKind::Version2;
                 workspace.manifest = reopened.manifest;
                 workspace.manifest_value = reopened.manifest_value;
                 workspace.state.source_fingerprint = new_fingerprint.clone();
@@ -1208,6 +1503,105 @@ fn stage_open_archive(
     Ok(())
 }
 
+fn stage_prepared_migration(
+    working_dir: &Path,
+    prepared: &super::migration::PreparedMigration,
+) -> Result<(), String> {
+    write_bytes_atomic(
+        &working_dir.join("manifest.json"),
+        &serde_json::to_vec(&prepared.manifest_value)
+            .map_err(|error| format!("manifest-serialize-failed: {error}"))?,
+    )?;
+    for (name, value) in &prepared.records {
+        write_bytes_atomic(
+            &working_dir.join(posix_to_path(name)),
+            &serde_json::to_vec(value)
+                .map_err(|error| format!("record-serialize-failed: {error}"))?,
+        )?;
+    }
+    for asset in &prepared.assets {
+        if asset.bytes.len() as u64 != asset.record.byte_length
+            || super::archive::sha256_bytes(&asset.bytes) != asset.record.digest
+        {
+            return Err("migration-asset-digest-mismatch".to_string());
+        }
+        write_bytes_atomic(
+            &working_dir.join(posix_to_path(&asset.record.entry_name())),
+            &asset.bytes,
+        )?;
+    }
+    Ok(())
+}
+
+fn verify_staged_asset(
+    path: &Path,
+    asset: &super::model::AssetRecord,
+    cancelled: &AtomicBool,
+) -> Result<(), String> {
+    use sha2::Digest;
+
+    validate_non_reparse_path(path.parent().unwrap_or(path))?;
+    let mut file = File::open(path).map_err(|_| "staged-asset-open-failed".to_string())?;
+    let mut hasher = sha2::Sha256::new();
+    let mut byte_length = 0_u64;
+    let mut buffer = vec![0_u8; 1024 * 1024];
+    loop {
+        if cancelled.load(Ordering::Relaxed) {
+            return Err("operation-cancelled".to_string());
+        }
+        let count = file
+            .read(&mut buffer)
+            .map_err(|_| "staged-asset-read-failed".to_string())?;
+        if count == 0 {
+            break;
+        }
+        hasher.update(&buffer[..count]);
+        byte_length = byte_length
+            .checked_add(count as u64)
+            .ok_or_else(|| "project-size-limit".to_string())?;
+    }
+    if byte_length != asset.byte_length || format!("{:x}", hasher.finalize()) != asset.digest {
+        return Err("staged-asset-digest-mismatch".to_string());
+    }
+    Ok(())
+}
+
+fn load_complete_working_migration(
+    working_dir: &Path,
+) -> Result<(Manifest, Value, BTreeMap<String, Value>), String> {
+    let manifest_value: Value = read_json(&working_dir.join("manifest.json"))?;
+    super::archive::validate_project_document(&manifest_value)?;
+    let manifest: Manifest = serde_json::from_value(manifest_value.clone())
+        .map_err(|error| format!("manifest-invalid: {error}"))?;
+    let mut records = BTreeMap::new();
+    for (_, record_type, ids) in manifest.record_order.lists() {
+        for id in ids {
+            let name = record_entry_name(record_type, id)?;
+            let value: Value = read_json(&working_dir.join(posix_to_path(&name)))?;
+            super::archive::validate_project_document(&value)?;
+            if value.get("recordType").and_then(Value::as_str) != Some(record_type)
+                || value.get("id").and_then(Value::as_str) != Some(id)
+            {
+                return Err("record-identity-mismatch".to_string());
+            }
+            records.insert(name, value);
+        }
+    }
+    super::archive::validate_record_graph(&manifest, records.values())?;
+    for asset in &manifest.assets {
+        let path = working_dir.join(posix_to_path(&asset.entry_name()));
+        if fs::metadata(&path)
+            .map_err(|_| "migration-asset-missing".to_string())?
+            .len()
+            != asset.byte_length
+            || super::archive::sha256_file(&path)? != asset.digest
+        {
+            return Err("migration-asset-digest-mismatch".to_string());
+        }
+    }
+    Ok((manifest, manifest_value, records))
+}
+
 fn load_workspace_overlay(
     working_dir: &Path,
     archive: &super::model::ValidatedArchive,
@@ -1493,6 +1887,61 @@ fn sibling_temporary(destination: &Path, save_id: &str) -> Result<PathBuf, Strin
     Ok(parent.join(format!(".{name}.{save_id}.replacement")))
 }
 
+fn create_version_1_backup(source: &Path) -> Result<PathBuf, String> {
+    let parent = source
+        .parent()
+        .ok_or_else(|| "backup-parent-missing".to_string())?;
+    let file_name = source
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "backup-file-name-invalid".to_string())?;
+    let timestamp = Utc::now().format("%Y%m%dT%H%M%S%.3fZ");
+    let mut selected = None;
+    for suffix in 0..1000_u32 {
+        let discriminator = if suffix == 0 {
+            String::new()
+        } else {
+            format!(".{suffix}")
+        };
+        let candidate = parent.join(format!("{file_name}.{timestamp}{discriminator}.v1-backup"));
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(file) => {
+                selected = Some((candidate, file));
+                break;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => return Err(format!("version-1-backup-create-failed: {error}")),
+        }
+    }
+    let (backup, mut output) = selected.ok_or_else(|| "version-1-backup-collision".to_string())?;
+    let result = (|| -> Result<(), String> {
+        let mut input =
+            File::open(source).map_err(|error| format!("version-1-backup-read-failed: {error}"))?;
+        std::io::copy(&mut input, &mut output)
+            .map_err(|error| format!("version-1-backup-write-failed: {error}"))?;
+        output
+            .flush()
+            .map_err(|error| format!("version-1-backup-flush-failed: {error}"))?;
+        output
+            .sync_all()
+            .map_err(|error| format!("version-1-backup-flush-failed: {error}"))?;
+        drop(output);
+        if super::archive::sha256_file(source)? != super::archive::sha256_file(&backup)? {
+            return Err("version-1-backup-digest-mismatch".to_string());
+        }
+        Ok(())
+    })();
+    if let Err(error) = result {
+        let _ = fs::remove_file(&backup);
+        return Err(error);
+    }
+    Ok(backup)
+}
+
 fn estimate_output_bytes(working: &Path) -> Result<u64, String> {
     fn visit(path: &Path, total: &mut u64) -> Result<(), String> {
         for entry in
@@ -1707,19 +2156,20 @@ mod tests {
     use std::os::windows::fs::OpenOptionsExt;
     use std::{
         fs::{self, File},
-        io::Write,
+        io::{Read, Write},
         path::{Path, PathBuf},
         sync::{atomic::AtomicBool, Arc},
         time::{Instant, SystemTime},
     };
 
+    use flate2::read::GzDecoder;
     use serde_json::{json, Value};
     use tauri::http::{header, Method, Request, StatusCode};
     use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
     use super::{
-        operation_flag, parse_single_range, random_secret_hex, AssetToken, ExternalChangeChoice,
-        ProjectV2Manager, MAX_FULL_PROTOCOL_RESPONSE_BYTES,
+        operation_flag, parse_single_range, posix_to_path, random_secret_hex, AssetToken,
+        ExternalChangeChoice, ProjectV2Manager, MAX_FULL_PROTOCOL_RESPONSE_BYTES,
     };
     use crate::project_v2::archive::{sha256_bytes, validate_archive, write_replacement_archive};
 
@@ -1936,6 +2386,138 @@ mod tests {
         let evicted = manager.evict_clean_cache(0, "evict-round-trip").unwrap();
         assert_eq!(evicted.bytes_after, 0);
         assert_eq!(evicted.evicted_entries, 1);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn migrates_version_one_with_exact_assets_backup_and_stable_round_trips() {
+        let root = temp_test_dir("v1-migration-round-trip");
+        let source = root.join("legacy.gamebook");
+        fs::create_dir_all(&root).unwrap();
+        fs::copy(version_1_fixture(), &source).unwrap();
+        let source_before = fs::read(&source).unwrap();
+
+        let manager = ProjectV2Manager::default();
+        manager.initialize(&root.join("app-data")).unwrap();
+        let migrated = manager
+            .migrate_v1_path(&source, "migrate-version-one")
+            .unwrap();
+        assert_eq!(migrated.source_format, "gzip-json-v1");
+        assert_eq!(migrated.report["status"], "passed");
+        assert_eq!(migrated.report["sourceMutated"], false);
+        assert_eq!(fs::read(&source).unwrap(), source_before);
+
+        let digest = migrated.manifest["assets"][0]["digest"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let materialized = manager
+            .materialize(
+                &migrated.workspace_id,
+                &digest,
+                "materialize-migrated-screenshot",
+            )
+            .unwrap();
+        let request = Request::builder()
+            .method(Method::GET)
+            .uri(format!("gamebook-media://asset/{}", materialized.token))
+            .body(Vec::new())
+            .unwrap();
+        let response = manager.media_response(&request);
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(sha256_bytes(response.body()), digest);
+
+        let first_save = manager
+            .save_to(
+                &migrated.workspace_id,
+                &source,
+                ExternalChangeChoice::Replace,
+                "save-migrated-version-one",
+            )
+            .unwrap();
+        assert!(first_save.visible_archive_reopened);
+        assert!(first_save.version_1_backup_created);
+        let backups = version_1_backups(&root);
+        assert_eq!(backups.len(), 1);
+        assert_eq!(fs::read(&backups[0]).unwrap(), source_before);
+
+        let first_archive = validate_archive(&source).unwrap();
+        let second_save = manager
+            .save_to(
+                &migrated.workspace_id,
+                &source,
+                ExternalChangeChoice::Replace,
+                "save-migrated-version-two-again",
+            )
+            .unwrap();
+        assert!(!second_save.version_1_backup_created);
+        assert_eq!(version_1_backups(&root).len(), 1);
+        let second_archive = validate_archive(&source).unwrap();
+        assert_eq!(first_archive.manifest_value, second_archive.manifest_value);
+        assert_eq!(first_archive.records, second_archive.records);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn migration_failures_and_future_versions_preserve_sources_and_backup_state() {
+        let root = temp_test_dir("v1-migration-failure");
+        let source = root.join("legacy.gamebook");
+        fs::create_dir_all(&root).unwrap();
+        fs::copy(version_1_fixture(), &source).unwrap();
+        let source_before = fs::read(&source).unwrap();
+
+        let manager = ProjectV2Manager::default();
+        manager.initialize(&root.join("app-data")).unwrap();
+        let migrated = manager
+            .migrate_v1_path(&source, "migrate-for-failure")
+            .unwrap();
+        let asset_path = {
+            let state = manager.inner.lock().unwrap();
+            let workspace = state.workspaces.get(&migrated.workspace_id).unwrap();
+            let asset = &workspace.manifest.assets[0];
+            workspace
+                .root
+                .join("working")
+                .join(posix_to_path(&asset.entry_name()))
+        };
+        fs::write(&asset_path, b"corrupt staged asset").unwrap();
+        assert!(manager
+            .save_to(
+                &migrated.workspace_id,
+                &source,
+                ExternalChangeChoice::Replace,
+                "save-invalid-migration",
+            )
+            .unwrap_err()
+            .contains("asset-digest-mismatch"));
+        assert_eq!(fs::read(&source).unwrap(), source_before);
+        assert!(version_1_backups(&root).is_empty());
+        assert!(manager.inner.lock().unwrap().operations.is_empty());
+
+        let mut decoder = GzDecoder::new(File::open(version_1_fixture()).unwrap());
+        let mut plain_source = Vec::new();
+        decoder.read_to_end(&mut plain_source).unwrap();
+        fs::write(&source, plain_source).unwrap();
+        assert_eq!(
+            manager
+                .migrate_v1_path(&source, "migrate-externally-changed-source")
+                .unwrap_err(),
+            "migration-source-changed-recovery-required"
+        );
+        assert!(manager.inner.lock().unwrap().operations.is_empty());
+
+        let future = root.join("future.gamebook");
+        fs::write(&future, br#"{"formatVersion":3}"#).unwrap();
+        assert_eq!(
+            manager
+                .migrate_v1_path(&future, "migrate-future-version")
+                .unwrap_err(),
+            "future-version-rejected"
+        );
+        assert_eq!(fs::read(&future).unwrap(), br#"{"formatVersion":3}"#);
+        assert!(manager.inner.lock().unwrap().operations.is_empty());
+
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -2449,5 +3031,25 @@ mod tests {
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!("gamebook-{name}-{nonce}"))
+    }
+
+    fn version_1_fixture() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../src/test/fixtures/projects/version1/basic-screenshot.gamebook.fixture")
+    }
+
+    fn version_1_backups(root: &Path) -> Vec<PathBuf> {
+        let mut paths = fs::read_dir(root)
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|value| value.to_str())
+                    .is_some_and(|value| value.ends_with(".v1-backup"))
+            })
+            .collect::<Vec<_>>();
+        paths.sort();
+        paths
     }
 }

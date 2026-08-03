@@ -382,7 +382,7 @@ fn expected_record_entries(
     Ok(result)
 }
 
-fn validate_record_graph<'a>(
+pub(crate) fn validate_record_graph<'a>(
     manifest: &Manifest,
     records: impl Iterator<Item = &'a Value>,
 ) -> Result<(), String> {
@@ -1187,7 +1187,7 @@ fn read_file_limited(path: &Path, limit: u64) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-fn validate_archive_name(raw: &[u8]) -> Result<String, String> {
+pub(crate) fn validate_archive_name(raw: &[u8]) -> Result<String, String> {
     let name = std::str::from_utf8(raw)
         .map_err(|_| "unsafe-entry-name: entry name is not UTF-8".to_string())?;
     if name.is_empty() || name.contains('\0') || name.contains('\\') || name.starts_with('/') {

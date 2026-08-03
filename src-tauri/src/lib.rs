@@ -497,6 +497,8 @@ pub fn run() {
             save_project,
             open_project,
             project_v2::open_project_v2,
+            project_v2::migrate_project_v1,
+            project_v2::inspect_project_v2_repair,
             project_v2::read_project_v2_record,
             project_v2::stage_project_v2_document,
             project_v2::autosave_project_v2_workspace,
