@@ -70,7 +70,9 @@ Current dry-run gaps for the screenshot workflow:
 - `npm.cmd run archive-gate:verify -- --self-test` checks the combined Milestone 4 storage-gate verifier and its negative cases.
 - `npm.cmd run archive-gate:verify -- --reference docs/spikes/archive-gate-reference-report.json` binds the Issue #17 ZIP64 recommendation, thresholds, limitations, accessibility, security/privacy, compatibility, and revisit triggers to the exact retained reports from issues #14, #15, and #16.
 - `npm.cmd run project-format-contract:verify -- --self-test` checks schema parsing, local JSON Schema references, every valid canonical/support document, 24 malformed contract fixtures, and four weakened-contract cases.
-- `npm.cmd run project-format-contract:verify -- --reference docs/spikes/project-format-freeze-reference-report.json` binds Issue #20 schemas and fixtures to accepted Issues #17-#19 evidence, ADR-0002/0008/0009, archive limits, token and Trash boundaries, the version 1 fixture, and planned Milestone 6 conformance.
+- `npm.cmd run project-format-contract:verify -- --reference docs/spikes/project-format-freeze-reference-report.json` binds Issue #20 UTF-8/LF-normalized schema and fixture hashes to accepted Issues #17-#19 evidence, ADR-0002/0008/0009, archive limits, token and Trash boundaries, the version 1 fixture, and planned Milestone 6 conformance.
+- `npm.cmd run architecture-readiness:verify -- --self-test` proves that the Milestone 5 readiness verifier rejects missing decisions, unresolved blockers, weakened downstream traceability, threshold drift, and broken documentation links.
+- `npm.cmd run architecture-readiness:verify -- --reference docs/spikes/architecture-readiness-reference-report.json` validates every local documentation link, accepted ADR, frozen schema/report identity and threshold, current-versus-future boundary, and Milestone 6 issue traceability requirement.
 - Deterministic regression fixtures live under `src/test/fixtures/`; isolated spike media may live under `src/spikes/fixtures/`. Both locations contain synthetic content only.
 - `src/test/fixtures/manifest.json` records hashes, byte counts, textual descriptions, expected failures, and accessibility descriptions.
 - Fixture updates must keep regeneration instructions and validation evidence with the fixture change.
@@ -147,7 +149,7 @@ Current dry-run gaps for the screenshot workflow:
 - Record pause, seek, exact-frame, and page-switch timings plus CPU, GPU, process private memory, presented frames, rendered frames, source-time gaps, and coalesced render callbacks.
 - Complete ten playback lifecycle loops; post-cleanup callbacks, sources, decoded frames, and attached media elements must all be zero, and private memory must return within 100 MB of baseline.
 - Verify named keyboard controls, focus, polite status, forced colors, reduced motion, 900 by 620 layout, 100/150/200 percent scale, and NVDA output.
-- Keep generated media, temporary browser profiles, and raw reports uncommitted; retain only redacted reference evidence and a Proposed rendering ADR.
+- Keep generated media, temporary browser profiles, and raw reports uncommitted; retain only redacted reference evidence governed by accepted ADR-0001.
 
 ## Sessions and export
 

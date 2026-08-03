@@ -1,0 +1,90 @@
+{
+  "schema": "gamebook.architecture-readiness-reference.v1",
+  "status": "accepted",
+  "generatedAt": "2026-08-03T09:30:00Z",
+  "governingIssue": 21,
+  "roadmapMilestone": 5,
+  "repository": "abhikhasnain1/gamebook",
+  "completedDependencies": [18, 19, 20],
+  "sourceReports": [
+    { "issue": 17, "path": "archive-gate-reference-report.json", "schema": "gamebook.archive-gate-reference.v1", "acceptedStatuses": ["passed"] },
+    { "issue": 18, "path": "native-media-freeze-reference-report.json", "schema": "gamebook.native-media-contract-reference.v1", "acceptedStatuses": ["accepted"] },
+    { "issue": 19, "path": "placement-viewport-freeze-reference-report.json", "schema": "gamebook.placement-viewport-contract-reference.v1", "acceptedStatuses": ["accepted"] },
+    { "issue": 20, "path": "project-format-freeze-reference-report.json", "schema": "gamebook.project-format-contract-reference.v1", "acceptedStatuses": ["accepted"] }
+  ],
+  "acceptedAdrs": [
+    { "id": "ADR-0001", "path": "docs/decisions/0001-media-placement-rendering.md", "domains": ["rendering", "viewport", "static-export", "accessibility"] },
+    { "id": "ADR-0002", "path": "docs/decisions/0002-zip64-project-storage.md", "domains": ["storage", "workspace", "save", "recovery"] },
+    { "id": "ADR-0003", "path": "docs/decisions/0003-direct-windows-media-capture.md", "domains": ["media-transport", "capture", "capability"] },
+    { "id": "ADR-0004", "path": "docs/decisions/0004-source-timing-and-exact-decode.md", "domains": ["timing", "exact-decode", "timed-export"] },
+    { "id": "ADR-0005", "path": "docs/decisions/0005-system-audio-loopback.md", "domains": ["audio", "consent", "synchronization"] },
+    { "id": "ADR-0006", "path": "docs/decisions/0006-sdr-color-and-logical-aperture.md", "domains": ["color", "hdr", "logical-aperture"] },
+    { "id": "ADR-0007", "path": "docs/decisions/0007-interrupted-recording-recovery.md", "domains": ["recording-recovery", "quarantine", "cancellation"] },
+    { "id": "ADR-0008", "path": "docs/decisions/0008-canonical-version-2-records.md", "domains": ["schema", "research-records", "settings", "trash", "semantic-export"] },
+    { "id": "ADR-0009", "path": "docs/decisions/0009-version-1-migration-and-repair.md", "domains": ["migration", "backup", "repair", "future-version"] }
+  ],
+  "schemas": [
+    { "path": "docs/schemas/project-v2.schema.json", "id": "urn:gamebook:schema:project:v2" },
+    { "path": "docs/schemas/global-settings-v1.schema.json", "id": "urn:gamebook:schema:global-settings:v1" },
+    { "path": "docs/schemas/workspace-v1.schema.json", "id": "urn:gamebook:schema:workspace:v1" },
+    { "path": "docs/schemas/migration-repair-v1.schema.json", "id": "urn:gamebook:schema:migration-repair:v1" }
+  ],
+  "authorityMatrix": {
+    "mediaTransport": ["ADR-0003", "ADR-0005", "ADR-0006", "ADR-0007"],
+    "timing": ["ADR-0004"],
+    "rendering": ["ADR-0001"],
+    "storageAndSave": ["ADR-0002"],
+    "migrationAndRepair": ["ADR-0009"],
+    "researchRecords": ["ADR-0008"],
+    "accessibility": ["ACCESSIBILITY.md", "ADR-0001", "ADR-0002", "ADR-0003", "ADR-0004", "ADR-0005", "ADR-0006", "ADR-0007", "ADR-0008", "ADR-0009"],
+    "securityAndPrivacy": ["SECURITY-PRIVACY.md", "ADR-0002", "ADR-0003", "ADR-0004", "ADR-0005", "ADR-0006", "ADR-0007", "ADR-0008", "ADR-0009"],
+    "compatibility": ["README.md", "ARCHITECTURE.md", "QA.md", "ADR-0008", "ADR-0009"],
+    "export": ["PRODUCT-SPEC.md", "ACCESSIBILITY.md", "SECURITY-PRIVACY.md", "ADR-0001", "ADR-0004", "ADR-0008"]
+  },
+  "frozenThresholds": {
+    "unqualifiedCaptureFps": 30,
+    "captureQualificationRatio": 0.95,
+    "audioDriftMsAfter30Seconds": 50,
+    "audioFinalizationLimitMs": 5000,
+    "minimumRenderedFps": 55,
+    "maximumTransformP95MsExclusive": 50,
+    "maximumPrivateMemoryReturnBytes": 104857600,
+    "metadataOpenMemoryLimitBytes": 268435456,
+    "fiveGiBSaveMemoryLimitBytes": 536870912,
+    "jsonEntryLimitBytes": 16777216,
+    "previewEntryLimitBytes": 33554432,
+    "archiveEntryLimit": 250000,
+    "mediaTokenBits": 256,
+    "renderWidth": 1600,
+    "renderHeight": 900,
+    "renderPerChannelThreshold": 8,
+    "renderMaximumChangedPixelRatioExclusive": 0.001
+  },
+  "milestone6Issues": [
+    {
+      "issue": 22, "key": "M6-01", "blockedBy": [21], "blocks": [23, 24, 25],
+      "acceptedSources": ["ADR-0002", "ADR-0008", "project-v2.schema.json", "workspace-v1.schema.json", "archive-gate-reference-report.json", "SECURITY-PRIVACY.md", "ACCESSIBILITY.md"],
+      "requiredConformance": ["lazy-open-and-selected-materialization", "archive-abuse-and-limits", "source-keyed-workspaces-locks-and-external-change", "autosave-recovery-and-protected-cache", "streamed-save-cancellation-replacement-and-reopen", "scoped-token-and-diagnostic-boundaries", "keyboard-focus-announcements-high-contrast-reduced-motion-and-scale", "gamebook-0.5.3-and-version-1-regression"]
+    },
+    {
+      "issue": 23, "key": "M6-02", "blockedBy": [22], "blocks": [24],
+      "acceptedSources": ["ADR-0002", "ADR-0008", "ADR-0009", "project-v2.schema.json", "migration-repair-v1.schema.json", "project-format-freeze-reference-report.json", "ACCESSIBILITY.md", "SECURITY-PRIVACY.md"],
+      "requiredConformance": ["gzip-and-plain-version-1-detection", "deterministic-id-mapping", "byte-identical-screenshot-assets", "annotation-connector-transform-text-background-order-and-metadata-equivalence", "render-diff-threshold", "collision-safe-backup-save-reopen-and-repeat-stability", "read-only-repair-and-future-version-rejection", "semantic-keyboard-focused-announced-reports", "gamebook-0.5.3-and-version-1-regression"]
+    },
+    {
+      "issue": 24, "key": "M6-03", "blockedBy": [22, 23], "blocks": [25, 28],
+      "acceptedSources": ["ADR-0001", "ADR-0008", "ADR-0009", "project-v2.schema.json", "placement-viewport-freeze-reference-report.json", "ACCESSIBILITY.md", "SECURITY-PRIVACY.md"],
+      "requiredConformance": ["stable-placement-round-trip-without-runtime-or-viewport-state", "screenshot-editing-connector-crop-history-and-page-equivalence", "semantic-outline-and-numeric-transform-controls", "static-thumbnail-png-pdf-markdown-and-text-equivalence", "1600x900-render-diff-threshold", "scoped-assets-without-path-or-base64-transport", "keyboard-focus-announcements-high-contrast-reduced-motion-and-scale", "gamebook-0.5.3-and-version-1-regression"]
+    },
+    {
+      "issue": 25, "key": "M6-04", "blockedBy": [22, 24], "blocks": [26],
+      "acceptedSources": ["ADR-0008", "ADR-0009", "project-v2.schema.json", "global-settings-v1.schema.json", "workspace-v1.schema.json", "migration-repair-v1.schema.json", "project-format-freeze-reference-report.json", "ACCESSIBILITY.md", "SECURITY-PRIVACY.md"],
+      "requiredConformance": ["sequential-field-level-settings-migration-and-corruption-preservation", "microphone-default-off-and-separate-consent", "atomic-trash-impact-delete-restore-order-and-batch-rollback", "explicit-only-trash-cleanup-and-source-retention", "canonical-research-validation-with-derived-search-and-previews", "credential-log-token-and-export-boundaries", "keyboard-focus-announcements-high-contrast-reduced-motion-scale-and-assistive-technology", "gamebook-0.5.3-and-version-1-regression"]
+    }
+  ],
+  "blockingDecisions": [],
+  "accessibility": { "requiredSpecification": "docs/ACCESSIBILITY.md", "allAcceptedAdrsHaveAccessibilitySection": true, "downstreamIssuesRequireManualEvidence": true, "minimumViewport": "900x620", "uiScale": [100, 150, 200], "nvdaRequired": true, "accessibilityInsightsRequired": true, "highContrastRequired": true, "reducedMotionRequired": true },
+  "securityAndPrivacy": { "requiredSpecification": "docs/SECURITY-PRIVACY.md", "localOnly": true, "archiveInputUntrusted": true, "frontendUnrestrictedFilesystemPermission": false, "credentialsInSettingsAllowed": false, "automaticTrashDeletionAllowed": false, "diagnosticsContainPathsTokensOrMedia": false },
+  "export": { "currentStaticExportPreserved": true, "milestone6AddsMultimediaExport": false, "futureCompositionDecision": "ADR-0001", "futureTimingDecision": "ADR-0004", "futureSemanticRecordDecision": "ADR-0008", "privacySpecification": "SECURITY-PRIVACY.md", "accessibilitySpecification": "ACCESSIBILITY.md" },
+  "compatibility": { "productionBehaviorChanged": false, "productionSchemaChanged": false, "screenshotBehaviorChanged": false, "version1ProjectChanged": false, "currentProjectFormat": "gzip-or-plain-json-v1", "futureImplementationStartsAtIssue": 22 }
+}
