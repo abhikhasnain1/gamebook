@@ -242,7 +242,8 @@ export default function App() {
     try {
       if (kind === "png") {
         setBusyLabel("Rendering PNG");
-        const currentPage = current.pages.find((page) => page.id === activePage.id)!;
+        const currentPage = await materializePageForUse(activePage.id);
+        if (!currentPage) throw new Error("The current page could not be loaded for export.");
         const image = await editorRef.current!.renderPage(currentPage, 2);
         const path = await saveBinary(image, "png", "PNG image", currentPage.title);
         if (path) setToast("PNG exported");

@@ -330,10 +330,12 @@ export async function renderPageToDataUrl(
     height: PAGE_HEIGHT,
     renderOnAddRemove: false,
   });
-  await composePage(canvas, page);
-  const dataUrl = canvas.toDataURL({ format: "png", multiplier });
-  canvas.dispose();
-  return dataUrl;
+  try {
+    await composePage(canvas, page);
+    return canvas.toDataURL({ format: "png", multiplier });
+  } finally {
+    canvas.dispose();
+  }
 }
 
 function pageSourceUrl(page: RenderablePage): string | null {

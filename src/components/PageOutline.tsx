@@ -109,8 +109,13 @@ function NumberControl({
         max={maximum}
         step={step}
         onChange={(event) => {
-          const next = Number(event.currentTarget.value);
-          if (Number.isFinite(next)) onChange(next);
+          const entered = event.currentTarget.valueAsNumber;
+          if (!Number.isFinite(entered)) return;
+          const lowerBounded = minimum === undefined ? entered : Math.max(minimum, entered);
+          const bounded = maximum === undefined
+            ? lowerBounded
+            : Math.min(maximum, lowerBounded);
+          onChange(bounded);
         }}
       />
     </label>

@@ -87,6 +87,7 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
   const [activeOperationId, setActiveOperationId] = useState<string | null>(null);
   const projectRef = useRef(project);
   const captureWorkspacePromiseRef = useRef<Promise<EditorProject> | null>(null);
+  const captureQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const setProject = useCallback<Dispatch<SetStateAction<EditorProject>>>((update) => {
     const next =
@@ -163,24 +164,28 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
     if (projectRef.current.workspaceId !== PENDING_WORKSPACE_ID) {
       return projectRef.current;
     }
-    captureWorkspacePromiseRef.current ??= createProjectV2().then((created) => {
-      if (!created) throw new Error("Could not create an unsaved project workspace.");
-      return editorProjectFromNative(created, true);
-    });
-    let created: EditorProject;
-    try {
-      created = await captureWorkspacePromiseRef.current;
-    } finally {
-      captureWorkspacePromiseRef.current = null;
-    }
-    if (projectRef.current.workspaceId !== PENDING_WORKSPACE_ID) {
-      await closeProjectV2Workspace(created.workspaceId);
-      return projectRef.current;
-    }
-    setProject(created);
-    projectRef.current = created;
-    return created;
-  }, []);
+    const existing = captureWorkspacePromiseRef.current;
+    if (existing) return existing;
+
+    const pending = createProjectV2()
+      .then(async (created) => {
+        if (!created) throw new Error("Could not create an unsaved project workspace.");
+        const project = editorProjectFromNative(created, true);
+        if (projectRef.current.workspaceId !== PENDING_WORKSPACE_ID) {
+          await closeProjectV2Workspace(project.workspaceId);
+          return projectRef.current;
+        }
+        setProject(project);
+        return project;
+      })
+      .finally(() => {
+        if (captureWorkspacePromiseRef.current === pending) {
+          captureWorkspacePromiseRef.current = null;
+        }
+      });
+    captureWorkspacePromiseRef.current = pending;
+    return pending;
+  }, [setProject]);
 
   const addCapture = useCallback(
     async (capture: ScreenshotCaptureEvent) => {
@@ -304,7 +309,9 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
     };
     void initialize().catch((error: unknown) => onError(String(error)));
     void onScreenshotCapture((capture) => {
-      void addCapture(capture).catch((error: unknown) => onError(String(error)));
+      captureQueueRef.current = captureQueueRef.current
+        .then(() => addCapture(capture))
+        .catch((error: unknown) => onError(String(error)));
     }).then((cleanup) => cleanups.push(cleanup));
     void onCaptureError(onError).then((cleanup) => cleanups.push(cleanup));
     return () => {
@@ -439,26 +446,39 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
 
   const setActivePage = useCallback(
     async (pageId: string) => {
-      const loaded = await materializePage(projectRef.current, pageId);
+      const starting = projectRef.current;
+      if (!starting.pages.some((page) => page.id === pageId)) return;
+      const loaded = await materializePage(starting, pageId);
+      if (projectRef.current.workspaceId !== starting.workspaceId) return;
+      const sourceUrl = loaded.pages.find((page) => page.id === pageId)?.sourceUrl;
       const updatedAt = new Date().toISOString();
-      const next = {
-        ...loaded,
-        manifest: { ...loaded.manifest, activePageId: pageId, updatedAt },
-      };
-      setProject(next);
-      projectRef.current = next;
+      setProject((current) => ({
+        ...current,
+        manifest: { ...current.manifest, activePageId: pageId, updatedAt },
+        pages: current.pages.map((page) =>
+          page.id === pageId && sourceUrl ? { ...page, sourceUrl } : page,
+        ),
+      }));
     },
     [materializePage],
   );
 
   const materializePageForUse = useCallback(
     async (pageId: string) => {
-      const loaded = await materializePage(projectRef.current, pageId);
-      if (loaded !== projectRef.current) {
-        setProject(loaded);
-        projectRef.current = loaded;
+      const starting = projectRef.current;
+      if (!starting.pages.some((page) => page.id === pageId)) return null;
+      const loaded = await materializePage(starting, pageId);
+      if (projectRef.current.workspaceId !== starting.workspaceId) return null;
+      const sourceUrl = loaded.pages.find((page) => page.id === pageId)?.sourceUrl;
+      if (sourceUrl) {
+        setProject((current) => ({
+          ...current,
+          pages: current.pages.map((page) =>
+            page.id === pageId ? { ...page, sourceUrl } : page,
+          ),
+        }));
       }
-      return loaded.pages.find((page) => page.id === pageId) ?? null;
+      return projectRef.current.pages.find((page) => page.id === pageId) ?? null;
     },
     [materializePage],
   );

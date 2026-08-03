@@ -36,6 +36,10 @@ describe("PageOutline", () => {
     }
     fireEvent.change(screen.getByRole("spinbutton", { name: "Rotation in degrees" }), { target: { value: "35" } });
     expect(onPlacementChange).toHaveBeenCalledWith({ angle: 35 });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Horizontal scale" }), { target: { value: "0" } });
+    expect(onPlacementChange).toHaveBeenCalledWith({ scaleX: 0.01 });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Rotation in degrees" }), { target: { value: "400" } });
+    expect(onPlacementChange).toHaveBeenCalledWith({ angle: 359.99 });
     fireEvent.click(screen.getByRole("button", { name: /boss pattern/i }));
     expect(onSelect).toHaveBeenCalledWith("note-alpha");
     await expectNoSeriousOrCriticalA11yIssues(container);

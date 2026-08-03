@@ -1258,15 +1258,17 @@ function canvasToLogicalPageDataUrl(
   const width = canvas.getWidth();
   const height = canvas.getHeight();
   const transform = [...canvas.viewportTransform] as [number, number, number, number, number, number];
-  canvas.setDimensions({ width: PAGE_WIDTH, height: PAGE_HEIGHT });
-  canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-  canvas.requestRenderAll();
-  const dataUrl = canvas.toDataURL(options);
-  canvas.setDimensions({ width, height });
-  canvas.setViewportTransform(transform);
-  canvas.calcOffset();
-  canvas.requestRenderAll();
-  return dataUrl;
+  try {
+    canvas.setDimensions({ width: PAGE_WIDTH, height: PAGE_HEIGHT });
+    canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+    canvas.requestRenderAll();
+    return canvas.toDataURL(options);
+  } finally {
+    canvas.setDimensions({ width, height });
+    canvas.setViewportTransform(transform);
+    canvas.calcOffset();
+    canvas.requestRenderAll();
+  }
 }
 
 function updateDrawingPreview(

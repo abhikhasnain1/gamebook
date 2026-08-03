@@ -100,6 +100,60 @@ describe("useProjectV2 production workspace flow", () => {
     );
   });
 
+  it("serializes rapid captures through one adopted workspace", async () => {
+    let resolveWorkspace: ((value: NativeProjectFixture) => void) | null = null;
+    native.createProjectV2.mockReturnValue(
+      new Promise<NativeProjectFixture>((resolve) => {
+        resolveWorkspace = resolve;
+      }),
+    );
+    native.claimScreenshotCapture.mockImplementation(async (_workspaceId, captureId) => ({
+      token: captureId,
+      digest: captureId === "1".repeat(64) ? "a".repeat(64) : "b".repeat(64),
+      mimeType: "image/png",
+      byteLength: 42,
+      expiresAfterSeconds: 600,
+    }));
+    const onError = vi.fn();
+    const { result } = renderHook(() => useProjectV2(onError));
+    await waitFor(() => expect(result.current.hydrated).toBe(true));
+
+    act(() => {
+      captureListener?.({
+        captureId: "1".repeat(64),
+        capturedAt: "2026-08-03T00:00:01Z",
+        monitorName: "Display 1",
+        width: 1920,
+        height: 1080,
+        monitorX: 0,
+        monitorY: 0,
+      });
+      captureListener?.({
+        captureId: "2".repeat(64),
+        capturedAt: "2026-08-03T00:00:02Z",
+        monitorName: "Display 2",
+        width: 2560,
+        height: 1440,
+        monitorX: 1920,
+        monitorY: 0,
+      });
+    });
+    await waitFor(() => expect(native.createProjectV2).toHaveBeenCalledOnce());
+    await act(async () => {
+      resolveWorkspace?.(emptyNativeProject("workspace-rapid"));
+    });
+    await waitFor(() => expect(result.current.project.pages).toHaveLength(2));
+
+    expect(native.createProjectV2).toHaveBeenCalledOnce();
+    expect(native.claimScreenshotCapture.mock.calls).toEqual([
+      ["workspace-rapid", "1".repeat(64)],
+      ["workspace-rapid", "2".repeat(64)],
+    ]);
+    expect(result.current.project.pages.map((page) => page.title)).toEqual(["1", "2"]);
+    expect(native.closeProjectV2Workspace).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   it("opens a migrated project, materializes its active screenshot, and saves canonical documents", async () => {
     native.openProjectForEditor.mockResolvedValue({
       outcome: "migrated",
@@ -169,6 +223,64 @@ describe("useProjectV2 production workspace flow", () => {
       expect.any(String),
     );
     expect(result.current.project.requiresSaveAs).toBe(false);
+  });
+
+  it("preserves edits made while a page asset is being renewed", async () => {
+    native.openProjectForEditor.mockResolvedValue({
+      outcome: "opened",
+      project: populatedNativeProject("workspace-open"),
+    });
+    native.materializeProjectV2Asset.mockResolvedValue({
+      token: "a".repeat(64),
+      digest: "b".repeat(64),
+      mimeType: "image/png",
+      byteLength: 42,
+      expiresAfterSeconds: 600,
+    });
+    const onError = vi.fn();
+    const { result } = renderHook(() => useProjectV2(onError));
+    await waitFor(() => expect(result.current.hydrated).toBe(true));
+    await act(async () => {
+      await result.current.openProject();
+    });
+
+    let resolveMaterialization:
+      | ((value: {
+          token: string;
+          digest: string;
+          mimeType: string;
+          byteLength: number;
+          expiresAfterSeconds: number;
+        }) => void)
+      | null = null;
+    native.materializeProjectV2Asset.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveMaterialization = resolve;
+      }),
+    );
+    let selection: Promise<void> | undefined;
+    act(() => {
+      selection = result.current.setActivePage("page-primary");
+    });
+    act(() => {
+      result.current.updatePage("page-primary", { extractedText: "edit during renewal" });
+    });
+    await act(async () => {
+      resolveMaterialization?.({
+        token: "c".repeat(64),
+        digest: "b".repeat(64),
+        mimeType: "image/png",
+        byteLength: 42,
+        expiresAfterSeconds: 600,
+      });
+      await selection;
+    });
+
+    expect(result.current.activePage).toMatchObject({
+      extractedText: "edit during renewal",
+      sourceUrl: `gamebook-media://asset/${"c".repeat(64)}`,
+    });
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it("recovers a protected workspace through its opaque id", async () => {
