@@ -28,6 +28,8 @@
     "zip64-lazy:verify": "node tools/spikes/verify-zip64-lazy-materialization-report.mjs",
     "workspace-lifecycle:run": "node tools/spikes/run-workspace-lifecycle.mjs",
     "workspace-lifecycle:verify": "node tools/spikes/verify-workspace-lifecycle-report.mjs",
+    "streamed-save:run": "node tools/spikes/run-streamed-save.mjs",
+    "streamed-save:verify": "node tools/spikes/verify-streamed-save-report.mjs",
     "check": "tsc --noEmit"
   },
   "dependencies": {

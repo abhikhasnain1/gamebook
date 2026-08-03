@@ -1,0 +1,82 @@
+:root {
+  color: #202426;
+  background: #e8ebea;
+  font-family: "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 900px; min-height: 620px; }
+button, select { font: inherit; }
+button:focus-visible, select:focus-visible, [tabindex="-1"]:focus-visible { outline: 3px solid #005fcc; outline-offset: 2px; }
+html[data-ui-scale] body { min-width: var(--ui-scale-min-width); min-height: var(--ui-scale-min-height); overflow: hidden; }
+html[data-ui-scale] .save-shell { width: var(--ui-scale-width); height: var(--ui-scale-height); min-height: var(--ui-scale-min-height); transform: scale(var(--ui-scale)); transform-origin: top left; }
+html[data-ui-scale] .save-shell > main { display: block; overflow: auto; }
+html[data-ui-scale] .save-operation,
+html[data-ui-scale] .save-shell aside { overflow: visible; }
+html[data-ui-scale] .save-shell aside { border-top: 1px solid #a9b1b3; border-left: 0; }
+html[data-ui-scale="2"] .save-shell > header { align-items: flex-start; flex-direction: column; gap: 6px; }
+
+.save-shell { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 620px; height: 100vh; }
+.save-shell > header,
+.save-shell > footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 16px; border-bottom: 1px solid #a9b1b3; background: #fff; }
+.save-shell header p,
+.save-shell header h1,
+.save-shell footer p { margin: 0; letter-spacing: 0; }
+.save-shell header p { color: #526066; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+.save-shell header h1 { font-size: 21px; }
+.save-badge { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; }
+.save-badge svg { width: 18px; height: 18px; color: #12613a; }
+
+.save-shell > main { display: grid; grid-template-columns: minmax(0, 1fr) 280px; min-height: 0; }
+.save-operation { padding: 18px; overflow: auto; }
+.save-operation h2,
+.save-shell aside h2 { margin: 0 0 14px; font-size: 17px; }
+.save-operation > label { display: grid; max-width: 440px; gap: 5px; color: #465156; font-size: 13px; font-weight: 700; }
+.save-operation select { min-width: 0; height: 36px; border: 1px solid #7d898c; border-radius: 4px; padding: 0 9px; color: #202426; background: #fff; }
+.save-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.save-actions button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 7px; border: 1px solid #657174; border-radius: 4px; padding: 7px 11px; color: #202426; background: #fff; font-weight: 700; }
+.save-actions button:disabled { color: #6d777a; border-color: #b8bfc1; background: #e6e9e8; }
+.save-actions svg { width: 17px; height: 17px; }
+
+.save-progress,
+.save-alert,
+.save-result { display: flex; align-items: flex-start; gap: 10px; margin-top: 18px; border: 1px solid #a9b1b3; border-radius: 6px; padding: 14px; background: #fff; }
+.save-progress > svg { color: #245b8f; }
+.save-alert > svg { color: #9a3b14; }
+.save-result > svg { color: #12613a; }
+.save-progress > svg,
+.save-alert > svg,
+.save-result > svg { width: 20px; height: 20px; flex: 0 0 auto; }
+.save-progress > div,
+.save-alert > div,
+.save-result > div { display: grid; min-width: 0; gap: 6px; }
+.save-progress h3,
+.save-alert h3 { margin: 0; font-size: 16px; }
+.save-progress p,
+.save-alert p { margin: 0; line-height: 1.4; }
+.save-progress progress { width: min(420px, 100%); height: 18px; accent-color: #12613a; }
+
+.save-shell aside { padding: 18px; overflow: auto; border-left: 1px solid #a9b1b3; background: #f7f8f7; }
+.save-shell aside dl { margin: 0; }
+.save-shell aside dl div { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid #d0d5d4; }
+.save-shell aside dd { margin: 0; text-align: right; font-weight: 700; }
+.save-shell aside p { color: #4f5c60; font-size: 13px; line-height: 1.4; }
+.save-shell > footer { min-height: 46px; border-top: 1px solid #a9b1b3; border-bottom: 0; font-size: 13px; }
+
+@media (max-width: 700px) {
+  .save-shell > main { grid-template-columns: 1fr; overflow: auto; }
+  .save-shell aside { border-top: 1px solid #a9b1b3; border-left: 0; }
+}
+
+@media (forced-colors: active) {
+  .save-actions button,
+  .save-operation select,
+  .save-progress,
+  .save-alert,
+  .save-result { border: 2px solid CanvasText; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
+}
