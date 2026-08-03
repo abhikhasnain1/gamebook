@@ -188,6 +188,20 @@ pub struct OpenProjectResult {
     pub recovery_required: bool,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrationProjectResult {
+    pub workspace_id: String,
+    pub project_id: String,
+    pub manifest: Value,
+    pub records: Vec<Value>,
+    pub report: Value,
+    pub source_format: String,
+    pub reused_workspace: bool,
+    pub copy_detected: bool,
+    pub recovery_required: bool,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ExternalChangeChoice {
@@ -204,6 +218,7 @@ pub struct SaveProjectResult {
     pub replaced_existing: bool,
     pub directory_flush_supported: bool,
     pub visible_archive_reopened: bool,
+    pub version_1_backup_created: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]

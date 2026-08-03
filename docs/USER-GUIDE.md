@@ -42,7 +42,7 @@ Save writes an editable, compressed `.gamebook` project. The first save asks for
 
 Gamebook also maintains a private recovery copy after a short quiet period and immediately before closing the overlay. Recovery serialization is sent once to Rust, and compression runs on a background worker so large multi-page projects do not interrupt drawing. The recovery copy is restored the next time the app starts, even when the previous session ended unexpectedly.
 
-The visible editor currently uses the version 1 screenshot project workflow described here. A native version 2 archive and workspace foundation is present for upcoming migration and placement work, but it is not exposed as a separate Open, Save, or recovery workflow yet; current projects are not converted or changed implicitly.
+The visible editor currently uses the version 1 screenshot project workflow described here. Native version 2 archive, workspace, deterministic migration, read-only repair, and backup foundations are present for upcoming placement work, but they are not exposed as a separate Open, Save, repair, or recovery workflow yet; current projects are not converted or changed implicitly.
 
 ## Export
 

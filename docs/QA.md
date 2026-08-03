@@ -50,6 +50,13 @@ Current dry-run gaps for the screenshot workflow:
 - Run `cargo test --manifest-path src-tauri/Cargo.toml --lib`, `cargo clippy --manifest-path src-tauri/Cargo.toml --lib -- -D warnings`, `npm.cmd run frontend:test`, and `npm.cmd run frontend:build` for every persistence change.
 - Production adoption must rerun the 5 GiB archive, OneDrive-managed replacement, forced-interruption, low-space, accessibility, and current screenshot/version 1 matrices. The current issue introduces no new visible control, so keyboard, focus, announcement, scale, High Contrast, Accessibility Insights, and NVDA validation attach to the dependent production migration and placement surfaces rather than to an unreachable backend command.
 
+## Version 1 migration and repair foundation
+
+- Rust tests cover Gzip and plain JSON content detection, deterministic IDs and records, byte-identical screenshot assets, page order and active-page mapping, annotation IDs/order/text/transforms, schema-valid ordered reports, read-only valid/missing/future/malformed repair outcomes, cancellation, source preservation, failed-save cleanup, collision-safe first-replacement backup, materialization, and stable repeated version 2 Save.
+- Frontend command-contract tests verify that migration accepts only an operation ID, repair accepts no renderer-supplied data, reports expose stable textual code/severity/status without paths or base64 media, and Save reports whether the version 1 backup was created.
+- The engine-only commands are not connected to the production editor. Keyboard, focus, announcements, 900 by 620 layout, 100/150/200 percent scale, High Contrast, reduced motion, Accessibility Insights, NVDA, and measured 1600 by 900 render-difference evidence attach to the dependent canonical placement and production migration workflow.
+- Run `cargo test --manifest-path src-tauri/Cargo.toml --lib`, `cargo clippy --manifest-path src-tauri/Cargo.toml --lib -- -D warnings`, `npm.cmd run frontend:test`, both project-format verifier modes, both architecture-readiness verifier modes, and fixture verification for every migration or repair change.
+
 ## Deterministic fixtures
 
 - `npm.cmd run fixtures:verify` checks every generated fixture against the committed manifest.

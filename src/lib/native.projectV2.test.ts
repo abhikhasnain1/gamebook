@@ -61,4 +61,52 @@ describe("version 2 native command boundary", () => {
       operationId: "materialize-alpha",
     });
   });
+
+  it("migrates and inspects repair without accepting paths or media bytes", async () => {
+    const { inspectProjectV2Repair, migrateProjectV1 } = await import("./native");
+    invoke
+      .mockResolvedValueOnce({
+        workspaceId: "workspace-migrated",
+        report: {
+          recordType: "migration-report",
+          sourceMutated: false,
+          messages: [
+            {
+              code: "migration-complete",
+              severity: "info",
+              recordId: null,
+              detail: "Migration prepared one page record.",
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        recordType: "repair-report",
+        mode: "read-only",
+        status: "recoverable",
+        sourceMutated: false,
+        inventedReplacements: false,
+        messages: [],
+      });
+
+    const migration = await migrateProjectV1("migration-alpha");
+    const repair = await inspectProjectV2Repair();
+
+    expect(migration?.report.sourceMutated).toBe(false);
+    expect(migration?.report.messages[0]).toMatchObject({
+      code: "migration-complete",
+      severity: "info",
+      recordId: null,
+    });
+    expect(repair).toMatchObject({
+      mode: "read-only",
+      sourceMutated: false,
+      inventedReplacements: false,
+    });
+    expect(invoke).toHaveBeenNthCalledWith(1, "migrate_project_v1", {
+      operationId: "migration-alpha",
+    });
+    expect(invoke).toHaveBeenNthCalledWith(2, "inspect_project_v2_repair");
+    expect(JSON.stringify(invoke.mock.calls)).not.toMatch(/base64|path|destination/i);
+  });
 });
