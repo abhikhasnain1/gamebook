@@ -20,7 +20,10 @@ const assert = (condition, message) => { if (!condition) fail(message); };
 const clone = (value) => structuredClone(value);
 const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const readJson = async (file) => JSON.parse(await readFile(file, "utf8"));
-const digest = async (file) => createHash("sha256").update(await readFile(file)).digest("hex");
+const digest = async (file) => {
+  const canonicalText = (await readFile(file, "utf8")).replaceAll("\r\n", "\n");
+  return createHash("sha256").update(canonicalText, "utf8").digest("hex");
+};
 
 function resolveRef(rootSchema, ref) {
   assert(ref.startsWith("#/"), `Only local schema references are allowed: ${ref}`);
@@ -271,6 +274,7 @@ async function loadInputs() {
 async function verifyReference(reportPath, inputs) {
   const report = await readJson(path.resolve(root, reportPath));
   assert(report.schema === "gamebook.project-format-contract-reference.v1" && report.status === "accepted" && report.governingIssue === 20, "Invalid project-format freeze report identity");
+  assert(report.artifactHashNormalization === "utf8-lf", "Artifact hash normalization changed");
   assert(equal(report.acceptedAdrs, ["ADR-0002", "ADR-0008", "ADR-0009"]), "Accepted ADR set changed");
   const expectedSources = [[17, "gamebook.archive-gate-reference.v1"], [18, "gamebook.native-media-contract-reference.v1"], [19, "gamebook.placement-viewport-contract-reference.v1"]];
   for (const [issue, schema] of expectedSources) {

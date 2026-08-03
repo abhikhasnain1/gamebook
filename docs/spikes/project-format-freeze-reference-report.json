@@ -3,6 +3,7 @@
   "status": "accepted",
   "generatedAt": "2026-08-03T09:30:00Z",
   "governingIssue": 20,
+  "artifactHashNormalization": "utf8-lf",
   "acceptedAdrs": ["ADR-0002", "ADR-0008", "ADR-0009"],
   "sources": [
     { "issue": 17, "path": "archive-gate-reference-report.json", "schema": "gamebook.archive-gate-reference.v1" },

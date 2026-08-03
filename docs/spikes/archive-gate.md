@@ -1,5 +1,7 @@
 # ZIP64 archive feasibility gate
 
+> Status: Accepted feasibility evidence. Issue #20 accepted the recommended container and measured limitations in ADR-0002; this report preserves the Issue #17 gate context and does not claim production persistence exists.
+
 ## Scope
 
 Issue #17 combines the independently reviewed evidence from the ZIP64 lazy-open and materialization spike (#14), workspace identity and lifecycle spike (#15), and streamed Save and replacement spike (#16). It selects the container that Milestone 5 may freeze; it does not freeze the version 2 schema, implement persistence, or change Gamebook 0.5.3 behavior.
@@ -29,7 +31,7 @@ The 5 GiB first Save completed in 17.358 seconds, local replacement in 17.680 se
 
 ## Recommendation
 
-Propose ZIP64 as Gamebook's version 2 self-contained project container for Milestone 5 acceptance. The native layer owns archive and workspace I/O. Media remains stored and content-addressed; JSON records remain separately compressed; initial open reads only the central directory, manifest, and required records; selected assets materialize into a user-scoped workspace only after size, CRC, and SHA-256 validation.
+The Issue #17 recommendation was to use ZIP64 as Gamebook's version 2 self-contained project container. Issue #20 later accepted that recommendation in ADR-0002. The native layer owns archive and workspace I/O. Media remains stored and content-addressed; JSON records remain separately compressed; initial open reads only the central directory, manifest, and required records; selected assets materialize into a user-scoped workspace only after size, CRC, and SHA-256 validation.
 
 Manual Save creates one exclusive same-volume sibling replacement. It raw-copies unchanged stored media, streams changed records and new assets through bounded buffers, validates the complete archive before visibility, flushes the temporary file, and uses write-through `MoveFileExW` or `ReplaceFileW`. The workspace becomes clean only after the visible archive reopens successfully.
 
@@ -39,7 +41,7 @@ SQLite is retained as the documented fallback comparison, not selected as a seco
 
 `FlushFileBuffers` on the containing directory was attempted but unsupported on the reference Windows system. The contract, accepted later in ADR-0002, therefore requires the complete temporary-file flush, pre-visibility validation, same-volume sibling placement, and write-through Windows move or replacement. Implementations must record whether directory flush is supported and must never claim it occurred when Windows rejects the directory handle or flush.
 
-This limitation does not fail a documented gate: the proposed format already requires directory flush only where supported, and every first Save, replacement, interruption, and recovery role preserved the prior valid project. Milestone 5 must keep the limitation visible in the accepted storage ADR and production validation plan.
+This limitation does not fail a documented gate: the accepted format requires directory flush only where supported, and every first Save, replacement, interruption, and recovery role preserved the prior valid project. ADR-0002 retains the limitation and production validation requirement.
 
 ## Required contract for Milestone 5
 
@@ -65,4 +67,4 @@ Dependency upgrades, archive-layout changes, and Windows replacement changes req
 
 The three spikes use synthetic local data, produce redacted reports, and perform no production project writes or application network requests. Their semantic surfaces passed 13 component tests, axe, keyboard/focus checks, 100/150/200 percent scale, forced colors, reduced motion, Accessibility Insights, NVDA 2026.1.1, and Windows High Contrast.
 
-Production commands, the version 1 Gzip JSON format, screenshot capture and editing, recovery, and exports remain unchanged. [ADR-0002](../decisions/0002-zip64-project-storage.md) remains Proposed until Milestone 5 accepts, revises, or rejects it.
+Production commands, the version 1 Gzip JSON format, screenshot capture and editing, recovery, and exports remain unchanged. [ADR-0002](../decisions/0002-zip64-project-storage.md) records the accepted storage decision; implementation remains Milestone 6 work.
