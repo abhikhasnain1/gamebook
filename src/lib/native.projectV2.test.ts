@@ -53,7 +53,7 @@ describe("version 2 native command boundary", () => {
     );
 
     expect(result?.token).toBe(token);
-    expect(projectV2MediaUrl(token)).toBe(`gamebook-media://asset/${token}`);
+    expect(projectV2MediaUrl(token)).toBe(`http://gamebook-media.localhost/${token}`);
     expect(() => projectV2MediaUrl("../asset.png")).toThrow("Invalid project media token.");
     expect(invoke).toHaveBeenCalledWith("materialize_project_v2_asset", {
       workspaceId: "workspace-alpha",

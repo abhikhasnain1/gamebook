@@ -154,7 +154,7 @@ describe("canonical version 2 editor model", () => {
 
     const documents = editorProjectDocuments(project);
     const serialized = JSON.stringify(documents);
-    expect(serialized).not.toContain("gamebook-media");
+    expect(serialized).not.toMatch(/gamebook-media|crossOrigin/);
     expect((documents[2] as typeof page).annotations[0].fabricObject).toMatchObject({
       cropX: 10,
       cropY: 20,

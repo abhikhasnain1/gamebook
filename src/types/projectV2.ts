@@ -299,7 +299,10 @@ function annotationRecord(object: Record<string, unknown>): ProjectV2AnnotationR
   const data = requireObject(fabricObject.data, "annotation data");
   const id = requireId(data.id, "annotation");
   const declaredKind = typeof data.kind === "string" ? data.kind : "note";
-  if (declaredKind === "crop") delete fabricObject.src;
+  if (declaredKind === "crop") {
+    delete fabricObject.src;
+    delete fabricObject.crossOrigin;
+  }
   return {
     id,
     kind: annotationKind(declaredKind, fabricObject.type),

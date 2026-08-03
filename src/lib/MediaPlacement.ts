@@ -135,7 +135,10 @@ export async function loadMediaPlacement(
   sourceUrl: string,
   signal?: AbortSignal,
 ): Promise<MediaPlacement> {
-  const source = await FabricImage.fromURL(sourceUrl, { signal });
+  const source = await FabricImage.fromURL(sourceUrl, {
+    signal,
+    crossOrigin: "anonymous",
+  });
   return new MediaPlacement(record, source.getElement());
 }
 

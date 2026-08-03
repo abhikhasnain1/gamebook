@@ -300,7 +300,7 @@ export async function listProjectV2Recovery(): Promise<ProjectV2RecoverySummary[
 
 export function projectV2MediaUrl(token: string): string {
   if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("Invalid project media token.");
-  return `gamebook-media://asset/${token}`;
+  return `http://gamebook-media.localhost/${token}`;
 }
 
 export async function hideOverlay(): Promise<void> {

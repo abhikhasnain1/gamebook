@@ -361,7 +361,7 @@ function withRuntimeCropSource(
 ): Record<string, unknown> {
   const data = object.data as ObjectTag | undefined;
   if (data?.kind !== "crop" || typeof object.src === "string") return object;
-  return { ...object, src: sourceUrl };
+  return { ...object, src: sourceUrl, crossOrigin: "anonymous" };
 }
 
 function upgradeSerializedAnnotation(

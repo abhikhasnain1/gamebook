@@ -1424,6 +1424,13 @@ impl ProjectV2Manager {
         if request.method() != Method::GET && request.method() != Method::HEAD {
             return Err((StatusCode::METHOD_NOT_ALLOWED, "Media request denied."));
         }
+        let response_origin = match request.headers().get(header::ORIGIN) {
+            Some(_) => Some(
+                allowed_media_origin(request)
+                    .ok_or((StatusCode::NOT_FOUND, "Media request denied."))?,
+            ),
+            None => None,
+        };
         let token_text = request
             .uri()
             .path()
@@ -1501,8 +1508,13 @@ impl ProjectV2Manager {
             .header(header::ACCEPT_RANGES, "bytes")
             .header(header::CACHE_CONTROL, "private, no-store")
             .header(header::CONTENT_LENGTH, response_length.to_string())
-            .header("Cross-Origin-Resource-Policy", "same-origin")
+            .header("Cross-Origin-Resource-Policy", "cross-origin")
             .header("X-Content-Type-Options", "nosniff");
+        if let Some(origin) = response_origin {
+            builder = builder
+                .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, origin)
+                .header(header::VARY, "Origin");
+        }
         if status == StatusCode::PARTIAL_CONTENT {
             builder = builder.header(
                 header::CONTENT_RANGE,
@@ -2067,6 +2079,20 @@ fn parse_single_range(value: &str, size: u64) -> Result<(u64, u64), (StatusCode,
     Ok((start, end))
 }
 
+fn allowed_media_origin(request: &Request<Vec<u8>>) -> Option<&'static str> {
+    let origin = request
+        .headers()
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok())?;
+    match origin {
+        "http://tauri.localhost" => Some("http://tauri.localhost"),
+        "https://tauri.localhost" => Some("https://tauri.localhost"),
+        #[cfg(debug_assertions)]
+        "http://localhost:1420" => Some("http://localhost:1420"),
+        _ => None,
+    }
+}
+
 fn paths_equal(left: &Path, right: &Path) -> bool {
     left.to_string_lossy()
         .eq_ignore_ascii_case(&right.to_string_lossy())
@@ -2498,6 +2524,69 @@ mod tests {
         assert_eq!(
             manager.media_response(&get).status(),
             StatusCode::RANGE_NOT_SATISFIABLE
+        );
+
+        drop(manager);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn serves_windows_webview_media_with_restricted_cors() {
+        let root = temp_test_dir("v2-webview-media");
+        fs::create_dir_all(&root).unwrap();
+        let asset_path = root.join("screenshot.png");
+        let bytes = b"synthetic-screenshot-pixels";
+        fs::write(&asset_path, bytes).unwrap();
+
+        let token = "a".repeat(64);
+        let manager = ProjectV2Manager::default();
+        manager.inner.lock().unwrap().tokens.insert(
+            token.clone(),
+            AssetToken {
+                workspace_id: "workspace-webview-media".to_string(),
+                digest: "b".repeat(64),
+                operation: "read",
+                file: Arc::new(File::open(&asset_path).unwrap()),
+                mime_type: "image/png".to_string(),
+                byte_length: bytes.len() as u64,
+                last_access: Instant::now(),
+            },
+        );
+
+        let request = Request::builder()
+            .method(Method::GET)
+            .uri(format!("gamebook-media://localhost/{token}"))
+            .header(header::ORIGIN, "http://tauri.localhost")
+            .body(Vec::new())
+            .unwrap();
+        let response = manager.media_response(&request);
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.body(), bytes);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .unwrap(),
+            "http://tauri.localhost"
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("Cross-Origin-Resource-Policy")
+                .unwrap(),
+            "cross-origin"
+        );
+
+        let untrusted = Request::builder()
+            .method(Method::GET)
+            .uri(format!("gamebook-media://localhost/{token}"))
+            .header(header::ORIGIN, "https://example.invalid")
+            .body(Vec::new())
+            .unwrap();
+        assert_eq!(
+            manager.media_response(&untrusted).status(),
+            StatusCode::NOT_FOUND
         );
 
         drop(manager);

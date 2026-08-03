@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { MediaPlacement } from "./MediaPlacement";
+import { FabricImage } from "fabric";
+import { describe, expect, it, vi } from "vitest";
+import { loadMediaPlacement, MediaPlacement } from "./MediaPlacement";
 
 describe("production MediaPlacement", () => {
   it("round-trips only the frozen stable placement fields", () => {
@@ -71,5 +72,35 @@ describe("production MediaPlacement", () => {
         id: "placement-other",
       }),
     ).toThrow("Placement identity cannot change");
+  });
+
+  it("loads scoped media with anonymous CORS for exportable pixels", async () => {
+    const source = document.createElement("canvas");
+    source.width = 100;
+    source.height = 50;
+    const loaded = new FabricImage(source);
+    const fromUrl = vi.spyOn(FabricImage, "fromURL").mockResolvedValue(loaded);
+
+    await loadMediaPlacement(
+      {
+        type: "MediaPlacement",
+        placementVersion: 1,
+        id: "placement-alpha",
+        evidenceId: "evidence-alpha",
+        left: 0,
+        top: 0,
+        scaleX: 1,
+        scaleY: 1,
+        angle: 0,
+        zIndex: 0,
+      },
+      "http://gamebook-media.localhost/token",
+    );
+
+    expect(fromUrl).toHaveBeenCalledWith(
+      "http://gamebook-media.localhost/token",
+      { signal: undefined, crossOrigin: "anonymous" },
+    );
+    fromUrl.mockRestore();
   });
 });

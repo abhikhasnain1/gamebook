@@ -22,7 +22,7 @@ const native = vi.hoisted(() => ({
 vi.mock("../lib/native", () => ({
   ...native,
   isTauri: true,
-  projectV2MediaUrl: (token: string) => `gamebook-media://asset/${token}`,
+  projectV2MediaUrl: (token: string) => `http://gamebook-media.localhost/${token}`,
 }));
 
 import { useProjectV2 } from "./useProjectV2";
@@ -92,7 +92,7 @@ describe("useProjectV2 production workspace flow", () => {
       "c".repeat(64),
     );
     expect(result.current.activePage).toMatchObject({
-      sourceUrl: `gamebook-media://asset/${"a".repeat(64)}`,
+      sourceUrl: `http://gamebook-media.localhost/${"a".repeat(64)}`,
       assetDigest: "b".repeat(64),
     });
     expect(JSON.stringify(native.claimScreenshotCapture.mock.calls)).not.toMatch(
@@ -188,7 +188,7 @@ describe("useProjectV2 production workspace flow", () => {
     expect(result.current.project.workspaceId).toBe("workspace-migrated");
     expect(result.current.project.requiresSaveAs).toBe(true);
     expect(result.current.activePage?.sourceUrl).toBe(
-      `gamebook-media://asset/${"a".repeat(64)}`,
+      `http://gamebook-media.localhost/${"a".repeat(64)}`,
     );
     expect(result.current.report?.kind).toBe("migration");
     expect(native.materializeProjectV2Asset).toHaveBeenCalledWith(
@@ -278,7 +278,7 @@ describe("useProjectV2 production workspace flow", () => {
 
     expect(result.current.activePage).toMatchObject({
       extractedText: "edit during renewal",
-      sourceUrl: `gamebook-media://asset/${"c".repeat(64)}`,
+      sourceUrl: `http://gamebook-media.localhost/${"c".repeat(64)}`,
     });
     expect(onError).not.toHaveBeenCalled();
   });

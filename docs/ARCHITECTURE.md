@@ -56,7 +56,7 @@ Native dialogs are parented to the main WebView window and return the final dest
 ## Security boundaries
 
 - The content security policy permits only the bundled application, Tauri IPC, development localhost, and local `data:` or `blob:` images.
-- Verified version 2 image and media responses are limited to the local `gamebook-media` scheme and scoped, expiring tokens.
+- Verified version 2 image and media responses are limited to the local `gamebook-media` protocol and scoped, expiring tokens. On Windows, WebView2 maps that protocol to `http://gamebook-media.localhost`; native responses permit only the application origin, use anonymous CORS for canvas-safe rendering and export, and reject an explicit untrusted origin before token access.
 - The sole WebView uses Tauri core event and window permissions.
 - Arbitrary filesystem APIs are not exposed to the frontend.
 - The app does not inject DLLs, hook a game renderer, or inspect game memory.
