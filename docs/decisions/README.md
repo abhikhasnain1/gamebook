@@ -37,7 +37,7 @@ Milestone 5 creates the first accepted records for media capture, placement rend
 
 | Record | Status | Scope |
 | --- | --- | --- |
-| [ADR-0001](0001-media-placement-rendering.md) | Proposed | Fabric offscreen media placement rendering |
+| [ADR-0001](0001-media-placement-rendering.md) | Accepted | Fabric offscreen media placement rendering and ephemeral viewport behavior |
 | [ADR-0002](0002-zip64-project-storage.md) | Proposed | ZIP64 project storage and streamed replacement |
 | [ADR-0003](0003-direct-windows-media-capture.md) | Accepted | Direct Windows capture, encoding, targets, and frame-rate qualification |
 | [ADR-0004](0004-source-timing-and-exact-decode.md) | Accepted | Native source timing, frame identity, and exact decode |
