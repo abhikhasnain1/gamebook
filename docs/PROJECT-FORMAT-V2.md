@@ -1,6 +1,6 @@
 # Gamebook Project Format Version 2
 
-> Status: Accepted architecture contract for future implementation. ADR-0002, ADR-0008, and ADR-0009 freeze the container, records, settings, workspace, migration, repair, and compatibility boundaries. Gamebook 0.5.3 still reads and writes only version 1 projects.
+> Status: Accepted architecture contract under dependency-ordered implementation. ADR-0002, ADR-0008, and ADR-0009 freeze the container, records, settings, workspace, migration, repair, and compatibility boundaries. The native archive/workspace foundation is implemented; the visible Gamebook 0.5.3 editor still reads and writes version 1 projects until migration and canonical screenshot placement adoption are complete.
 
 ## Goals
 
@@ -18,6 +18,12 @@ The machine-readable schemas are authoritative for record fields and versions:
 - [`migration-repair-v1.schema.json`](schemas/migration-repair-v1.schema.json): deterministic migration and read-only repair reports.
 
 Cross-record constraints that JSON Schema cannot express are part of this contract and are checked by `npm.cmd run project-format-contract:verify`. These include referential integrity, manifest order, unique asset digests and normalized tag names, exact timeline order, valid clip ranges, source retention, archive path safety, and explicit-only Trash cleanup.
+
+## Implementation status
+
+The Rust-owned foundation validates archive names, metadata, compression, limits, canonical records, record identity, annotation order, typed relationships, source-video/timeline links, source retention, and Trash wrapper identity. Initial open reads the central directory, manifest, active page, immediate evidence, and required timeline only; other records load on demand. Asset materialization, source-keyed workspaces, locks, recovery and Save journals, scoped media tokens, clean-cache eviction, external-change choices, cancellable raw copy, complete replacement validation, same-volume write-through replacement, directory-flush reporting, and visible reopen are implemented behind typed native commands.
+
+The current React/Fabric editor does not call these commands yet. Version 1 migration, repair reports, collision-safe backups, canonical page placement rendering, and the accessible production progress/conflict/recovery controls remain gated to their dependent Milestone 6 implementation changes. Until then, current version 1 open, Save, autosave, recovery, editing, and export behavior remains authoritative.
 
 ## Package layout
 

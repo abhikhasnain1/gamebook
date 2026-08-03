@@ -7,6 +7,8 @@
 - `npm.cmd run fixtures:verify`
 - `npm.cmd run frontend:build`
 - `cargo check --manifest-path src-tauri/Cargo.toml`
+- `cargo clippy --manifest-path src-tauri/Cargo.toml --lib -- -D warnings`
+- `cargo test --manifest-path src-tauri/Cargo.toml --lib`
 - `npm.cmd run build`
 
 ## Frontend automated tests
@@ -40,6 +42,13 @@ Current dry-run gaps for the screenshot workflow:
 
 - Native capture, save/recovery dialogs, rendered PNG/PDF/Markdown output, keyboard-only editing, NVDA, High Contrast, reduced-motion, and 150%/200% scale remain manual until dedicated automation is added.
 - Existing frontend tests cover automated axe/component checks for the tool rail and regression assertions for version 1 session compatibility, fixture contracts, and text export order.
+
+## Version 2 persistence foundation
+
+- Rust library tests cover lazy active-page open, on-demand record reads, schema and cross-record validation, relative-path and duplicate rejection, immutable asset CRC/SHA-256 visibility, scoped range responses, token invalidation, source-keyed workspace reuse, copied-project separation, live/fresh/stale/malformed locks, corrupt-state recovery, registry traversal rejection, autosave journals, cancellation cleanup, external-change choices, Save As preservation, streamed replacement, visible reopen, cache eviction, and operation cleanup after failures.
+- Frontend command-contract tests verify that version 2 open and Save accept no renderer-supplied path, materialization returns only a scoped token and metadata, and media URLs reject non-token input. These commands are not connected to the production editor before deterministic migration and canonical screenshot placement adoption.
+- Run `cargo test --manifest-path src-tauri/Cargo.toml --lib`, `cargo clippy --manifest-path src-tauri/Cargo.toml --lib -- -D warnings`, `npm.cmd run frontend:test`, and `npm.cmd run frontend:build` for every persistence change.
+- Production adoption must rerun the 5 GiB archive, OneDrive-managed replacement, forced-interruption, low-space, accessibility, and current screenshot/version 1 matrices. The current issue introduces no new visible control, so keyboard, focus, announcement, scale, High Contrast, Accessibility Insights, and NVDA validation attach to the dependent production migration and placement surfaces rather than to an unreachable backend command.
 
 ## Deterministic fixtures
 

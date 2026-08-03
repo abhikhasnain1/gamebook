@@ -3,6 +3,7 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
+    sync::Arc,
     thread,
     time::Duration,
 };
@@ -22,6 +23,8 @@ use tauri::{
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use xcap::Monitor;
+
+mod project_v2;
 
 static CAPTURE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
@@ -460,6 +463,13 @@ pub fn run() {
     let handler_shortcut = capture_shortcut;
 
     tauri::Builder::default()
+        .manage(Arc::new(project_v2::ProjectV2Manager::default()))
+        .register_uri_scheme_protocol("gamebook-media", |window, request| {
+            let manager = window
+                .app_handle()
+                .state::<Arc<project_v2::ProjectV2Manager>>();
+            manager.media_response(&request)
+        })
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             show_editor(app);
         }))
@@ -473,6 +483,7 @@ pub fn run() {
                 .build(),
         )
         .setup(move |app| {
+            project_v2::initialize(app).map_err(std::io::Error::other)?;
             app.global_shortcut().register(capture_shortcut)?;
             build_tray(app)?;
             Ok(())
@@ -485,6 +496,16 @@ pub fn run() {
             load_autosave,
             save_project,
             open_project,
+            project_v2::open_project_v2,
+            project_v2::read_project_v2_record,
+            project_v2::stage_project_v2_document,
+            project_v2::autosave_project_v2_workspace,
+            project_v2::materialize_project_v2_asset,
+            project_v2::save_project_v2,
+            project_v2::cancel_project_v2_operation,
+            project_v2::close_project_v2_workspace,
+            project_v2::evict_project_v2_clean_cache,
+            project_v2::list_project_v2_recovery,
             save_binary_export,
             save_text_export,
             save_markdown_export

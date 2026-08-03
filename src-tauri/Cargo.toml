@@ -16,21 +16,30 @@ tauri-build = { version = "2", features = [] }
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 flate2 = "1"
+getrandom = "0.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+jsonschema = { version = "0.40", default-features = false }
 rfd = "0.15"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"
 xcap = "0.9"
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61.3", features = [
+  "Win32_Foundation",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Threading",
+] }
 
 [dev-dependencies]
 crc32fast = "1"
 rayon = "1"
-sha2 = "0.10"
 windows-capture = "2.0.0"
-zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 windows = { version = "0.61.3", features = [
   "Graphics_Capture",
   "Graphics_DirectX",

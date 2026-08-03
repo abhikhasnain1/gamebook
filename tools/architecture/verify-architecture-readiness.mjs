@@ -138,7 +138,7 @@ async function verifyReadiness(report, sources) {
     readText(rel("docs/ARCHITECTURE.md")), readText(rel("docs/QA.md")), readText(rel("docs/spikes/archive-gate.md")), readJson(rel("package.json")),
   ]);
   assert(index.includes("frozen by ADR-0001 through ADR-0009"), "Documentation index does not identify the frozen decisions");
-  assert(formatDoc.includes("Status: Accepted architecture contract for future implementation") && formatDoc.includes("Gamebook 0.5.3 still reads and writes only version 1 projects"), "Project-format current/future boundary changed");
+  assert(formatDoc.includes("Status: Accepted architecture contract under dependency-ordered implementation") && formatDoc.includes("visible Gamebook 0.5.3 editor still reads and writes version 1 projects"), "Project-format current/future boundary changed");
   assert(mediaDoc.includes("Status: Frozen architecture contract for future implementation") && mediaDoc.includes("None of these future features is implemented in Gamebook 0.5.3"), "Media architecture current/future boundary changed");
   assert(architecture.includes("Gzip-compressed JSON") && architecture.includes("Version 1"), "Current version 1 architecture baseline changed");
   assert(!qa.includes("Proposed rendering ADR") && qa.includes("accepted ADR-0001"), "QA retains obsolete rendering-decision guidance");

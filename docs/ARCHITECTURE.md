@@ -49,6 +49,10 @@ The page strip uses dnd-kit's pointer and keyboard sensors rather than native HT
 
 Autosave waits for a quiet period and uses the latest session reference, so page selection alone does not rewrite the project. The session is serialized once by Tauri IPC; Rust streams the JSON into fast Gzip compression on a blocking worker instead of recompressing the complete multi-page document on either UI thread. Minimizing hides the native window first, then snapshots and persists recovery data in the background; quitting still awaits its final recovery write before exiting.
 
+The native layer also contains the version 2 persistence foundation accepted by ADR-0002, ADR-0008, and ADR-0009. Rust validates ZIP64 metadata and canonical records, lazily opens the active page and immediate evidence, materializes immutable assets by verified SHA-256, owns source-keyed workspaces and locks, writes recovery and Save journals, detects external source changes, evicts only clean cache data, and performs validated same-volume write-through replacement. Large unchanged stored entries remain raw-copied through a cancellation-aware reader. Scoped 256-bit media tokens expose verified bytes through the local `gamebook-media` protocol without returning an archive or workspace path.
+
+This foundation is not yet the visible editor persistence path. The production editor continues to open, edit, autosave, save, recover, and export version 1 screenshot projects exactly as above. Deterministic version 1 migration and canonical screenshot placement adoption are separate dependency-ordered changes; version 2 commands remain unused by the current editor until those contracts can be adopted together.
+
 History snapshots cache their serialized comparison value, text edits are grouped over a short typing interval, and page patches reuse the latest snapshot. Thumbnail rendering runs in an idle callback at 192 by 108 pixels, while page-strip images decode asynchronously.
 
 ## Export pipeline
@@ -60,6 +64,7 @@ Native dialogs are parented to the main WebView window and return the final dest
 ## Security boundaries
 
 - The content security policy permits only the bundled application, Tauri IPC, development localhost, and local `data:` or `blob:` images.
+- Verified version 2 image and media responses are limited to the local `gamebook-media` scheme and scoped, expiring tokens.
 - The sole WebView uses Tauri core event and window permissions.
 - Arbitrary filesystem APIs are not exposed to the frontend.
 - The app does not inject DLLs, hook a game renderer, or inspect game memory.
@@ -67,9 +72,11 @@ Native dialogs are parented to the main WebView window and return the final dest
 ## Important files
 
 - `src-tauri/src/lib.rs`: native lifecycle, capture, persistence, and export commands
+- `src-tauri/src/project_v2/`: version 2 archive validation, immutable assets, workspaces, recovery, tokens, and streamed replacement
 - `src/components/CanvasEditor.tsx`: editor input, object creation, history, and inline formatting
 - `src/lib/NoteTextbox.ts`: resizable fixed-height text-note object
 - `src/lib/Connector.ts`: connector geometry, endpoint controls, anchors, snapping, and live relationship updates
 - `src/lib/canvasPage.ts`: deterministic page composition, serialization, and rendering
 - `src/App.tsx`: session UI, save/export orchestration, and keyboard flow
 - `src/types/session.ts`: durable project schema
+- `src/lib/native.ts`: typed renderer-to-native command boundaries for version 1 and the gated version 2 foundation
