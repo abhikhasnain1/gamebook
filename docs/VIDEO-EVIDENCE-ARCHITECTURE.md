@@ -14,6 +14,8 @@ Implementation must not begin with the final version 2 schema. The required orde
 
 Spike code is disposable and isolated from production paths. Each spike produces a short report containing configuration, measurements, failures, and the resulting architecture decision.
 
+Issues #14 through #17 passed the ZIP64 lazy-open, materialization, workspace, lock, recovery, cache, raw-copy, streamed-Save, and Windows replacement gates. [ADR-0002](decisions/0002-zip64-project-storage.md) proposes ZIP64 as the version 2 container for Milestone 5 acceptance. The decision remains proposed: production persistence and record schemas are not frozen or implemented by the spikes.
+
 ## Runtime ownership
 
 Rust owns global shortcuts, capture targets, recording state, Windows Graphics Capture, WASAPI loopback, Media Foundation encoding/decoding, media probing, frame extraction jobs, asset verification, workspace/archive I/O, cache lifecycle, and native window behavior.

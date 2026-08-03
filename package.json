@@ -30,6 +30,7 @@
     "workspace-lifecycle:verify": "node tools/spikes/verify-workspace-lifecycle-report.mjs",
     "streamed-save:run": "node tools/spikes/run-streamed-save.mjs",
     "streamed-save:verify": "node tools/spikes/verify-streamed-save-report.mjs",
+    "archive-gate:verify": "node tools/spikes/verify-archive-gate-report.mjs",
     "check": "tsc --noEmit"
   },
   "dependencies": {
