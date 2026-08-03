@@ -19,8 +19,8 @@ Do not infer that a feature exists because it appears in a proposed or required 
 | --- | --- | --- |
 | [README](../README.md) | Product overview and current setup | Starting any repository work |
 | [Product specification](PRODUCT-SPEC.md) | Product purpose, scope, workflows, and release acceptance | Planning or changing user-facing behavior |
-| [Video and evidence architecture](VIDEO-EVIDENCE-ARCHITECTURE.md) | Proposed media ownership, timing, rendering, and cleanup contracts | Media, canvas, playback, frame, or export work |
-| [Project format version 2](PROJECT-FORMAT-V2.md) | Proposed archive, workspace, migration, and evidence records | Persistence, import, migration, recovery, or storage work |
+| [Video and evidence architecture](VIDEO-EVIDENCE-ARCHITECTURE.md) | Frozen media, timing, rendering, storage, and cleanup contracts for future implementation | Media, canvas, playback, frame, or export work |
+| [Project format version 2](PROJECT-FORMAT-V2.md) | Frozen archive, workspace, migration, and canonical record contracts | Persistence, import, migration, recovery, or storage work |
 | [Accessibility specification](ACCESSIBILITY.md) | Required accessible interaction and validation | Every user-facing milestone |
 | [Security and privacy specification](SECURITY-PRIVACY.md) | Required data, media, diagnostics, export, and update boundaries | Every milestone that handles data or system capabilities |
 | [Roadmap](ROADMAP.md) | Dependency order, gates, and milestone exits | Planning issues, branches, and releases |
@@ -43,7 +43,7 @@ Use this order when sources disagree:
 
 This order is not permission to resolve a contradiction silently. Record the conflict in the owning issue, identify the affected documents, and update all accepted sources in the same reviewed change.
 
-Provisional media and version 2 format sections do not become frozen contracts until Milestones 2 through 4 pass and Milestone 5 records the accepted decisions.
+The media and version 2 format contracts are frozen by ADR-0001 through ADR-0009. They govern future implementation but do not establish that version 2 behavior exists in Gamebook 0.5.3.
 
 ## Change protocol
 

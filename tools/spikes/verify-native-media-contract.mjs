@@ -382,7 +382,7 @@ function verifyDependentDocs() {
     assertContains(decisions, filename, "decision index");
     assertContains(decisions, `[${id}]`, "decision index");
   }
-  assertContains(architecture, "Status: Mixed", "architecture status");
+  assertContains(architecture, "Status: Frozen architecture contract for future implementation", "architecture status");
   assertContains(architecture, "sourceTimestamp100ns", "architecture timing");
   assertContains(architecture, "uses 30 FPS", "architecture fallback");
   assertContains(architecture, "blocked before output", "architecture HDR policy");

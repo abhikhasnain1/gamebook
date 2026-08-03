@@ -37,7 +37,7 @@ SQLite is retained as the documented fallback comparison, not selected as a seco
 
 ## Measured limitation
 
-`FlushFileBuffers` on the containing directory was attempted but unsupported on the reference Windows system. The proposed contract therefore requires the complete temporary-file flush, pre-visibility validation, same-volume sibling placement, and write-through Windows move or replacement. Implementations must record whether directory flush is supported and must never claim it occurred when Windows rejects the directory handle or flush.
+`FlushFileBuffers` on the containing directory was attempted but unsupported on the reference Windows system. The contract, accepted later in ADR-0002, therefore requires the complete temporary-file flush, pre-visibility validation, same-volume sibling placement, and write-through Windows move or replacement. Implementations must record whether directory flush is supported and must never claim it occurred when Windows rejects the directory handle or flush.
 
 This limitation does not fail a documented gate: the proposed format already requires directory flush only where supported, and every first Save, replacement, interruption, and recovery role preserved the prior valid project. Milestone 5 must keep the limitation visible in the accepted storage ADR and production validation plan.
 

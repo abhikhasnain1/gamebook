@@ -1,9 +1,9 @@
 # ADR-0002: ZIP64 project storage
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-03
-- Governing issue: #17
-- Roadmap milestone: Milestone 4
+- Governing issue: #20
+- Roadmap milestone: Milestone 5
 - Supersedes: None
 - Superseded by: None
 
@@ -11,7 +11,7 @@
 
 Gamebook needs a portable single-file project that can hold multi-gigabyte recordings without base64 serialization, eager extraction, whole-project memory loading, or autosave archive rebuilds. It must preserve the last valid project through interruption, isolate mutable workspace state by source path, support copied projects, and retain accessible recovery and storage controls.
 
-Issues #14, #15, and #16 evaluated ZIP64 lazy open/materialization, workspace identity/locks/recovery/cache, and streamed Save/replacement. The combined [gate report](../spikes/archive-gate.md) and verifier-bound [reference data](../spikes/archive-gate-reference-report.json) retain the exact measured evidence. This record remains Proposed until Milestone 5 freezes the archive, workspace, migration, and canonical record contracts.
+Issues #14, #15, and #16 evaluated ZIP64 lazy open/materialization, workspace identity/locks/recovery/cache, and streamed Save/replacement. The combined [gate report](../spikes/archive-gate.md) and verifier-bound [reference data](../spikes/archive-gate-reference-report.json) retain the exact measured evidence. Issue #20 accepted this container and its workspace and replacement boundaries after the canonical record and migration contracts were frozen in ADR-0008 and ADR-0009.
 
 ## Decision drivers
 
@@ -42,9 +42,9 @@ The roadmap requires this comparison when ZIP64 misses a threshold, has unsuppor
 
 ## Decision
 
-Propose ZIP64 as the version 2 `.gamebook` container for Milestone 5 acceptance.
+Use ZIP64 as the version 2 `.gamebook` container.
 
-The contract proposed for freezing is:
+The accepted contract is:
 
 - Rust owns archive, workspace, validation, hashing, cache, and replacement operations. The WebView receives no path or broad filesystem capability.
 - The archive contains separately compressed canonical records and stored immutable content-addressed assets. Initial open reads only the central directory, manifest, and required records.
@@ -56,7 +56,7 @@ The contract proposed for freezing is:
 - External source changes pause Save for Save As, explicit replacement, or cancellation. Failure and cancellation leave the prior project intact and partial output unreferenced.
 - Cache eviction removes only verified recreatable materializations from closed clean projects. Unsaved work, recovery, interrupted recordings, and Project Trash are protected.
 
-SQLite remains the fallback comparison if a revisit trigger fails. This Proposed record does not authorize production persistence or freeze record schemas before Milestone 5.
+SQLite remains the fallback comparison if a revisit trigger fails. This decision freezes architecture only; production persistence begins in Milestone 6 and must conform to ADR-0008 and ADR-0009.
 
 ## Consequences
 
@@ -68,17 +68,17 @@ The reference system rejected `FlushFileBuffers` on the containing directory. Pr
 
 ## Compatibility and migration
 
-This proposal changes no production code or current project. Gamebook 0.5.3 version 1 Gzip JSON projects continue to open, edit, save, recover, and export unchanged.
+This decision changes no production code or current project. Gamebook 0.5.3 version 1 Gzip JSON projects continue to open, edit, save, recover, and export unchanged.
 
-Milestone 5 must freeze deterministic version 1 migration and version 2 repair/future-version behavior before implementation. Migration runs in an isolated workspace, does not mutate the source, and preserves byte-identical screenshots, page order, transforms, annotations, connectors, text, backgrounds, and metadata. The first successful version 2 replacement retains a collision-safe version 1 backup. Failure leaves source and backup state unchanged.
+ADR-0009 freezes deterministic version 1 migration and version 2 repair/future-version behavior. Migration runs in an isolated workspace, does not mutate the source, and preserves byte-identical screenshots, page order, transforms, annotations, connectors, text, backgrounds, and metadata. The first successful version 2 replacement retains a collision-safe version 1 backup. Failure leaves source and backup state unchanged.
 
-Rollback before production adoption is removal of disposable spike paths and rejection of this proposal. After adoption, unsupported future major versions must be rejected without workspace or source mutation.
+Before production adoption, rollback is removal of implementation paths while preserving this decision and its evidence. Unsupported future major versions are rejected without workspace or source mutation.
 
 ## Accessibility
 
 The container is not exposed as a visual-only concept. Open, materialization, Save, cancellation, lock and recovery review, external-change choice, cache estimates, cleanup, validation failure, and completion require semantic controls, keyboard operation, visible/restored focus, polite progress/status, assertive actionable errors, text not color alone, forced-colors support, reduced-motion behavior, and usable layout at 900 by 620 through 200 percent scale.
 
-The three isolated surfaces passed 13 component tests with no serious or critical axe violations, keyboard/focus review, 100/150/200 percent scale, forced colors, reduced motion, Accessibility Insights, NVDA 2026.1.1, and Windows High Contrast. Milestone 5 must freeze these outcomes as production acceptance requirements rather than treating spike surfaces as production UI.
+The three isolated surfaces passed 13 component tests with no serious or critical axe violations, keyboard/focus review, 100/150/200 percent scale, forced colors, reduced motion, Accessibility Insights, NVDA 2026.1.1, and Windows High Contrast. These outcomes are production acceptance requirements; the spike surfaces are not production UI.
 
 ## Security and privacy
 
@@ -96,6 +96,7 @@ Only verified recreatable clean cache is evictable. Unsaved work, recovery journ
 - Issue #15: 11-role release matrix for source identity, copied projects, live/fresh/stale/malformed locks, external changes, close/reopen, cache eviction/cancellation, and reparse rejection.
 - Issue #16: 8-role release matrix for local/OneDrive 5 GiB Save and replacement, cancellation, low space, write failure, corruption, and process termination.
 - Existing frontend, fixture, production build, Rust test/check, accessibility, compatibility, and publication gates remain required for acceptance.
+- `npm.cmd run project-format-contract:verify -- --reference docs/spikes/project-format-freeze-reference-report.json`
 
 Revisit and compare SQLite if metadata open reaches 256 MiB additional memory or extracts media; 5 GiB Save reaches 512 MiB or creates another complete copy; stored-entry raw copy fails; prior data cannot be preserved on local NTFS or OneDrive-managed storage; validation, workspace isolation, accessibility, or privacy cannot be maintained; or representative latency blocks the workflow.
 
@@ -107,4 +108,5 @@ Revisit and compare SQLite if metadata open reaches 256 MiB additional memory or
 - `docs/spikes/archive-gate-reference-report.json`
 - `docs/QA.md`
 - GitHub issues #17 and #20
-- Milestone 5 must accept, revise, or reject this record when it freezes storage and schema contracts.
+- [ADR-0008](0008-canonical-version-2-records.md)
+- [ADR-0009](0009-version-1-migration-and-repair.md)

@@ -1,6 +1,6 @@
 # Video and Evidence Architecture
 
-> Status: Mixed. ADR-0001 freezes `MediaPlacement` rendering and view-only viewport behavior, and ADR-0003 through ADR-0007 freeze native capture, timing, exact-decode, audio, color, aperture, and interrupted-recording behavior. ZIP64 storage and version 2 containing record schemas remain proposed until their Milestone 5 decisions are accepted. None of these future features is implemented in Gamebook 0.5.3.
+> Status: Frozen architecture contract for future implementation. ADR-0001 through ADR-0009 freeze rendering, viewport, native media, timing, audio, color, recovery, ZIP64 storage, canonical records, and migration. None of these future features is implemented in Gamebook 0.5.3.
 
 ## Decision sequence
 
@@ -18,7 +18,7 @@ Issues #6 through #9 passed or resolved every native media gate and Issue #18 fr
 
 Issues #10 through #13 passed geometry, playback, exact-frame substitution, viewport, lifecycle, performance, scale, forced-colors, reduced-motion, Accessibility Insights, and NVDA gates. Issue #19 accepted their result in [ADR-0001](decisions/0001-media-placement-rendering.md): use the Fabric offscreen surface and ephemeral Fabric viewport transform, with layered DOM video retained as the measured fallback.
 
-Issues #14 through #17 passed the ZIP64 lazy-open, materialization, workspace, lock, recovery, cache, raw-copy, streamed-Save, and Windows replacement gates. [ADR-0002](decisions/0002-zip64-project-storage.md) proposes ZIP64 as the version 2 container for Milestone 5 acceptance. The decision remains proposed: production persistence and record schemas are not frozen or implemented by the spikes.
+Issues #14 through #17 passed the ZIP64 lazy-open, materialization, workspace, lock, recovery, cache, raw-copy, streamed-Save, and Windows replacement gates. Issue #20 accepted [ADR-0002](decisions/0002-zip64-project-storage.md), [ADR-0008](decisions/0008-canonical-version-2-records.md), and [ADR-0009](decisions/0009-version-1-migration-and-repair.md). Production persistence remains future Milestone 6 work.
 
 ## Runtime ownership
 

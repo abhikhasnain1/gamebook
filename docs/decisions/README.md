@@ -38,9 +38,11 @@ Milestone 5 creates the first accepted records for media capture, placement rend
 | Record | Status | Scope |
 | --- | --- | --- |
 | [ADR-0001](0001-media-placement-rendering.md) | Accepted | Fabric offscreen media placement rendering and ephemeral viewport behavior |
-| [ADR-0002](0002-zip64-project-storage.md) | Proposed | ZIP64 project storage and streamed replacement |
+| [ADR-0002](0002-zip64-project-storage.md) | Accepted | ZIP64 project storage and streamed replacement |
 | [ADR-0003](0003-direct-windows-media-capture.md) | Accepted | Direct Windows capture, encoding, targets, and frame-rate qualification |
 | [ADR-0004](0004-source-timing-and-exact-decode.md) | Accepted | Native source timing, frame identity, and exact decode |
 | [ADR-0005](0005-system-audio-loopback.md) | Accepted | Whole-output-device audio, synchronization, failure, and consent |
 | [ADR-0006](0006-sdr-color-and-logical-aperture.md) | Accepted | SDR color, HDR blocking, padding, and logical aperture |
 | [ADR-0007](0007-interrupted-recording-recovery.md) | Accepted | Recording staging, probing, recovery, and quarantine |
+| [ADR-0008](0008-canonical-version-2-records.md) | Accepted | Canonical version 2 archive, research, settings, and Trash records |
+| [ADR-0009](0009-version-1-migration-and-repair.md) | Accepted | Deterministic version 1 migration, backups, repair, and future-version rejection |

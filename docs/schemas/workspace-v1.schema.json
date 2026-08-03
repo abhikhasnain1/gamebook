@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gamebook:schema:workspace:v1",
+  "title": "Gamebook workspace state version 1",
+  "oneOf": [
+    { "$ref": "#/$defs/workspaceState" },
+    { "$ref": "#/$defs/workspaceLock" },
+    { "$ref": "#/$defs/recoveryJournal" },
+    { "$ref": "#/$defs/saveJournal" }
+  ],
+  "$defs": {
+    "opaqueId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,95}$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "workspaceState": {
+      "type": "object",
+      "required": ["recordType", "workspaceVersion", "workspaceId", "projectId", "sourceFingerprint", "state", "createdAt", "updatedAt", "dirtyRecordIds", "newAssetDigests", "protectedClasses"],
+      "properties": {
+        "recordType": { "const": "workspace-state" },
+        "workspaceVersion": { "const": 1 },
+        "workspaceId": { "$ref": "#/$defs/opaqueId" },
+        "projectId": { "$ref": "#/$defs/opaqueId" },
+        "sourceFingerprint": { "$ref": "#/$defs/sha256" },
+        "state": { "enum": ["clean", "dirty", "recovery-pending", "external-change", "saving"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "dirtyRecordIds": { "type": "array", "items": { "$ref": "#/$defs/opaqueId" }, "uniqueItems": true },
+        "newAssetDigests": { "type": "array", "items": { "$ref": "#/$defs/sha256" }, "uniqueItems": true },
+        "protectedClasses": {
+          "type": "array",
+          "items": { "enum": ["unsaved", "recovery", "interrupted-recording", "project-trash"] },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "workspaceLock": {
+      "type": "object",
+      "required": ["recordType", "lockVersion", "workspaceId", "processId", "applicationInstanceId", "sourceFingerprint", "heartbeatAt"],
+      "properties": {
+        "recordType": { "const": "workspace-lock" },
+        "lockVersion": { "const": 1 },
+        "workspaceId": { "$ref": "#/$defs/opaqueId" },
+        "processId": { "type": "integer", "minimum": 1 },
+        "applicationInstanceId": { "$ref": "#/$defs/opaqueId" },
+        "sourceFingerprint": { "$ref": "#/$defs/sha256" },
+        "heartbeatAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "recoveryJournal": {
+      "type": "object",
+      "required": ["recordType", "journalVersion", "workspaceId", "sequence", "writtenAt", "operation", "recordIds", "assetDigests", "status"],
+      "properties": {
+        "recordType": { "const": "recovery-journal" },
+        "journalVersion": { "const": 1 },
+        "workspaceId": { "$ref": "#/$defs/opaqueId" },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "writtenAt": { "type": "string", "format": "date-time" },
+        "operation": { "enum": ["autosave", "migration", "recording", "trash", "restore", "repair"] },
+        "recordIds": { "type": "array", "items": { "$ref": "#/$defs/opaqueId" }, "uniqueItems": true },
+        "assetDigests": { "type": "array", "items": { "$ref": "#/$defs/sha256" }, "uniqueItems": true },
+        "status": { "enum": ["started", "committed", "cancelled", "failed", "recovery-pending"] }
+      },
+      "additionalProperties": false
+    },
+    "saveJournal": {
+      "type": "object",
+      "required": ["recordType", "journalVersion", "workspaceId", "saveId", "phase", "startedAt", "sourceFingerprint", "replacementValidated", "visibleArchiveReopened"],
+      "properties": {
+        "recordType": { "const": "save-journal" },
+        "journalVersion": { "const": 1 },
+        "workspaceId": { "$ref": "#/$defs/opaqueId" },
+        "saveId": { "$ref": "#/$defs/opaqueId" },
+        "phase": { "enum": ["preflight", "writing", "validating", "flushing", "replacing", "reopening", "complete", "cancelled", "failed"] },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "sourceFingerprint": { "$ref": "#/$defs/sha256" },
+        "replacementValidated": { "type": "boolean" },
+        "visibleArchiveReopened": { "type": "boolean" },
+        "directoryFlushSupported": { "type": ["boolean", "null"] }
+      },
+      "additionalProperties": false
+    }
+  }
+}

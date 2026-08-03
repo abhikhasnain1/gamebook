@@ -115,7 +115,7 @@ Structured findings follow this workflow:
 
 Each stage may reference pages, recordings, clips, frames, annotations, or source timestamps. A clean Review mode presents findings and their evidence without editing controls.
 
-Search indexes are derived caches and never the sole copy of research information. Structured findings, tags, collections, and typed evidence relationships are canonical project records defined by the version 2 schema before implementation begins.
+Search indexes are derived caches and never the sole copy of research information. Structured findings, tags, collections, and typed evidence relationships are canonical project records defined by the accepted version 2 schema before implementation begins.
 
 ## Settings and preferences
 

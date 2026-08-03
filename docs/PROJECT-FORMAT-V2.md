@@ -1,6 +1,6 @@
 # Gamebook Project Format Version 2
 
-> Status: Proposed. The Milestone 4 archive gate passed and ADR-0002 proposes ZIP64, but the format and record schemas are not frozen until Milestone 5 accepts the storage and schema decisions.
+> Status: Accepted architecture contract for future implementation. ADR-0002, ADR-0008, and ADR-0009 freeze the container, records, settings, workspace, migration, repair, and compatibility boundaries. Gamebook 0.5.3 still reads and writes only version 1 projects.
 
 ## Goals
 
@@ -8,7 +8,18 @@ Version 2 must remain a portable single `.gamebook` file while supporting large 
 
 The format must preserve version 1 projects, survive interrupted writes, support deterministic provenance, and permit lazy access to recordings and extracted frames.
 
-## Proposed package layout
+## Normative schemas
+
+The machine-readable schemas are authoritative for record fields and versions:
+
+- [`project-v2.schema.json`](schemas/project-v2.schema.json): manifest, assets, evidence, timelines, pages, placements, annotations, findings, tags, collections, relationships, sessions, and Project Trash.
+- [`global-settings-v1.schema.json`](schemas/global-settings-v1.schema.json): global capture, shortcut, playback, accessibility, storage, Trash, and diagnostic preferences.
+- [`workspace-v1.schema.json`](schemas/workspace-v1.schema.json): workspace state, locks, recovery journals, and Save journals.
+- [`migration-repair-v1.schema.json`](schemas/migration-repair-v1.schema.json): deterministic migration and read-only repair reports.
+
+Cross-record constraints that JSON Schema cannot express are part of this contract and are checked by `npm.cmd run project-format-contract:verify`. These include referential integrity, manifest order, unique asset digests and normalized tag names, exact timeline order, valid clip ranges, source retention, archive path safety, and explicit-only Trash cleanup.
+
+## Package layout
 
 ```text
 manifest.json
@@ -30,7 +41,7 @@ JSON and text entries use Deflate compression. MP4, PNG, and JPEG entries are st
 
 `manifest.json` contains the format version, project metadata, ordered record IDs, asset index, and minimum reader version. Page, evidence, and session records are separate so the working copy can update them independently.
 
-## Proposed evidence records
+## Canonical records
 
 An evidence record contains a stable ID, evidence kind, title, timestamps, capture/import metadata, tags, relationships, preview references, and a type-specific payload.
 
@@ -41,7 +52,7 @@ An evidence record contains a stable ID, evidence kind, title, timestamps, captu
 
 Pages contain ordered `MediaPlacementRecord` values, Fabric annotation JSON, annotation scopes, page background, structured notes, and the primary evidence ID where applicable.
 
-Canonical research records are fixed before Milestone 6:
+Canonical research records are fixed by ADR-0008 before Milestone 6:
 
 - A finding stores Observation, Interpretation, Hypothesis, Follow-up, status, confidence, evidence references, tags, author-local timestamps, and revision metadata.
 - A tag stores stable ID, unique normalized name, visible label, optional description, color/pattern presentation, and sort order.
@@ -49,7 +60,7 @@ Canonical research records are fixed before Milestone 6:
 - A relationship stores source ID, target ID, one typed relation (`supports`, `contradicts`, `derived-from`, `compares`, or `follow-up`), optional note, and timestamps.
 - A session stores game, build, platform, level, test label, start/end time, capture defaults, and ordered evidence references.
 
-Search indexes, thumbnail indexes, and derived text caches are rebuildable workspace data and are never canonical archive records.
+Search indexes, thumbnail indexes, previews, and derived text caches are rebuildable workspace data and are never canonical archive records. A missing or mismatched preview is ignored and rebuilt from canonical evidence.
 
 ## Lazy open and materialization
 
@@ -115,7 +126,7 @@ Frame evidence is independent once its PNG asset is complete and verified, but i
 
 Deleting evidence is an atomic project transaction. Before commit, the application calculates inbound and outbound references and presents the placements, findings, relationships, clips, frames, and annotations that would be affected.
 
-Eligible records move to `records/trash/` with their original record type, deletion timestamp, transaction ID, and dependency snapshot. Project Trash retains records and required assets for 30 days by default. Undo or Restore reinstates the whole transaction and its ordering.
+Eligible records move to `records/trash/` with their original record type, deletion timestamp, transaction ID, and dependency snapshot. Project Trash retains records and required assets for 30 days by default. Reaching `eligibleAfter` only makes a transaction eligible for explicit cleanup; no timer silently deletes it. Undo or Restore reinstates the whole transaction and its ordering.
 
 Source evidence with active dependents cannot enter Trash. For other evidence, the user may cancel or explicitly remove eligible placements/links as part of the same transaction; Gamebook never deletes containing findings or notes automatically.
 
@@ -160,11 +171,26 @@ ZIP64 is accepted only when the spike demonstrates:
 - Correct replacement on local NTFS and a OneDrive-managed directory.
 - Correct stale-lock, external-change, duplicate-copy, and cache-eviction behavior.
 
-The report records wall-clock open, materialization, validation, and Save times. Unexpectedly poor latency or unsupported raw-copy behavior blocks schema freeze and requires comparison with the SQLite-container alternative.
+The report records wall-clock open, materialization, validation, and Save times. A future regression to unexpectedly poor latency or unsupported raw-copy behavior triggers comparison with the SQLite-container alternative.
 
-Issues #14 through #17 passed the complete gate. The 5 GiB metadata open used 421,888 additional private bytes with no media extraction; selected materialization exposed only the requested verified asset; the 5 GiB Save used at most 1,523,712 additional private bytes and one replacement archive; and local NTFS, OneDrive-managed replacement, workspace identity, locks, copied-project separation, recovery, and cache scenarios passed. The combined [archive-gate report](spikes/archive-gate.md) and [ADR-0002](decisions/0002-zip64-project-storage.md) therefore propose ZIP64 for Milestone 5 rather than requiring a SQLite comparison.
+Issues #14 through #17 passed the complete gate. The 5 GiB metadata open used 421,888 additional private bytes with no media extraction; selected materialization exposed only the requested verified asset; the 5 GiB Save used at most 1,523,712 additional private bytes and one replacement archive; and local NTFS, OneDrive-managed replacement, workspace identity, locks, copied-project separation, recovery, and cache scenarios passed. The combined [archive-gate report](spikes/archive-gate.md) and [ADR-0002](decisions/0002-zip64-project-storage.md) accept ZIP64 without requiring a SQLite comparison.
 
-The reference system did not support `FlushFileBuffers` on the containing directory. The proposed contract retains complete temporary-file flush, pre-visibility validation, same-volume sibling placement, and write-through `MoveFileExW` or `ReplaceFileW`, records directory-flush support accurately, and reopens the visible archive before marking the workspace clean. Milestone 5 must keep this limitation and the documented SQLite revisit triggers visible when it freezes the storage contract.
+The reference system did not support `FlushFileBuffers` on the containing directory. The accepted contract retains complete temporary-file flush, pre-visibility validation, same-volume sibling placement, and write-through `MoveFileExW` or `ReplaceFileW`, records directory-flush support accurately, and reopens the visible archive before marking the workspace clean. It never claims unsupported directory-flush durability.
+
+## Security limits
+
+Manifest and individual JSON entries are limited to 16 MiB, previews to 32 MiB, and an archive to 250,000 entries. Names are relative POSIX paths. Readers reject absolute paths, drive prefixes, `..`, NUL, alternate data streams, links, reparse escapes, and case-insensitive duplicate destinations before materialization. Declared and actual sizes are checked, and every content-addressed asset is SHA-256 verified before visibility.
+
+Native code issues 256-bit random media tokens bound to one application instance, workspace, digest, and operation. Tokens and filesystem paths are never archive, settings, log, diagnostic, or export fields. Credentials remain in Windows Credential Manager.
+
+## Contract validation
+
+```powershell
+npm.cmd run project-format-contract:verify -- --self-test
+npm.cmd run project-format-contract:verify -- --reference docs/spikes/project-format-freeze-reference-report.json
+```
+
+The valid fixtures cover every canonical record and support document. Invalid fixtures cover archive abuse and limits, malformed references and timing, source retention, implicit microphone consent, automatic deletion, future versions, migration mutation, and invented repair content. Milestone 6 adds production archive round trips, interruption, render equivalence, migration, repair, accessibility, and version 1 compatibility evidence against this frozen contract.
 
 ## Migration acceptance
 
