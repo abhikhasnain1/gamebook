@@ -1,6 +1,6 @@
 {
   "schema": "gamebook.workspace-lifecycle-reference.v1",
-  "status": "pending-manual-accessibility-confirmation",
+  "status": "passed",
   "generatedAt": "2026-08-02T14:31:20Z",
   "build": {
     "name": "gamebook",
@@ -191,10 +191,12 @@
     "clippedControlTextAtSupportedScales": false,
     "forcedColorsRulePresent": true,
     "reducedMotionRulePresent": true,
-    "accessibilityInsightsResult": "pending-manual-confirmation",
-    "highContrastReview": "pending-manual-confirmation",
+    "accessibilityInsightsVersion": "1.1.2924.1",
+    "accessibilityInsightsResult": "passed",
+    "accessibilityInsightsChromiumAdvisory": "web-scanner-required-covered-by-axe",
+    "highContrastReview": "passed",
     "nvdaVersion": "2026.1.1",
-    "nvdaSpokenReview": "pending-manual-confirmation"
+    "nvdaSpokenReview": "passed"
   },
   "compatibility": {
     "productionCommandsChanged": false,
