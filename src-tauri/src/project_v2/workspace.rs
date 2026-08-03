@@ -11,8 +11,9 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use serde_json::Value;
+use serde_json::{json, Value};
 use tauri::http::{header, Method, Request, Response, StatusCode};
+use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
 #[cfg(windows)]
 use super::archive::windows_extended_path;
@@ -50,6 +51,12 @@ struct ManagerState {
     workspaces: HashMap<String, WorkspaceRuntime>,
     tokens: HashMap<String, AssetToken>,
     operations: HashMap<String, Arc<AtomicBool>>,
+    pending_captures: HashMap<String, PendingCapture>,
+}
+
+struct PendingCapture {
+    png: Vec<u8>,
+    created_at: Instant,
 }
 
 #[derive(Clone)]
@@ -73,6 +80,7 @@ struct WorkspaceRuntime {
 enum WorkspaceSourceKind {
     Version2,
     Version1 { source_sha256: String },
+    Unsaved,
 }
 
 struct AssetToken {
@@ -307,6 +315,199 @@ impl ProjectV2Manager {
         })
     }
 
+    pub fn create_unsaved(&self) -> Result<OpenProjectResult, String> {
+        let source = {
+            let manager = self
+                .inner
+                .lock()
+                .map_err(|_| "workspace-state-poisoned".to_string())?;
+            let root = initialized_root(&manager)?.clone();
+            let source_dir = root.join("unsaved-sources");
+            fs::create_dir_all(&source_dir)
+                .map_err(|error| format!("workspace-create-failed: {error}"))?;
+            validate_workspace_root(&source_dir, &root)?;
+            source_dir.join(format!("{}.gamebook", random_id("unsaved")?))
+        };
+        write_empty_archive(&source, &random_id("project")?)?;
+        let result = match self.open_path(&source) {
+            Ok(result) => result,
+            Err(error) => {
+                let _ = fs::remove_file(&source);
+                return Err(error);
+            }
+        };
+        let mut manager = self
+            .inner
+            .lock()
+            .map_err(|_| "workspace-state-poisoned".to_string())?;
+        let workspace = open_workspace_mut(&mut manager, &result.workspace_id)?;
+        workspace.source_kind = WorkspaceSourceKind::Unsaved;
+        Ok(result)
+    }
+
+    pub fn recover_unsaved(&self, workspace_id: &str) -> Result<OpenProjectResult, String> {
+        validate_opaque(workspace_id)?;
+        let (root, source_fingerprint, active_source) = {
+            let manager = self
+                .inner
+                .lock()
+                .map_err(|_| "workspace-state-poisoned".to_string())?;
+            let root = initialized_root(&manager)?.clone();
+            let state = read_workspace_document::<WorkspaceStateDocument>(
+                &root.join(workspace_id).join("workspace-state.json"),
+            )?;
+            if state.workspace_id != workspace_id
+                || !state
+                    .protected_classes
+                    .iter()
+                    .any(|value| value == "unsaved")
+            {
+                return Err("workspace-is-not-unsaved-recovery".to_string());
+            }
+            let active_source = manager
+                .workspaces
+                .get(workspace_id)
+                .filter(|workspace| matches!(workspace.source_kind, WorkspaceSourceKind::Unsaved))
+                .map(|workspace| workspace.source_path.clone());
+            (root, state.source_fingerprint, active_source)
+        };
+        let source = if let Some(source) = active_source {
+            source
+        } else {
+            let source_root = root.join("unsaved-sources");
+            validate_workspace_root(&source_root, &root)?;
+            let mut match_path = None;
+            for (index, entry) in fs::read_dir(&source_root)
+                .map_err(|error| format!("unsaved-recovery-read-failed: {error}"))?
+                .enumerate()
+            {
+                if index >= 10_000 {
+                    return Err("unsaved-recovery-entry-limit".to_string());
+                }
+                let path = entry
+                    .map_err(|error| format!("unsaved-recovery-read-failed: {error}"))?
+                    .path();
+                if !path.is_file()
+                    || path.extension().and_then(|value| value.to_str()) != Some("gamebook")
+                {
+                    continue;
+                }
+                validate_non_reparse_path(&path)?;
+                if source_path_fingerprint(&path)? == source_fingerprint
+                    && match_path.replace(path).is_some()
+                {
+                    return Err("unsaved-recovery-source-ambiguous".to_string());
+                }
+            }
+            match_path.ok_or_else(|| "unsaved-recovery-source-missing".to_string())?
+        };
+        self.open_path(&source)
+    }
+
+    pub fn register_pending_capture(&self, png: Vec<u8>) -> Result<String, String> {
+        if png.is_empty() || png.len() > 256 * 1024 * 1024 {
+            return Err("pending-capture-size-invalid".to_string());
+        }
+        let capture_id = random_secret_hex()?;
+        let mut manager = self
+            .inner
+            .lock()
+            .map_err(|_| "workspace-state-poisoned".to_string())?;
+        manager.pending_captures.retain(|_, pending| {
+            pending.created_at.elapsed() < Duration::from_secs(TOKEN_TTL_SECONDS)
+        });
+        if manager.pending_captures.len() >= 8 {
+            return Err("pending-capture-limit".to_string());
+        }
+        manager.pending_captures.insert(
+            capture_id.clone(),
+            PendingCapture {
+                png,
+                created_at: Instant::now(),
+            },
+        );
+        Ok(capture_id)
+    }
+
+    pub fn claim_pending_capture(
+        &self,
+        workspace_id: &str,
+        capture_id: &str,
+    ) -> Result<MaterializedAssetResult, String> {
+        if capture_id.len() != 64 || !capture_id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err("pending-capture-id-invalid".to_string());
+        }
+        let mut manager = self
+            .inner
+            .lock()
+            .map_err(|_| "workspace-state-poisoned".to_string())?;
+        manager.pending_captures.retain(|_, pending| {
+            pending.created_at.elapsed() < Duration::from_secs(TOKEN_TTL_SECONDS)
+        });
+        let pending = manager
+            .pending_captures
+            .remove(capture_id)
+            .ok_or_else(|| "pending-capture-not-found".to_string())?;
+        let digest = super::archive::sha256_bytes(&pending.png);
+        let token = random_secret_hex()?;
+        let staged = (|| -> Result<(File, u64), String> {
+            let workspace = open_workspace_mut(&mut manager, workspace_id)?;
+            let path = workspace
+                .root
+                .join("working")
+                .join("assets")
+                .join(&digest[..2])
+                .join(format!("{digest}.png"));
+            write_bytes_atomic(&path, &pending.png)?;
+            if !workspace
+                .state
+                .new_asset_digests
+                .iter()
+                .any(|value| value == &digest)
+            {
+                workspace.state.new_asset_digests.push(digest.clone());
+            }
+            workspace.state.state = "dirty".to_string();
+            add_protected_class(&mut workspace.state, "unsaved");
+            workspace.state.updated_at = Utc::now().to_rfc3339();
+            write_workspace_document(
+                &workspace.root.join("workspace-state.json"),
+                &workspace.state,
+            )?;
+            let file = File::open(&path)
+                .map_err(|error| format!("materialized-asset-open-failed: {error}"))?;
+            Ok((file, pending.png.len() as u64))
+        })();
+        let (file, byte_length) = match staged {
+            Ok(value) => value,
+            Err(error) => {
+                manager
+                    .pending_captures
+                    .insert(capture_id.to_string(), pending);
+                return Err(error);
+            }
+        };
+        manager.tokens.insert(
+            token.clone(),
+            AssetToken {
+                workspace_id: workspace_id.to_string(),
+                digest: digest.clone(),
+                operation: "read",
+                file: Arc::new(file),
+                mime_type: "image/png".to_string(),
+                byte_length,
+                last_access: Instant::now(),
+            },
+        );
+        Ok(MaterializedAssetResult {
+            token,
+            digest,
+            mime_type: "image/png".to_string(),
+            byte_length,
+            expires_after_seconds: TOKEN_TTL_SECONDS,
+        })
+    }
+
     pub fn migrate_v1_path(
         &self,
         source: &Path,
@@ -374,9 +575,10 @@ impl ProjectV2Manager {
                 .iter()
                 .find(|entry| entry.source_fingerprint == source_fingerprint)
                 .cloned();
-            if existing.as_ref().is_some_and(|entry| {
-                entry.manifest_sha256 != prepared.manifest_sha256
-            }) {
+            if existing
+                .as_ref()
+                .is_some_and(|entry| entry.manifest_sha256 != prepared.manifest_sha256)
+            {
                 return Err("migration-source-changed-recovery-required".to_string());
             }
             let copy_detected = registry.workspaces.iter().any(|entry| {
@@ -839,13 +1041,15 @@ impl ProjectV2Manager {
         let same_source = paths_equal(&source, &destination);
         if same_source {
             let source_changed = match &source_kind {
-                WorkspaceSourceKind::Version2 => match open_archive_lazy(&source) {
-                    Ok(visible) => {
-                        source_signature(&source, &visible.manifest_sha256)?
-                            != source_signature_at_open
+                WorkspaceSourceKind::Version2 | WorkspaceSourceKind::Unsaved => {
+                    match open_archive_lazy(&source) {
+                        Ok(visible) => {
+                            source_signature(&source, &visible.manifest_sha256)?
+                                != source_signature_at_open
+                        }
+                        Err(_) => true,
                     }
-                    Err(_) => true,
-                },
+                }
                 WorkspaceSourceKind::Version1 { source_sha256 } => {
                     source_signature(&source, source_sha256)? != source_signature_at_open
                 }
@@ -938,7 +1142,10 @@ impl ProjectV2Manager {
             return Err(self.abort_save(&attempt, "failed", error));
         }
 
-        let source_archive = if matches!(&source_kind, WorkspaceSourceKind::Version2) {
+        let source_archive = if matches!(
+            &source_kind,
+            WorkspaceSourceKind::Version2 | WorkspaceSourceKind::Unsaved
+        ) {
             Some(source_file)
         } else {
             None
@@ -1026,6 +1233,8 @@ impl ProjectV2Manager {
             visible_archive_reopened: true,
             version_1_backup_created: version_1_backup.is_some(),
         };
+        let unsaved_source =
+            matches!(&source_kind, WorkspaceSourceKind::Unsaved).then_some(source.clone());
         let workspace_commit = {
             let mut manager = self
                 .inner
@@ -1073,6 +1282,9 @@ impl ProjectV2Manager {
             commit
         };
         workspace_commit.map_err(|error| format!("save-workspace-commit-failed: {error}"))?;
+        if let Some(path) = unsaved_source {
+            let _ = fs::remove_file(path);
+        }
         Ok(result)
     }
 
@@ -1212,6 +1424,13 @@ impl ProjectV2Manager {
         if request.method() != Method::GET && request.method() != Method::HEAD {
             return Err((StatusCode::METHOD_NOT_ALLOWED, "Media request denied."));
         }
+        let response_origin = match request.headers().get(header::ORIGIN) {
+            Some(_) => Some(
+                allowed_media_origin(request)
+                    .ok_or((StatusCode::NOT_FOUND, "Media request denied."))?,
+            ),
+            None => None,
+        };
         let token_text = request
             .uri()
             .path()
@@ -1289,8 +1508,13 @@ impl ProjectV2Manager {
             .header(header::ACCEPT_RANGES, "bytes")
             .header(header::CACHE_CONTROL, "private, no-store")
             .header(header::CONTENT_LENGTH, response_length.to_string())
-            .header("Cross-Origin-Resource-Policy", "same-origin")
+            .header("Cross-Origin-Resource-Policy", "cross-origin")
             .header("X-Content-Type-Options", "nosniff");
+        if let Some(origin) = response_origin {
+            builder = builder
+                .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, origin)
+                .header(header::VARY, "Origin");
+        }
         if status == StatusCode::PARTIAL_CONTENT {
             builder = builder.header(
                 header::CONTENT_RANGE,
@@ -1855,6 +2079,20 @@ fn parse_single_range(value: &str, size: u64) -> Result<(u64, u64), (StatusCode,
     Ok((start, end))
 }
 
+fn allowed_media_origin(request: &Request<Vec<u8>>) -> Option<&'static str> {
+    let origin = request
+        .headers()
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok())?;
+    match origin {
+        "http://tauri.localhost" => Some("http://tauri.localhost"),
+        "https://tauri.localhost" => Some("https://tauri.localhost"),
+        #[cfg(debug_assertions)]
+        "http://localhost:1420" => Some("http://localhost:1420"),
+        _ => None,
+    }
+}
+
 fn paths_equal(left: &Path, right: &Path) -> bool {
     left.to_string_lossy()
         .eq_ignore_ascii_case(&right.to_string_lossy())
@@ -2105,6 +2343,52 @@ fn workspace_schema_validator() -> Result<&'static jsonschema::Validator, String
         .map_err(Clone::clone)
 }
 
+fn write_empty_archive(path: &Path, project_id: &str) -> Result<(), String> {
+    let now = Utc::now().to_rfc3339();
+    let manifest = json!({
+        "formatVersion": 2,
+        "minimumReaderVersion": 2,
+        "projectId": project_id,
+        "title": "Untitled gamebook",
+        "createdAt": now,
+        "updatedAt": now,
+        "activePageId": null,
+        "recordOrder": {
+            "pages": [],
+            "evidence": [],
+            "timelines": [],
+            "findings": [],
+            "tags": [],
+            "collections": [],
+            "relationships": [],
+            "sessions": [],
+            "trash": []
+        },
+        "assets": []
+    });
+    super::archive::validate_project_document(&manifest)?;
+    let file =
+        File::create(path).map_err(|error| format!("unsaved-project-create-failed: {error}"))?;
+    let mut writer = ZipWriter::new(file);
+    writer
+        .start_file(
+            "manifest.json",
+            SimpleFileOptions::default().compression_method(CompressionMethod::Deflated),
+        )
+        .map_err(|error| format!("unsaved-project-create-failed: {error}"))?;
+    writer
+        .write_all(
+            &serde_json::to_vec(&manifest)
+                .map_err(|error| format!("unsaved-project-create-failed: {error}"))?,
+        )
+        .map_err(|error| format!("unsaved-project-create-failed: {error}"))?;
+    writer
+        .finish()
+        .map_err(|error| format!("unsaved-project-create-failed: {error}"))?
+        .sync_all()
+        .map_err(|error| format!("unsaved-project-create-failed: {error}"))
+}
+
 fn random_id(prefix: &str) -> Result<String, String> {
     Ok(format!("{prefix}-{}", &random_secret_hex()?[..32]))
 }
@@ -2240,6 +2524,69 @@ mod tests {
         assert_eq!(
             manager.media_response(&get).status(),
             StatusCode::RANGE_NOT_SATISFIABLE
+        );
+
+        drop(manager);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn serves_windows_webview_media_with_restricted_cors() {
+        let root = temp_test_dir("v2-webview-media");
+        fs::create_dir_all(&root).unwrap();
+        let asset_path = root.join("screenshot.png");
+        let bytes = b"synthetic-screenshot-pixels";
+        fs::write(&asset_path, bytes).unwrap();
+
+        let token = "a".repeat(64);
+        let manager = ProjectV2Manager::default();
+        manager.inner.lock().unwrap().tokens.insert(
+            token.clone(),
+            AssetToken {
+                workspace_id: "workspace-webview-media".to_string(),
+                digest: "b".repeat(64),
+                operation: "read",
+                file: Arc::new(File::open(&asset_path).unwrap()),
+                mime_type: "image/png".to_string(),
+                byte_length: bytes.len() as u64,
+                last_access: Instant::now(),
+            },
+        );
+
+        let request = Request::builder()
+            .method(Method::GET)
+            .uri(format!("gamebook-media://localhost/{token}"))
+            .header(header::ORIGIN, "http://tauri.localhost")
+            .body(Vec::new())
+            .unwrap();
+        let response = manager.media_response(&request);
+
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.body(), bytes);
+        assert_eq!(
+            response
+                .headers()
+                .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+                .unwrap(),
+            "http://tauri.localhost"
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get("Cross-Origin-Resource-Policy")
+                .unwrap(),
+            "cross-origin"
+        );
+
+        let untrusted = Request::builder()
+            .method(Method::GET)
+            .uri(format!("gamebook-media://localhost/{token}"))
+            .header(header::ORIGIN, "https://example.invalid")
+            .body(Vec::new())
+            .unwrap();
+        assert_eq!(
+            manager.media_response(&untrusted).status(),
+            StatusCode::NOT_FOUND
         );
 
         drop(manager);
@@ -2386,6 +2733,172 @@ mod tests {
         let evicted = manager.evict_clean_cache(0, "evict-round-trip").unwrap();
         assert_eq!(evicted.bytes_after, 0);
         assert_eq!(evicted.evicted_entries, 1);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn creates_unsaved_workspaces_and_claims_capture_bytes_by_opaque_token() {
+        let root = temp_test_dir("v2-unsaved-capture");
+        fs::create_dir_all(&root).unwrap();
+        let app_data = root.join("app-data");
+        let destination = root.join("captured.gamebook");
+        let manager = ProjectV2Manager::default();
+        manager.initialize(&app_data).unwrap();
+
+        let project = manager.create_unsaved().unwrap();
+        assert_eq!(project.manifest["formatVersion"], 2);
+        assert_eq!(project.manifest["recordOrder"]["pages"], json!([]));
+        let bootstrap = manager.current_source_path(&project.workspace_id).unwrap();
+        let bytes = b"synthetic-png-capture".to_vec();
+        let capture_id = manager.register_pending_capture(bytes.clone()).unwrap();
+        let claimed = manager
+            .claim_pending_capture(&project.workspace_id, &capture_id)
+            .unwrap();
+
+        assert_eq!(claimed.digest, sha256_bytes(&bytes));
+        assert_eq!(claimed.mime_type, "image/png");
+        assert_eq!(claimed.byte_length, bytes.len() as u64);
+        assert_eq!(claimed.token.len(), 64);
+        assert!(!serde_json::to_string(&project)
+            .unwrap()
+            .contains("synthetic-png"));
+
+        let now = "2026-08-03T00:00:00.000Z";
+        let evidence = json!({
+            "recordType": "evidence",
+            "recordVersion": 1,
+            "id": "evidence-capture",
+            "title": "Captured screenshot",
+            "createdAt": now,
+            "updatedAt": now,
+            "kind": "screenshot",
+            "sessionId": null,
+            "tagIds": [],
+            "provenance": {
+                "origin": "capture",
+                "parentEvidenceIds": [],
+                "importedAt": null,
+                "originalFilename": null
+            },
+            "assetDigest": claimed.digest,
+            "image": {
+                "width": 320,
+                "height": 180,
+                "colorSpace": "srgb",
+                "monitorLabel": "Synthetic display"
+            }
+        });
+        let page = json!({
+            "recordType": "page",
+            "recordVersion": 1,
+            "id": "page-capture",
+            "title": "1",
+            "createdAt": now,
+            "updatedAt": now,
+            "primaryEvidenceId": "evidence-capture",
+            "backgroundColor": "#f7f7f5",
+            "placements": [{
+                "type": "MediaPlacement",
+                "placementVersion": 1,
+                "id": "placement-capture",
+                "evidenceId": "evidence-capture",
+                "left": 68,
+                "top": 112,
+                "scaleX": 1,
+                "scaleY": 1,
+                "angle": 0,
+                "zIndex": 0
+            }],
+            "annotations": [],
+            "annotationOrder": [],
+            "connectors": [],
+            "notes": ""
+        });
+        let mut manifest = project.manifest.clone();
+        manifest["updatedAt"] = Value::String(now.to_string());
+        manifest["activePageId"] = Value::String("page-capture".to_string());
+        manifest["recordOrder"]["pages"] = json!(["page-capture"]);
+        manifest["recordOrder"]["evidence"] = json!(["evidence-capture"]);
+        manifest["assets"] = json!([{
+            "digest": claimed.digest,
+            "byteLength": bytes.len(),
+            "mediaClass": "image",
+            "mimeType": "image/png",
+            "extension": "png",
+            "storageMethod": "stored"
+        }]);
+        manager
+            .stage_document(&project.workspace_id, evidence)
+            .unwrap();
+        manager.stage_document(&project.workspace_id, page).unwrap();
+        manager
+            .stage_document(&project.workspace_id, manifest)
+            .unwrap();
+        manager.autosave(&project.workspace_id).unwrap();
+        let recovered = manager.recover_unsaved(&project.workspace_id).unwrap();
+        assert_eq!(recovered.workspace_id, project.workspace_id);
+        assert!(recovered.reused_workspace);
+
+        let request = Request::builder()
+            .method(Method::GET)
+            .uri(format!("gamebook-media://asset/{}", claimed.token))
+            .body(Vec::new())
+            .unwrap();
+        let response = manager.media_response(&request);
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.body(), &bytes);
+        assert_eq!(
+            manager
+                .claim_pending_capture(&project.workspace_id, &capture_id)
+                .unwrap_err(),
+            "pending-capture-not-found"
+        );
+
+        let saved = manager
+            .save_to(
+                &project.workspace_id,
+                &destination,
+                ExternalChangeChoice::SaveAs,
+                "save-first-capture",
+            )
+            .unwrap();
+        assert!(!saved.replaced_existing);
+        assert!(saved.visible_archive_reopened);
+        assert!(!saved.version_1_backup_created);
+        assert_eq!(
+            manager.current_source_path(&project.workspace_id).unwrap(),
+            fs::canonicalize(&destination).unwrap()
+        );
+        assert!(!bootstrap.exists());
+        manager.close(&project.workspace_id).unwrap();
+        drop(manager);
+
+        let reopened_manager = ProjectV2Manager::default();
+        reopened_manager.initialize(&app_data).unwrap();
+        let reopened = reopened_manager.open_path(&destination).unwrap();
+        assert_eq!(reopened.manifest["activePageId"], "page-capture");
+        assert!(reopened
+            .records
+            .iter()
+            .any(|record| { record.get("id").and_then(Value::as_str) == Some("page-capture") }));
+        let reopened_asset = reopened_manager
+            .materialize(
+                &reopened.workspace_id,
+                &claimed.digest,
+                "materialize-reopened-capture",
+            )
+            .unwrap();
+        let reopened_request = Request::builder()
+            .method(Method::GET)
+            .uri(format!("gamebook-media://asset/{}", reopened_asset.token))
+            .body(Vec::new())
+            .unwrap();
+        let reopened_response = reopened_manager.media_response(&reopened_request);
+        assert_eq!(reopened_response.status(), StatusCode::OK);
+        assert_eq!(reopened_response.body(), &bytes);
+
+        reopened_manager.close(&reopened.workspace_id).unwrap();
+        drop(reopened_manager);
         fs::remove_dir_all(root).unwrap();
     }
 

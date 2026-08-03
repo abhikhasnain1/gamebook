@@ -1,20 +1,20 @@
 use std::{
     fs,
-    io::Read,
-    path::{Path, PathBuf},
+    path::Path,
     sync::atomic::{AtomicBool, Ordering},
     sync::Arc,
     thread,
     time::Duration,
 };
 
+#[cfg(test)]
+use std::io::Read;
+
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use chrono::Utc;
+#[cfg(test)]
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
-use image::{
-    codecs::{jpeg::JpegEncoder, png::PngEncoder},
-    ExtendedColorType, ImageEncoder,
-};
+use image::{codecs::png::PngEncoder, ExtendedColorType, ImageEncoder};
 use serde::{Deserialize, Serialize};
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
@@ -34,8 +34,17 @@ const OVERLAY_HEIGHT_RATIO: f64 = 0.88;
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct CapturePayload {
-    data_url: String,
-    thumbnail_data_url: String,
+    capture_id: String,
+    captured_at: String,
+    monitor_name: String,
+    width: u32,
+    height: u32,
+    monitor_x: i32,
+    monitor_y: i32,
+}
+
+struct CapturedMonitor {
+    png: Vec<u8>,
     captured_at: String,
     monitor_name: String,
     width: u32,
@@ -52,16 +61,7 @@ struct MarkdownPage {
     image_data_url: String,
 }
 
-fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| format!("Could not resolve the app data folder: {error}"))?;
-    fs::create_dir_all(&dir)
-        .map_err(|error| format!("Could not create the app data folder: {error}"))?;
-    Ok(dir)
-}
-
+#[cfg(test)]
 fn write_compressed(
     path: &Path,
     content: &serde_json::Value,
@@ -78,6 +78,7 @@ fn write_compressed(
     Ok(())
 }
 
+#[cfg(test)]
 fn read_project(path: &Path) -> Result<String, String> {
     let file = fs::File::open(path)
         .map_err(|error| format!("Could not open {}: {error}", path.display()))?;
@@ -90,7 +91,7 @@ fn read_project(path: &Path) -> Result<String, String> {
     }
 }
 
-fn capture_monitor(app: &AppHandle) -> Result<CapturePayload, String> {
+fn capture_monitor(app: &AppHandle) -> Result<CapturedMonitor, String> {
     let monitor = app
         .get_webview_window("main")
         .and_then(|window| window.cursor_position().ok())
@@ -121,24 +122,8 @@ fn capture_monitor(app: &AppHandle) -> Result<CapturePayload, String> {
         .write_image(capture.as_raw(), width, height, ExtendedColorType::Rgba8)
         .map_err(|error| format!("Could not encode the capture: {error}"))?;
 
-    let thumbnail = image::imageops::thumbnail(&capture, 224, 126);
-    let thumbnail_rgb = image::DynamicImage::ImageRgba8(thumbnail).to_rgb8();
-    let mut thumbnail_jpeg = Vec::new();
-    JpegEncoder::new_with_quality(&mut thumbnail_jpeg, 68)
-        .encode(
-            thumbnail_rgb.as_raw(),
-            thumbnail_rgb.width(),
-            thumbnail_rgb.height(),
-            ExtendedColorType::Rgb8,
-        )
-        .map_err(|error| format!("Could not encode the capture thumbnail: {error}"))?;
-
-    Ok(CapturePayload {
-        data_url: format!("data:image/png;base64,{}", BASE64.encode(png)),
-        thumbnail_data_url: format!(
-            "data:image/jpeg;base64,{}",
-            BASE64.encode(thumbnail_jpeg)
-        ),
+    Ok(CapturedMonitor {
+        png,
         captured_at: Utc::now().to_rfc3339(),
         monitor_name,
         width,
@@ -231,9 +216,27 @@ fn trigger_capture(app: AppHandle) {
     thread::spawn(move || {
         thread::sleep(Duration::from_millis(140));
         match capture_monitor(&app) {
-            Ok(payload) => {
-                let _ = app.emit_to("main", "capture-created", payload.clone());
-                show_editor_for_capture(&app, &payload);
+            Ok(capture) => {
+                let manager = app.state::<Arc<project_v2::ProjectV2Manager>>();
+                match manager.register_pending_capture(capture.png) {
+                    Ok(capture_id) => {
+                        let payload = CapturePayload {
+                            capture_id,
+                            captured_at: capture.captured_at,
+                            monitor_name: capture.monitor_name,
+                            width: capture.width,
+                            height: capture.height,
+                            monitor_x: capture.monitor_x,
+                            monitor_y: capture.monitor_y,
+                        };
+                        let _ = app.emit_to("main", "capture-created", payload.clone());
+                        show_editor_for_capture(&app, &payload);
+                    }
+                    Err(message) => {
+                        show_editor(&app);
+                        let _ = app.emit_to("main", "capture-error", message);
+                    }
+                }
             }
             Err(message) => {
                 show_editor(&app);
@@ -290,61 +293,6 @@ fn quit_app(app: AppHandle) {
 #[tauri::command]
 fn request_capture(app: AppHandle) {
     trigger_capture(app);
-}
-
-#[tauri::command]
-async fn autosave_project(app: AppHandle, content: serde_json::Value) -> Result<(), String> {
-    let path = data_dir(&app)?.join("autosave.gamebook");
-    tauri::async_runtime::spawn_blocking(move || {
-        write_compressed(&path, &content, Compression::fast())
-    })
-    .await
-    .map_err(|error| format!("Autosave worker failed: {error}"))?
-}
-
-#[tauri::command]
-fn load_autosave(app: AppHandle) -> Result<Option<String>, String> {
-    let path = data_dir(&app)?.join("autosave.gamebook");
-    if !path.exists() {
-        return Ok(None);
-    }
-    read_project(&path).map(Some)
-}
-
-#[tauri::command]
-fn save_project(
-    window: WebviewWindow,
-    content: serde_json::Value,
-    current_path: Option<String>,
-    suggested_name: String,
-) -> Result<Option<String>, String> {
-    let path = match current_path {
-        Some(path) => PathBuf::from(path),
-        None => match rfd::FileDialog::new()
-            .set_parent(&window)
-            .add_filter("Gamebook project", &["gamebook"])
-            .set_file_name(format!("{suggested_name}.gamebook"))
-            .save_file()
-        {
-            Some(path) => path,
-            None => return Ok(None),
-        },
-    };
-    write_compressed(&path, &content, Compression::default())?;
-    Ok(Some(path.to_string_lossy().into_owned()))
-}
-
-#[tauri::command]
-fn open_project(window: WebviewWindow) -> Result<Option<(String, String)>, String> {
-    let Some(path) = rfd::FileDialog::new()
-        .set_parent(&window)
-        .add_filter("Gamebook project", &["gamebook"])
-        .pick_file()
-    else {
-        return Ok(None);
-    };
-    let content = read_project(&path)?;
-    Ok(Some((path.to_string_lossy().into_owned(), content)))
 }
 
 fn decode_data_url(value: &str) -> Result<Vec<u8>, String> {
@@ -492,10 +440,10 @@ pub fn run() {
             hide_overlay,
             quit_app,
             request_capture,
-            autosave_project,
-            load_autosave,
-            save_project,
-            open_project,
+            project_v2::create_project_v2,
+            project_v2::recover_project_v2_workspace,
+            project_v2::open_project_for_editor,
+            project_v2::claim_screenshot_capture,
             project_v2::open_project_v2,
             project_v2::migrate_project_v1,
             project_v2::inspect_project_v2_repair,
@@ -523,7 +471,9 @@ mod tests {
     use flate2::Compression;
     use serde_json::json;
 
-    use super::{decode_data_url, overlay_bounds, read_project, safe_stem, write_compressed};
+    use super::{
+        decode_data_url, overlay_bounds, read_project, safe_stem, write_compressed, CapturePayload,
+    };
 
     #[test]
     fn decodes_plain_and_prefixed_base64() {
@@ -549,6 +499,26 @@ mod tests {
         let (position, size) = overlay_bounds(-1920, 0, 1920, 1080);
         assert_eq!(position, tauri::PhysicalPosition::new(-1815, 65));
         assert_eq!(size, tauri::PhysicalSize::new(1709, 950));
+    }
+
+    #[test]
+    fn capture_events_expose_only_an_opaque_claim_id_and_metadata() {
+        let payload = CapturePayload {
+            capture_id: "a".repeat(64),
+            captured_at: "2026-08-03T00:00:00Z".to_string(),
+            monitor_name: "Display 1".to_string(),
+            width: 1920,
+            height: 1080,
+            monitor_x: 0,
+            monitor_y: 0,
+        };
+        let value = serde_json::to_value(payload).unwrap();
+        assert_eq!(value["captureId"], "a".repeat(64));
+        let serialized = serde_json::to_string(&value).unwrap();
+        assert!(!serialized.contains("dataUrl"));
+        assert!(!serialized.contains("thumbnail"));
+        assert!(!serialized.contains("base64"));
+        assert!(!serialized.contains("png"));
     }
 
     #[test]

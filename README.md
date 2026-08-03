@@ -9,7 +9,8 @@ Press `Ctrl+Shift+F12` while playing. Gamebook captures the display under the po
 - Native background tray application built with Tauri 2 and Rust
 - Display-aware screenshot capture with a global hotkey
 - Centered, monitor-relative overlay that preserves visible game context
-- Finite grid workspace with freely movable and resizable screenshots
+- Finite 1600 by 900 grid workspace with Fit, 25-200% zoom, pan, and freely movable screenshots
+- Semantic Outline with synchronized placement selection and numeric transform controls
 - Pen, arrow, callout, line, rectangle, circle, and text tools
 - One-shot drawing flow that selects each new object immediately for adjustment
 - Non-destructive crop extraction from the source screenshot at original resolution
@@ -24,7 +25,7 @@ Press `Ctrl+Shift+F12` while playing. Gamebook captures the display under the po
 - Subtle dotted grids that remain visible in PNG and PDF exports
 - Debounced crash-recovery autosave
 - Frame-throttled canvas interaction, lightweight page thumbnails, and background autosave compression for large projects
-- Editable compressed `.gamebook` project files
+- Editable ZIP64 `.gamebook` projects with protected autosave workspaces, recovery, and legacy version 1 migration
 - Current-page PNG export
 - Whole-session landscape PDF, Markdown with image assets, and plain-text exports
 - Single-instance behavior and native tray commands

@@ -3,8 +3,9 @@ mod migration;
 mod model;
 mod workspace;
 
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
+use serde_json::json;
 use tauri::{Manager, State, WebviewWindow};
 
 pub use model::{
@@ -12,6 +13,85 @@ pub use model::{
     OpenProjectResult, SaveProjectResult,
 };
 pub use workspace::ProjectV2Manager;
+
+#[tauri::command]
+pub async fn create_project_v2(
+    manager: State<'_, Arc<ProjectV2Manager>>,
+) -> Result<OpenProjectResult, String> {
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.create_unsaved())
+        .await
+        .map_err(|error| format!("Version 2 project-create worker failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn recover_project_v2_workspace(
+    manager: State<'_, Arc<ProjectV2Manager>>,
+    workspace_id: String,
+) -> Result<OpenProjectResult, String> {
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.recover_unsaved(&workspace_id))
+        .await
+        .map_err(|error| format!("Version 2 recovery worker failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn open_project_for_editor(
+    window: WebviewWindow,
+    manager: State<'_, Arc<ProjectV2Manager>>,
+    operation_id: String,
+) -> Result<Option<serde_json::Value>, String> {
+    let Some(path) = rfd::FileDialog::new()
+        .set_parent(&window)
+        .add_filter("Gamebook project", &["gamebook"])
+        .pick_file()
+    else {
+        return Ok(None);
+    };
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        open_path_for_editor(&manager, &path, &operation_id)
+    })
+    .await
+    .map_err(|error| format!("Project open worker failed: {error}"))?
+    .map(Some)
+}
+
+fn open_path_for_editor(
+    manager: &ProjectV2Manager,
+    path: &Path,
+    operation_id: &str,
+) -> Result<serde_json::Value, String> {
+    if archive::open_archive_lazy(path).is_ok() {
+        return match manager.open_path(path) {
+            Ok(project) => serde_json::to_value(project)
+                .map(|project| json!({ "outcome": "opened", "project": project }))
+                .map_err(|error| format!("editor-open-result-invalid: {error}")),
+            Err(error) => Err(error),
+        };
+    }
+    match manager.migrate_v1_path(path, operation_id) {
+        Ok(project) => serde_json::to_value(project)
+            .map(|project| json!({ "outcome": "migrated", "project": project }))
+            .map_err(|error| format!("editor-open-result-invalid: {error}")),
+        Err(error) if error == "operation-cancelled" => Err(error),
+        Err(error) if error == "future-version-rejected" => Ok(json!({
+            "outcome": "future-version-rejected",
+            "code": "future-version-rejected"
+        })),
+        Err(_) => migration::inspect_repair(path)
+            .map(|report| json!({ "outcome": "repair", "report": report })),
+    }
+}
+
+#[tauri::command]
+pub fn claim_screenshot_capture(
+    manager: State<'_, Arc<ProjectV2Manager>>,
+    workspace_id: String,
+    capture_id: String,
+) -> Result<MaterializedAssetResult, String> {
+    manager.claim_pending_capture(&workspace_id, &capture_id)
+}
 
 #[tauri::command]
 pub async fn open_project_v2(
@@ -200,4 +280,38 @@ pub fn initialize(app: &tauri::App) -> Result<(), String> {
         .app_data_dir()
         .map_err(|error| format!("Could not resolve the app data folder: {error}"))?;
     app.state::<Arc<ProjectV2Manager>>().initialize(&root)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{fs, time::SystemTime};
+
+    #[test]
+    fn editor_open_preserves_valid_v2_workspace_lock_errors() {
+        let root = std::env::temp_dir().join(format!(
+            "gamebook-editor-open-lock-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        let app_data = root.join("app-data");
+        let owner = ProjectV2Manager::default();
+        owner.initialize(&app_data).unwrap();
+        let project = owner.create_unsaved().unwrap();
+        let source = owner.current_source_path(&project.workspace_id).unwrap();
+
+        let contender = ProjectV2Manager::default();
+        contender.initialize(&app_data).unwrap();
+        assert_eq!(
+            open_path_for_editor(&contender, &source, "open-locked-project").unwrap_err(),
+            "workspace-live-lock"
+        );
+
+        owner.close(&project.workspace_id).unwrap();
+        fs::remove_dir_all(root).unwrap();
+    }
 }

@@ -20,7 +20,9 @@ The tray menu can also capture, reopen the current gamebook, or quit the backgro
 
 New text boxes and double-clicked text boxes immediately show a blinking caret. Text has a consistent inset from the border while the background fill still reaches the complete outer edge. The formatting bar appears directly above the active box and includes an exact numeric font size, bold, italic, underline, bulleted lists, and alignment. Pressing `Enter` in a bullet continues the list; pressing `Enter` on an empty bullet exits it.
 
-The white page is a finite grid workspace. The screenshot starts at a practical size but is not locked: select it to move, resize, or rotate it. Text boxes and diagrams can be placed anywhere, including across a screenshot edge. There are deliberately no zoom controls or infinite-canvas navigation.
+The white page is a finite 1600 by 900 grid workspace. The screenshot starts at a practical size but is not locked: select it to move, resize, or rotate it. Text boxes and diagrams can be placed anywhere, including across a screenshot edge. Fit is the default view; the view controls provide 25-200 percent zoom, centered 100 percent reset, and four-way pan without changing saved page geometry or exports. Space+Arrow, Space+drag, and middle-button drag also pan the view.
+
+The Outline beside the page is the semantic counterpart to canvas selection. Select the screenshot there to review its layer and use named numeric controls for position, scale, and rotation. Outline and canvas selection stay synchronized without moving keyboard focus unexpectedly.
 
 The color swatches and stroke preview affect new drawing objects. Use `-` and `+` around the preview to change line thickness. Hover any control for its purpose; tooltips are rendered above the complete interface and do not get clipped by scrolling toolbars. Press `Delete` to remove selected annotation objects; the page screenshot is protected from accidental deletion.
 
@@ -38,11 +40,11 @@ Deleting a thumbnail removes that page from the current project. The delete cont
 
 ## Save and recover
 
-Save writes an editable, compressed `.gamebook` project. The first save asks for a location; later saves update that file. `Ctrl+S` is equivalent to Save.
+Save writes an editable, portable `.gamebook` project. The first save asks for a location; later saves update that file. `Ctrl+S` is equivalent to Save. If the source changed outside Gamebook, Save pauses and offers Save As, explicit replacement, or cancellation instead of overwriting silently.
 
-Gamebook also maintains a private recovery copy after a short quiet period and immediately before closing the overlay. Recovery serialization is sent once to Rust, and compression runs on a background worker so large multi-page projects do not interrupt drawing. The recovery copy is restored the next time the app starts, even when the previous session ended unexpectedly.
+Gamebook autosaves changed records after a short quiet period inside a protected private workspace; it does not rebuild the project archive on every edit. Recoverable workspaces appear at startup and in Project storage. Project storage can also clear verified clean cache files, but it never removes unsaved or recovery data.
 
-The visible editor currently uses the version 1 screenshot project workflow described here. Native version 2 archive, workspace, deterministic migration, read-only repair, and backup foundations are present for upcoming placement work, but they are not exposed as a separate Open, Save, repair, or recovery workflow yet; current projects are not converted or changed implicitly.
+Open accepts current version 2 projects and legacy version 1 screenshot projects. Legacy projects are migrated in a workspace without changing the source, then a report summarizes the result. The first successful Save over a legacy source creates a collision-safe `.v1-backup`. Damaged version 2 input opens a read-only repair summary of valid and missing content; unsupported future versions are rejected without creating a mutable workspace or changing the file.
 
 ## Export
 
@@ -62,6 +64,7 @@ Exports are flattened snapshots. Keep the `.gamebook` project when future editin
 | Save | `Ctrl+S` |
 | Undo / Redo | `Ctrl+Z` / `Ctrl+Y` |
 | Delete selection | `Delete` |
+| Pan page view | `Space+Arrow` |
 | Select | `V` |
 | Pen | `P` |
 | Arrow | `A` |

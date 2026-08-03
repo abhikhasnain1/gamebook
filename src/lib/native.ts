@@ -11,6 +11,25 @@ export async function onCapture(
   return listen<CapturePayload>("capture-created", ({ payload }) => handler(payload));
 }
 
+export interface ScreenshotCaptureEvent {
+  captureId: string;
+  capturedAt: string;
+  monitorName: string;
+  width: number;
+  height: number;
+  monitorX?: number;
+  monitorY?: number;
+}
+
+export async function onScreenshotCapture(
+  handler: (capture: ScreenshotCaptureEvent) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri) return () => undefined;
+  return listen<ScreenshotCaptureEvent>("capture-created", ({ payload }) =>
+    handler(payload),
+  );
+}
+
 export async function onCaptureError(
   handler: (message: string) => void,
 ): Promise<UnlistenFn> {
@@ -141,9 +160,50 @@ export interface ProjectV2RecoverySummary {
   workspaceId: string;
   projectId: string;
   state: string;
+  protectedClasses?: string[];
 }
 
 export type ProjectV2ExternalChangeChoice = "cancel" | "save-as" | "replace";
+
+export type EditorProjectOpenOutcome =
+  | { outcome: "opened"; project: ProjectV2OpenResult }
+  | { outcome: "migrated"; project: ProjectV1MigrationResult }
+  | { outcome: "repair"; report: ProjectV2RepairReport }
+  | { outcome: "future-version-rejected"; code: "future-version-rejected" };
+
+export async function createProjectV2(): Promise<ProjectV2OpenResult | null> {
+  if (!isTauri) return null;
+  return invoke<ProjectV2OpenResult>("create_project_v2");
+}
+
+export async function recoverProjectV2Workspace(
+  workspaceId: string,
+): Promise<ProjectV2OpenResult | null> {
+  if (!isTauri) return null;
+  return invoke<ProjectV2OpenResult>("recover_project_v2_workspace", {
+    workspaceId,
+  });
+}
+
+export async function openProjectForEditor(
+  operationId: string,
+): Promise<EditorProjectOpenOutcome | null> {
+  if (!isTauri) return null;
+  return invoke<EditorProjectOpenOutcome | null>("open_project_for_editor", {
+    operationId,
+  });
+}
+
+export async function claimScreenshotCapture(
+  workspaceId: string,
+  captureId: string,
+): Promise<ProjectV2AssetResult | null> {
+  if (!isTauri) return null;
+  return invoke<ProjectV2AssetResult>("claim_screenshot_capture", {
+    workspaceId,
+    captureId,
+  });
+}
 
 export async function openProjectV2(): Promise<ProjectV2OpenResult | null> {
   if (!isTauri) return null;
@@ -240,7 +300,7 @@ export async function listProjectV2Recovery(): Promise<ProjectV2RecoverySummary[
 
 export function projectV2MediaUrl(token: string): string {
   if (!/^[a-f0-9]{64}$/.test(token)) throw new Error("Invalid project media token.");
-  return `gamebook-media://asset/${token}`;
+  return `http://gamebook-media.localhost/${token}`;
 }
 
 export async function hideOverlay(): Promise<void> {

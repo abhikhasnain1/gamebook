@@ -138,9 +138,19 @@ async function verifyReadiness(report, sources) {
     readText(rel("docs/ARCHITECTURE.md")), readText(rel("docs/QA.md")), readText(rel("docs/spikes/archive-gate.md")), readJson(rel("package.json")),
   ]);
   assert(index.includes("frozen by ADR-0001 through ADR-0009"), "Documentation index does not identify the frozen decisions");
-  assert(formatDoc.includes("Status: Accepted architecture contract under dependency-ordered implementation") && formatDoc.includes("visible Gamebook 0.5.3 editor still reads and writes version 1 projects"), "Project-format current/future boundary changed");
+  assert(
+    formatDoc.includes("Status: Accepted architecture contract under dependency-ordered implementation")
+      && formatDoc.includes("The production screenshot editor uses the version 2 archive")
+      && formatDoc.includes("Video, research, settings, and Project Trash behavior remain assigned to later roadmap issues"),
+    "Project-format current/future boundary changed",
+  );
   assert(mediaDoc.includes("Status: Frozen architecture contract for future implementation") && mediaDoc.includes("None of these future features is implemented in Gamebook 0.5.3"), "Media architecture current/future boundary changed");
-  assert(architecture.includes("Gzip-compressed JSON") && architecture.includes("Version 1"), "Current version 1 architecture baseline changed");
+  assert(
+    architecture.includes("Open accepts valid version 2 archives and Gzip or plain version 1 projects")
+      && architecture.includes("Version 1 migration runs in an isolated workspace")
+      && architecture.includes("Damaged version 2 input receives a read-only repair report"),
+    "Current project architecture boundary changed",
+  );
   assert(!qa.includes("Proposed rendering ADR") && qa.includes("accepted ADR-0001"), "QA retains obsolete rendering-decision guidance");
   assert(archiveDoc.includes("Status: Accepted feasibility evidence") && !archiveDoc.includes("ADR-0002](../decisions/0002-zip64-project-storage.md) remains Proposed"), "Archive gate retains obsolete current decision status");
   for (const script of ["native-media-contract:verify", "placement-viewport-contract:verify", "archive-gate:verify", "project-format-contract:verify", "architecture-readiness:verify"])
