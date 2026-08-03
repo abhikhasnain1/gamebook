@@ -1,0 +1,514 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gamebook:schema:project:v2",
+  "title": "Gamebook project format version 2 canonical records",
+  "oneOf": [
+    { "$ref": "#/$defs/manifest" },
+    { "$ref": "#/$defs/evidence" },
+    { "$ref": "#/$defs/timeline" },
+    { "$ref": "#/$defs/page" },
+    { "$ref": "#/$defs/finding" },
+    { "$ref": "#/$defs/tag" },
+    { "$ref": "#/$defs/collection" },
+    { "$ref": "#/$defs/relationship" },
+    { "$ref": "#/$defs/session" },
+    { "$ref": "#/$defs/trashRecord" }
+  ],
+  "$defs": {
+    "opaqueId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,95}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "idArray": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/opaqueId" },
+      "uniqueItems": true
+    },
+    "asset": {
+      "type": "object",
+      "required": ["digest", "byteLength", "mediaClass", "mimeType", "extension", "storageMethod"],
+      "properties": {
+        "digest": { "$ref": "#/$defs/sha256" },
+        "byteLength": { "type": "integer", "minimum": 1 },
+        "mediaClass": { "enum": ["image", "video", "audio", "binary"] },
+        "mimeType": { "enum": ["image/png", "image/jpeg", "video/mp4", "audio/mp4", "application/octet-stream"] },
+        "extension": { "enum": ["png", "jpg", "mp4", "m4a", "bin"] },
+        "storageMethod": { "const": "stored" }
+      },
+      "additionalProperties": false
+    },
+    "derivedPreview": {
+      "type": "object",
+      "required": ["evidenceId", "kind", "sourceDigest", "previewDigest"],
+      "properties": {
+        "evidenceId": { "$ref": "#/$defs/opaqueId" },
+        "kind": { "enum": ["thumbnail", "poster"] },
+        "sourceDigest": { "$ref": "#/$defs/sha256" },
+        "previewDigest": { "$ref": "#/$defs/sha256" }
+      },
+      "additionalProperties": false
+    },
+    "manifest": {
+      "type": "object",
+      "required": ["formatVersion", "minimumReaderVersion", "projectId", "title", "createdAt", "updatedAt", "activePageId", "recordOrder", "assets"],
+      "properties": {
+        "formatVersion": { "const": 2 },
+        "minimumReaderVersion": { "const": 2 },
+        "projectId": { "$ref": "#/$defs/opaqueId" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "activePageId": { "anyOf": [{ "$ref": "#/$defs/opaqueId" }, { "type": "null" }] },
+        "recordOrder": {
+          "type": "object",
+          "required": ["pages", "evidence", "timelines", "findings", "tags", "collections", "relationships", "sessions", "trash"],
+          "properties": {
+            "pages": { "$ref": "#/$defs/idArray" },
+            "evidence": { "$ref": "#/$defs/idArray" },
+            "timelines": { "$ref": "#/$defs/idArray" },
+            "findings": { "$ref": "#/$defs/idArray" },
+            "tags": { "$ref": "#/$defs/idArray" },
+            "collections": { "$ref": "#/$defs/idArray" },
+            "relationships": { "$ref": "#/$defs/idArray" },
+            "sessions": { "$ref": "#/$defs/idArray" },
+            "trash": { "$ref": "#/$defs/idArray" }
+          },
+          "additionalProperties": false
+        },
+        "assets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/asset" }
+        },
+        "derivedPreviews": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/derivedPreview" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": ["origin", "parentEvidenceIds"],
+      "properties": {
+        "origin": { "enum": ["capture", "import", "derived", "migration"] },
+        "parentEvidenceIds": { "$ref": "#/$defs/idArray" },
+        "importedAt": { "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "originalFilename": { "type": ["string", "null"], "maxLength": 512 }
+      },
+      "additionalProperties": false
+    },
+    "exactFrame": {
+      "type": "object",
+      "required": ["sampleIndex", "sourceTimestamp100ns", "timestampUs"],
+      "properties": {
+        "sampleIndex": { "type": "integer", "minimum": 0 },
+        "sourceTimestamp100ns": { "type": "integer", "minimum": 0 },
+        "timestampUs": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "imageMetadata": {
+      "type": "object",
+      "required": ["width", "height", "colorSpace"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "colorSpace": { "enum": ["srgb", "sdr-rec709"] },
+        "monitorLabel": { "type": ["string", "null"], "maxLength": 256 }
+      },
+      "additionalProperties": false
+    },
+    "videoMetadata": {
+      "type": "object",
+      "required": ["timelineId", "encodedWidth", "encodedHeight", "logicalWidth", "logicalHeight", "durationUs", "colorSpace", "hasSystemAudio", "hasMicrophone", "audioDiscontinuities"],
+      "properties": {
+        "timelineId": { "$ref": "#/$defs/opaqueId" },
+        "encodedWidth": { "type": "integer", "minimum": 2 },
+        "encodedHeight": { "type": "integer", "minimum": 2 },
+        "logicalWidth": { "type": "integer", "minimum": 1 },
+        "logicalHeight": { "type": "integer", "minimum": 1 },
+        "durationUs": { "type": "integer", "minimum": 1 },
+        "colorSpace": { "const": "sdr-rec709-full-range" },
+        "hasSystemAudio": { "type": "boolean" },
+        "hasMicrophone": { "type": "boolean" },
+        "audioDiscontinuities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["timestampUs", "reason"],
+            "properties": {
+              "timestampUs": { "type": "integer", "minimum": 0 },
+              "reason": { "enum": ["device-change", "device-loss", "packet-discontinuity", "capture-failure"] }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["recordType", "recordVersion", "id", "title", "createdAt", "updatedAt", "kind", "sessionId", "tagIds", "provenance"],
+      "properties": {
+        "recordType": { "const": "evidence" },
+        "recordVersion": { "const": 1 },
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "kind": { "enum": ["screenshot", "image", "video", "clip", "frame"] },
+        "sessionId": { "anyOf": [{ "$ref": "#/$defs/opaqueId" }, { "type": "null" }] },
+        "tagIds": { "$ref": "#/$defs/idArray" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "assetDigest": { "$ref": "#/$defs/sha256" },
+        "image": { "$ref": "#/$defs/imageMetadata" },
+        "video": { "$ref": "#/$defs/videoMetadata" },
+        "sourceVideoId": { "$ref": "#/$defs/opaqueId" },
+        "sourceStartUs": { "type": "integer", "minimum": 0 },
+        "sourceEndUs": { "type": "integer", "minimum": 1 },
+        "exactFrame": { "$ref": "#/$defs/exactFrame" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "enum": ["screenshot", "image"] } }, "required": ["kind"] },
+          "then": {
+            "required": ["assetDigest", "image"],
+            "not": { "anyOf": [{ "required": ["video"] }, { "required": ["sourceVideoId"] }, { "required": ["sourceStartUs"] }, { "required": ["sourceEndUs"] }, { "required": ["exactFrame"] }] }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "video" } }, "required": ["kind"] },
+          "then": {
+            "required": ["assetDigest", "video"],
+            "not": { "anyOf": [{ "required": ["image"] }, { "required": ["sourceVideoId"] }, { "required": ["sourceStartUs"] }, { "required": ["sourceEndUs"] }, { "required": ["exactFrame"] }] }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "clip" } }, "required": ["kind"] },
+          "then": {
+            "required": ["sourceVideoId", "sourceStartUs", "sourceEndUs"],
+            "not": { "anyOf": [{ "required": ["assetDigest"] }, { "required": ["image"] }, { "required": ["video"] }, { "required": ["exactFrame"] }] }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "frame" } }, "required": ["kind"] },
+          "then": {
+            "required": ["assetDigest", "image", "sourceVideoId", "exactFrame"],
+            "not": { "anyOf": [{ "required": ["video"] }, { "required": ["sourceStartUs"] }, { "required": ["sourceEndUs"] }] }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "timelineEntry": {
+      "type": "object",
+      "required": ["sampleIndex", "sourceTimestamp100ns", "timestampUs", "duration100ns", "submitted", "droppedBefore"],
+      "properties": {
+        "sampleIndex": { "type": "integer", "minimum": 0 },
+        "sourceTimestamp100ns": { "type": "integer", "minimum": 0 },
+        "timestampUs": { "type": "integer", "minimum": 0 },
+        "duration100ns": { "type": "integer", "minimum": 1 },
+        "submitted": { "type": "boolean" },
+        "droppedBefore": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "timeline": {
+      "type": "object",
+      "required": ["recordType", "recordVersion", "id", "evidenceId", "timebase", "entries", "createdAt", "updatedAt"],
+      "properties": {
+        "recordType": { "const": "timeline" },
+        "recordVersion": { "const": 1 },
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "evidenceId": { "$ref": "#/$defs/opaqueId" },
+        "timebase": { "const": "100ns-media-foundation-ticks" },
+        "entries": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/timelineEntry" } },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" }
+      },
+      "additionalProperties": false
+    },
+    "crop": {
+      "type": "object",
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0 },
+        "y": { "type": "number", "minimum": 0 },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "placement": {
+      "type": "object",
+      "required": ["type", "placementVersion", "id", "evidenceId", "left", "top", "scaleX", "scaleY", "angle", "zIndex"],
+      "properties": {
+        "type": { "const": "MediaPlacement" },
+        "placementVersion": { "const": 1 },
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "evidenceId": { "$ref": "#/$defs/opaqueId" },
+        "left": { "type": "number" },
+        "top": { "type": "number" },
+        "scaleX": { "type": "number", "exclusiveMinimum": 0 },
+        "scaleY": { "type": "number", "exclusiveMinimum": 0 },
+        "angle": { "type": "number", "minimum": 0, "exclusiveMaximum": 360 },
+        "crop": { "$ref": "#/$defs/crop" },
+        "posterTimestampUs": { "type": "integer", "minimum": 0 },
+        "zIndex": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "annotationScope": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind"],
+          "properties": { "kind": { "const": "page" } },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["kind", "evidenceId", "startUs", "endUs"],
+          "properties": {
+            "kind": { "const": "time" },
+            "evidenceId": { "$ref": "#/$defs/opaqueId" },
+            "startUs": { "type": "integer", "minimum": 0 },
+            "endUs": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "annotation": {
+      "type": "object",
+      "required": ["id", "kind", "scope", "semanticText", "fabricObject"],
+      "properties": {
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "kind": { "enum": ["pen", "arrow", "callout", "line", "box", "circle", "text", "note"] },
+        "scope": { "$ref": "#/$defs/annotationScope" },
+        "semanticText": { "type": "string", "maxLength": 16384 },
+        "fabricObject": { "type": "object", "maxProperties": 256 }
+      },
+      "additionalProperties": false
+    },
+    "connectorEndpoint": {
+      "type": "object",
+      "required": ["objectId", "anchor"],
+      "properties": {
+        "objectId": { "$ref": "#/$defs/opaqueId" },
+        "anchor": { "enum": ["top", "right", "bottom", "left"] }
+      },
+      "additionalProperties": false
+    },
+    "connector": {
+      "type": "object",
+      "required": ["id", "start", "end"],
+      "properties": {
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "start": { "$ref": "#/$defs/connectorEndpoint" },
+        "end": { "$ref": "#/$defs/connectorEndpoint" }
+      },
+      "additionalProperties": false
+    },
+    "page": {
+      "type": "object",
+      "required": ["recordType", "recordVersion", "id", "title", "createdAt", "updatedAt", "primaryEvidenceId", "backgroundColor", "placements", "annotations", "annotationOrder", "connectors", "notes"],
+      "properties": {
+        "recordType": { "const": "page" },
+        "recordVersion": { "const": 1 },
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "title": { "type": "string", "maxLength": 512 },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "primaryEvidenceId": { "anyOf": [{ "$ref": "#/$defs/opaqueId" }, { "type": "null" }] },
+        "backgroundColor": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "placements": { "type": "array", "items": { "$ref": "#/$defs/placement" } },
+        "annotations": { "type": "array", "items": { "$ref": "#/$defs/annotation" } },
+        "annotationOrder": { "$ref": "#/$defs/idArray" },
+        "connectors": { "type": "array", "items": { "$ref": "#/$defs/connector" } },
+        "notes": { "type": "string", "maxLength": 1048576 }
+      },
+      "additionalProperties": false
+    },
+    "evidenceReference": {
+      "type": "object",
+      "required": ["evidenceId", "pageId", "annotationId"],
+      "properties": {
+        "evidenceId": { "$ref": "#/$defs/opaqueId" },
+        "pageId": { "anyOf": [{ "$ref": "#/$defs/opaqueId" }, { "type": "null" }] },
+        "annotationId": { "anyOf": [{ "$ref": "#/$defs/opaqueId" }, { "type": "null" }] },
+        "exactFrame": { "$ref": "#/$defs/exactFrame" }
+      },
+      "additionalProperties": false
+    },
+    "finding": {
+      "type": "object",
+      "required": ["recordType", "recordVersion", "id", "createdAt", "updatedAt", "observation", "interpretation", "hypothesis", "followUp", "status", "confidence", "evidenceReferences", "tagIds", "revision"],
+      "properties": {
+        "recordType": { "const": "finding" },
+        "recordVersion": { "const": 1 },
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "observation": { "type": "string", "maxLength": 1048576 },
+        "interpretation": { "type": "string", "maxLength": 1048576 },
+        "hypothesis": { "type": "string", "maxLength": 1048576 },
+        "followUp": { "type": "string", "maxLength": 1048576 },
+        "status": { "enum": ["open", "supported", "contradicted", "resolved", "archived"] },
+        "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "evidenceReferences": { "type": "array", "items": { "$ref": "#/$defs/evidenceReference" } },
+        "tagIds": { "$ref": "#/$defs/idArray" },
+        "revision": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "tag": {
+      "type": "object",
+      "required": ["recordType", "recordVersion", "id", "createdAt", "updatedAt", "normalizedName", "label", "description", "color", "pattern", "sortOrder"],
+      "properties": {
+        "recordType": { "const": "tag" },
+        "recordVersion": { "const": 1 },
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "normalizedName": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "description": { "type": "string", "maxLength": 4096 },
+        "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "pattern": { "enum": ["solid", "stripe", "dot", "crosshatch", "outline"] },
+        "sortOrder": { "type": "integer" }
+      },
+      "additionalProperties": false
+    },
+    "collection": {
+      "type": "object",
+      "required": ["recordType", "recordVersion", "id", "createdAt", "updatedAt", "title", "description", "evidenceIds"],
+      "properties": {
+        "recordType": { "const": "collection" },
+        "recordVersion": { "const": 1 },
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "description": { "type": "string", "maxLength": 16384 },
+        "evidenceIds": { "$ref": "#/$defs/idArray" }
+      },
+      "additionalProperties": false
+    },
+    "recordReference": {
+      "type": "object",
+      "required": ["recordType", "recordId"],
+      "properties": {
+        "recordType": { "enum": ["evidence", "page", "finding", "tag", "collection", "session"] },
+        "recordId": { "$ref": "#/$defs/opaqueId" }
+      },
+      "additionalProperties": false
+    },
+    "relationship": {
+      "type": "object",
+      "required": ["recordType", "recordVersion", "id", "createdAt", "updatedAt", "source", "target", "relation", "note"],
+      "properties": {
+        "recordType": { "const": "relationship" },
+        "recordVersion": { "const": 1 },
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "source": { "$ref": "#/$defs/recordReference" },
+        "target": { "$ref": "#/$defs/recordReference" },
+        "relation": { "enum": ["supports", "contradicts", "derived-from", "compares", "follow-up"] },
+        "note": { "type": "string", "maxLength": 16384 }
+      },
+      "additionalProperties": false
+    },
+    "captureDefaults": {
+      "type": "object",
+      "required": ["target", "durationSeconds", "frameRateCap", "includeCursor", "includeSystemAudio", "includeMicrophone"],
+      "properties": {
+        "target": { "enum": ["monitor-under-pointer", "selected-monitor", "selected-window"] },
+        "durationSeconds": { "type": "integer", "minimum": 5, "maximum": 300 },
+        "frameRateCap": { "enum": [30, 60] },
+        "includeCursor": { "type": "boolean" },
+        "includeSystemAudio": { "type": "boolean" },
+        "includeMicrophone": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "session": {
+      "type": "object",
+      "required": ["recordType", "recordVersion", "id", "createdAt", "updatedAt", "game", "build", "platform", "level", "testLabel", "startedAt", "endedAt", "captureDefaults", "evidenceIds"],
+      "properties": {
+        "recordType": { "const": "session" },
+        "recordVersion": { "const": 1 },
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" },
+        "game": { "type": "string", "maxLength": 512 },
+        "build": { "type": "string", "maxLength": 512 },
+        "platform": { "type": "string", "maxLength": 256 },
+        "level": { "type": "string", "maxLength": 512 },
+        "testLabel": { "type": "string", "maxLength": 512 },
+        "startedAt": { "$ref": "#/$defs/timestamp" },
+        "endedAt": { "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "captureDefaults": { "$ref": "#/$defs/captureDefaults" },
+        "evidenceIds": { "$ref": "#/$defs/idArray" }
+      },
+      "additionalProperties": false
+    },
+    "dependencySnapshot": {
+      "type": "object",
+      "required": ["inbound", "outbound", "assetDigests"],
+      "properties": {
+        "inbound": { "type": "array", "items": { "$ref": "#/$defs/recordReference" } },
+        "outbound": { "type": "array", "items": { "$ref": "#/$defs/recordReference" } },
+        "assetDigests": { "type": "array", "items": { "$ref": "#/$defs/sha256" }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "trashableRecord": {
+      "oneOf": [
+        { "$ref": "#/$defs/evidence" },
+        { "$ref": "#/$defs/timeline" },
+        { "$ref": "#/$defs/page" },
+        { "$ref": "#/$defs/finding" },
+        { "$ref": "#/$defs/tag" },
+        { "$ref": "#/$defs/collection" },
+        { "$ref": "#/$defs/relationship" },
+        { "$ref": "#/$defs/session" }
+      ]
+    },
+    "trashRecord": {
+      "type": "object",
+      "required": ["recordType", "recordVersion", "id", "transactionId", "deletedAt", "eligibleAfter", "originalRecordType", "originalRecordId", "originalOrder", "dependencySnapshot", "originalRecord"],
+      "properties": {
+        "recordType": { "const": "trash" },
+        "recordVersion": { "const": 1 },
+        "id": { "$ref": "#/$defs/opaqueId" },
+        "transactionId": { "$ref": "#/$defs/opaqueId" },
+        "deletedAt": { "$ref": "#/$defs/timestamp" },
+        "eligibleAfter": { "$ref": "#/$defs/timestamp" },
+        "originalRecordType": { "enum": ["evidence", "timeline", "page", "finding", "tag", "collection", "relationship", "session"] },
+        "originalRecordId": { "$ref": "#/$defs/opaqueId" },
+        "originalOrder": {
+          "type": "object",
+          "required": ["list", "index"],
+          "properties": {
+            "list": { "enum": ["pages", "evidence", "timelines", "findings", "tags", "collections", "relationships", "sessions"] },
+            "index": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "dependencySnapshot": { "$ref": "#/$defs/dependencySnapshot" },
+        "originalRecord": { "$ref": "#/$defs/trashableRecord" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

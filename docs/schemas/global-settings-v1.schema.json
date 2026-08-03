@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gamebook:schema:global-settings:v1",
+  "title": "Gamebook global settings version 1",
+  "type": "object",
+  "required": ["settingsVersion", "capture", "shortcuts", "playback", "accessibility", "storage", "trash", "diagnostics"],
+  "properties": {
+    "settingsVersion": { "const": 1 },
+    "capture": {
+      "type": "object",
+      "required": ["target", "durationSeconds", "frameRateCap", "includeCursor", "includeSystemAudio", "includeMicrophone"],
+      "properties": {
+        "target": { "enum": ["monitor-under-pointer", "selected-monitor", "selected-window"] },
+        "durationSeconds": { "type": "integer", "minimum": 5, "maximum": 300 },
+        "frameRateCap": { "enum": [30, 60] },
+        "includeCursor": { "type": "boolean" },
+        "includeSystemAudio": { "type": "boolean" },
+        "includeMicrophone": { "type": "boolean" },
+        "systemAudioDisclosureVersion": { "type": ["string", "null"], "maxLength": 64 },
+        "microphoneConsentVersion": { "type": ["string", "null"], "maxLength": 64 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "includeMicrophone": { "const": true } },
+            "required": ["includeMicrophone"]
+          },
+          "then": {
+            "required": ["microphoneConsentVersion"],
+            "properties": {
+              "microphoneConsentVersion": { "type": "string", "minLength": 1, "maxLength": 64 }
+            }
+          }
+        }
+      ],
+      "additionalProperties": true
+    },
+    "shortcuts": {
+      "type": "object",
+      "required": ["screenshot", "video"],
+      "properties": {
+        "screenshot": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "video": { "type": "string", "minLength": 1, "maxLength": 128 }
+      },
+      "additionalProperties": true
+    },
+    "playback": {
+      "type": "object",
+      "required": ["autoplay", "volume"],
+      "properties": {
+        "autoplay": { "type": "boolean" },
+        "volume": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "additionalProperties": true
+    },
+    "accessibility": {
+      "type": "object",
+      "required": ["reducedMotion", "uiScalePercent"],
+      "properties": {
+        "reducedMotion": { "enum": ["system", "reduce", "allow"] },
+        "uiScalePercent": { "enum": [100, 150, 200] }
+      },
+      "additionalProperties": true
+    },
+    "storage": {
+      "type": "object",
+      "required": ["cacheLimitBytes"],
+      "properties": {
+        "cacheLimitBytes": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "trash": {
+      "type": "object",
+      "required": ["retentionDays"],
+      "properties": {
+        "retentionDays": { "type": "integer", "minimum": 1, "maximum": 3650 }
+      },
+      "additionalProperties": true
+    },
+    "diagnostics": {
+      "type": "object",
+      "required": ["localLogging", "exportConsentVersion"],
+      "properties": {
+        "localLogging": { "type": "boolean" },
+        "exportConsentVersion": { "type": ["string", "null"], "maxLength": 64 }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

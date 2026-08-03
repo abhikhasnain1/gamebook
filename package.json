@@ -33,6 +33,7 @@
     "streamed-save:run": "node tools/spikes/run-streamed-save.mjs",
     "streamed-save:verify": "node tools/spikes/verify-streamed-save-report.mjs",
     "archive-gate:verify": "node tools/spikes/verify-archive-gate-report.mjs",
+    "project-format-contract:verify": "node tools/schemas/verify-project-format-contract.mjs",
     "check": "tsc --noEmit"
   },
   "dependencies": {

@@ -1,0 +1,35 @@
+{
+  "fixtureSchema": "gamebook.workspace-settings-migration-fixture.v1",
+  "settings": {
+    "settingsVersion": 1,
+    "capture": { "target": "monitor-under-pointer", "durationSeconds": 30, "frameRateCap": 30, "includeCursor": true, "includeSystemAudio": true, "includeMicrophone": false, "systemAudioDisclosureVersion": "audio-v1", "microphoneConsentVersion": null },
+    "shortcuts": { "screenshot": "Ctrl+Shift+F12", "video": "Ctrl+Shift+F11", "futureSafeSetting": "preserved" },
+    "playback": { "autoplay": true, "volume": 0.8 },
+    "accessibility": { "reducedMotion": "system", "uiScalePercent": 100 },
+    "storage": { "cacheLimitBytes": 10737418240 },
+    "trash": { "retentionDays": 30 },
+    "diagnostics": { "localLogging": true, "exportConsentVersion": null },
+    "futureSafeRoot": { "preserve": true }
+  },
+  "workspaceDocuments": [
+    { "recordType": "workspace-state", "workspaceVersion": 1, "workspaceId": "workspace-fixture", "projectId": "project-v2-fixture", "sourceFingerprint": "1111111111111111111111111111111111111111111111111111111111111111", "state": "dirty", "createdAt": "2026-08-03T00:00:00.000Z", "updatedAt": "2026-08-03T00:01:00.000Z", "dirtyRecordIds": ["page-primary"], "newAssetDigests": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], "protectedClasses": ["unsaved", "project-trash"] },
+    { "recordType": "workspace-lock", "lockVersion": 1, "workspaceId": "workspace-fixture", "processId": 4242, "applicationInstanceId": "application-instance-fixture", "sourceFingerprint": "1111111111111111111111111111111111111111111111111111111111111111", "heartbeatAt": "2026-08-03T00:01:00.000Z" },
+    { "recordType": "recovery-journal", "journalVersion": 1, "workspaceId": "workspace-fixture", "sequence": 1, "writtenAt": "2026-08-03T00:01:00.000Z", "operation": "migration", "recordIds": ["page-primary"], "assetDigests": ["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"], "status": "committed" },
+    { "recordType": "save-journal", "journalVersion": 1, "workspaceId": "workspace-fixture", "saveId": "save-fixture-1", "phase": "complete", "startedAt": "2026-08-03T00:02:00.000Z", "sourceFingerprint": "1111111111111111111111111111111111111111111111111111111111111111", "replacementValidated": true, "visibleArchiveReopened": true, "directoryFlushSupported": false }
+  ],
+  "reports": [
+    {
+      "recordType": "migration-report", "reportVersion": 1, "migrationId": "migration-fixture-1", "sourceFormat": "gzip-json-v1", "targetFormat": "zip64-v2", "sourceSha256": "2222222222222222222222222222222222222222222222222222222222222222", "status": "passed", "startedAt": "2026-08-03T00:00:00.000Z", "completedAt": "2026-08-03T00:00:01.000Z",
+      "idMappings": [
+        { "legacyType": "project", "legacyId": "fixture-session-v1-basic", "recordType": "manifest", "recordId": "fixture-session-v1-basic", "strategy": "preserved" },
+        { "legacyType": "screenshot", "legacyId": "fixture-page-1", "recordType": "evidence", "recordId": "evidence-fixture-page-1", "strategy": "deterministic-sha256" }
+      ],
+      "assetResults": [{ "legacyPageId": "fixture-page-1", "assetSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "byteLength": 70, "byteIdentical": true }],
+      "pageResults": [{ "legacyPageId": "fixture-page-1", "pageId": "fixture-page-1", "annotationCount": 2, "connectorCount": 0, "semanticEquivalent": true }],
+      "renderDiff": { "width": 1600, "height": 900, "perChannelThreshold": 8, "pixelsOverThresholdRatio": 0, "maximumAllowedRatio": 0.001, "passed": true },
+      "messages": [{ "code": "migration-complete", "severity": "info", "recordId": null, "detail": "Synthetic migration passed." }],
+      "sourceMutated": false
+    },
+    { "recordType": "repair-report", "reportVersion": 1, "repairId": "repair-fixture-1", "sourceSha256": "3333333333333333333333333333333333333333333333333333333333333333", "formatVersion": 2, "mode": "read-only", "status": "recoverable", "validRecordIds": ["page-primary"], "invalidRecordIds": ["finding-damaged"], "missingAssetDigests": [], "messages": [{ "code": "record-invalid", "severity": "warning", "recordId": "finding-damaged", "detail": "The record is listed without an invented replacement." }], "sourceMutated": false, "inventedReplacements": false }
+  ]
+}

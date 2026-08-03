@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:gamebook:schema:migration-repair:v1",
+  "title": "Gamebook migration and repair reports version 1",
+  "oneOf": [
+    { "$ref": "#/$defs/migrationReport" },
+    { "$ref": "#/$defs/repairReport" }
+  ],
+  "$defs": {
+    "opaqueId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{2,95}$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "message": {
+      "type": "object",
+      "required": ["code", "severity", "recordId", "detail"],
+      "properties": {
+        "code": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{2,63}$" },
+        "severity": { "enum": ["info", "warning", "error"] },
+        "recordId": { "anyOf": [{ "$ref": "#/$defs/opaqueId" }, { "type": "null" }] },
+        "detail": { "type": "string", "maxLength": 4096 }
+      },
+      "additionalProperties": false
+    },
+    "migrationReport": {
+      "type": "object",
+      "required": ["recordType", "reportVersion", "migrationId", "sourceFormat", "targetFormat", "sourceSha256", "status", "startedAt", "completedAt", "idMappings", "assetResults", "pageResults", "renderDiff", "messages", "sourceMutated"],
+      "properties": {
+        "recordType": { "const": "migration-report" },
+        "reportVersion": { "const": 1 },
+        "migrationId": { "$ref": "#/$defs/opaqueId" },
+        "sourceFormat": { "enum": ["gzip-json-v1", "plain-json-v1"] },
+        "targetFormat": { "const": "zip64-v2" },
+        "sourceSha256": { "$ref": "#/$defs/sha256" },
+        "status": { "enum": ["passed", "failed", "cancelled"] },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": ["string", "null"], "format": "date-time" },
+        "idMappings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["legacyType", "legacyId", "recordType", "recordId", "strategy"],
+            "properties": {
+              "legacyType": { "enum": ["project", "page", "annotation", "connector", "screenshot"] },
+              "legacyId": { "$ref": "#/$defs/opaqueId" },
+              "recordType": { "enum": ["manifest", "page", "evidence", "annotation", "connector"] },
+              "recordId": { "$ref": "#/$defs/opaqueId" },
+              "strategy": { "enum": ["preserved", "deterministic-sha256"] }
+            },
+            "additionalProperties": false
+          }
+        },
+        "assetResults": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["legacyPageId", "assetSha256", "byteLength", "byteIdentical"],
+            "properties": {
+              "legacyPageId": { "$ref": "#/$defs/opaqueId" },
+              "assetSha256": { "$ref": "#/$defs/sha256" },
+              "byteLength": { "type": "integer", "minimum": 1 },
+              "byteIdentical": { "const": true }
+            },
+            "additionalProperties": false
+          }
+        },
+        "pageResults": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["legacyPageId", "pageId", "annotationCount", "connectorCount", "semanticEquivalent"],
+            "properties": {
+              "legacyPageId": { "$ref": "#/$defs/opaqueId" },
+              "pageId": { "$ref": "#/$defs/opaqueId" },
+              "annotationCount": { "type": "integer", "minimum": 0 },
+              "connectorCount": { "type": "integer", "minimum": 0 },
+              "semanticEquivalent": { "const": true }
+            },
+            "additionalProperties": false
+          }
+        },
+        "renderDiff": {
+          "type": "object",
+          "required": ["width", "height", "perChannelThreshold", "pixelsOverThresholdRatio", "maximumAllowedRatio", "passed"],
+          "properties": {
+            "width": { "const": 1600 },
+            "height": { "const": 900 },
+            "perChannelThreshold": { "const": 8 },
+            "pixelsOverThresholdRatio": { "type": "number", "minimum": 0, "exclusiveMaximum": 0.001 },
+            "maximumAllowedRatio": { "const": 0.001 },
+            "passed": { "const": true }
+          },
+          "additionalProperties": false
+        },
+        "messages": { "type": "array", "items": { "$ref": "#/$defs/message" } },
+        "sourceMutated": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "repairReport": {
+      "type": "object",
+      "required": ["recordType", "reportVersion", "repairId", "sourceSha256", "formatVersion", "mode", "status", "validRecordIds", "invalidRecordIds", "missingAssetDigests", "messages", "sourceMutated", "inventedReplacements"],
+      "properties": {
+        "recordType": { "const": "repair-report" },
+        "reportVersion": { "const": 1 },
+        "repairId": { "$ref": "#/$defs/opaqueId" },
+        "sourceSha256": { "$ref": "#/$defs/sha256" },
+        "formatVersion": { "type": "integer", "minimum": 2 },
+        "mode": { "const": "read-only" },
+        "status": { "enum": ["recoverable", "unrecoverable", "future-version-rejected"] },
+        "validRecordIds": { "type": "array", "items": { "$ref": "#/$defs/opaqueId" }, "uniqueItems": true },
+        "invalidRecordIds": { "type": "array", "items": { "$ref": "#/$defs/opaqueId" }, "uniqueItems": true },
+        "missingAssetDigests": { "type": "array", "items": { "$ref": "#/$defs/sha256" }, "uniqueItems": true },
+        "messages": { "type": "array", "items": { "$ref": "#/$defs/message" } },
+        "sourceMutated": { "const": false },
+        "inventedReplacements": { "const": false }
+      },
+      "additionalProperties": false
+    }
+  }
+}

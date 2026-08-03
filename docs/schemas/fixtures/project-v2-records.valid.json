@@ -1,0 +1,109 @@
+{
+  "fixtureSchema": "gamebook.project-v2-records-fixture.v1",
+  "description": "Synthetic complete canonical-record graph for the accepted Gamebook version 2 contract.",
+  "archiveEntries": [
+    { "name": "manifest.json", "uncompressedBytes": 4096, "kind": "json" },
+    { "name": "records/evidence/evidence-screenshot.json", "uncompressedBytes": 2048, "kind": "json" },
+    { "name": "assets/aa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.png", "uncompressedBytes": 1024, "kind": "asset" },
+    { "name": "previews/evidence-video/poster.jpg", "uncompressedBytes": 512, "kind": "preview" }
+  ],
+  "manifest": {
+    "formatVersion": 2,
+    "minimumReaderVersion": 2,
+    "projectId": "project-v2-fixture",
+    "title": "Synthetic research fixture",
+    "createdAt": "2026-08-03T00:00:00.000Z",
+    "updatedAt": "2026-08-03T00:05:00.000Z",
+    "activePageId": "page-primary",
+    "recordOrder": {
+      "pages": ["page-primary"],
+      "evidence": ["evidence-screenshot", "evidence-image", "evidence-video", "evidence-clip", "evidence-frame"],
+      "timelines": ["timeline-video"],
+      "findings": ["finding-primary"],
+      "tags": ["tag-accessibility"],
+      "collections": ["collection-primary"],
+      "relationships": ["relationship-supports"],
+      "sessions": ["session-primary"],
+      "trash": ["trash-finding-old"]
+    },
+    "assets": [
+      { "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "byteLength": 1024, "mediaClass": "image", "mimeType": "image/png", "extension": "png", "storageMethod": "stored" },
+      { "digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "byteLength": 4096, "mediaClass": "video", "mimeType": "video/mp4", "extension": "mp4", "storageMethod": "stored" },
+      { "digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "byteLength": 1536, "mediaClass": "image", "mimeType": "image/png", "extension": "png", "storageMethod": "stored" },
+      { "digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "byteLength": 1200, "mediaClass": "image", "mimeType": "image/jpeg", "extension": "jpg", "storageMethod": "stored" }
+    ],
+    "derivedPreviews": [
+      { "evidenceId": "evidence-video", "kind": "poster", "sourceDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "previewDigest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" }
+    ]
+  },
+  "records": [
+    {
+      "recordType": "evidence", "recordVersion": 1, "id": "evidence-screenshot", "title": "Captured screen", "createdAt": "2026-08-03T00:00:01.000Z", "updatedAt": "2026-08-03T00:00:01.000Z", "kind": "screenshot", "sessionId": "session-primary", "tagIds": ["tag-accessibility"],
+      "provenance": { "origin": "migration", "parentEvidenceIds": [], "importedAt": null, "originalFilename": null },
+      "assetDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "image": { "width": 1920, "height": 1080, "colorSpace": "srgb", "monitorLabel": "Synthetic QA Display" }
+    },
+    {
+      "recordType": "evidence", "recordVersion": 1, "id": "evidence-image", "title": "Imported reference", "createdAt": "2026-08-03T00:00:02.000Z", "updatedAt": "2026-08-03T00:00:02.000Z", "kind": "image", "sessionId": "session-primary", "tagIds": [],
+      "provenance": { "origin": "import", "parentEvidenceIds": [], "importedAt": "2026-08-03T00:00:02.000Z", "originalFilename": "synthetic-reference.jpg" },
+      "assetDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "image": { "width": 800, "height": 450, "colorSpace": "srgb", "monitorLabel": null }
+    },
+    {
+      "recordType": "evidence", "recordVersion": 1, "id": "evidence-video", "title": "Recorded interaction", "createdAt": "2026-08-03T00:00:03.000Z", "updatedAt": "2026-08-03T00:00:03.000Z", "kind": "video", "sessionId": "session-primary", "tagIds": ["tag-accessibility"],
+      "provenance": { "origin": "capture", "parentEvidenceIds": [], "importedAt": null, "originalFilename": null },
+      "assetDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "video": { "timelineId": "timeline-video", "encodedWidth": 1920, "encodedHeight": 1080, "logicalWidth": 1920, "logicalHeight": 1080, "durationUs": 1000000, "colorSpace": "sdr-rec709-full-range", "hasSystemAudio": true, "hasMicrophone": false, "audioDiscontinuities": [] }
+    },
+    {
+      "recordType": "evidence", "recordVersion": 1, "id": "evidence-clip", "title": "Relevant interval", "createdAt": "2026-08-03T00:00:04.000Z", "updatedAt": "2026-08-03T00:00:04.000Z", "kind": "clip", "sessionId": "session-primary", "tagIds": [],
+      "provenance": { "origin": "derived", "parentEvidenceIds": ["evidence-video"], "importedAt": null, "originalFilename": null },
+      "sourceVideoId": "evidence-video", "sourceStartUs": 100000, "sourceEndUs": 800000
+    },
+    {
+      "recordType": "evidence", "recordVersion": 1, "id": "evidence-frame", "title": "Exact frame", "createdAt": "2026-08-03T00:00:05.000Z", "updatedAt": "2026-08-03T00:00:05.000Z", "kind": "frame", "sessionId": "session-primary", "tagIds": [],
+      "provenance": { "origin": "derived", "parentEvidenceIds": ["evidence-video"], "importedAt": null, "originalFilename": null },
+      "assetDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "image": { "width": 1920, "height": 1080, "colorSpace": "srgb", "monitorLabel": null },
+      "sourceVideoId": "evidence-video", "exactFrame": { "sampleIndex": 1, "sourceTimestamp100ns": 333333, "timestampUs": 33333 }
+    },
+    {
+      "recordType": "timeline", "recordVersion": 1, "id": "timeline-video", "evidenceId": "evidence-video", "timebase": "100ns-media-foundation-ticks", "createdAt": "2026-08-03T00:00:03.000Z", "updatedAt": "2026-08-03T00:00:03.000Z",
+      "entries": [
+        { "sampleIndex": 0, "sourceTimestamp100ns": 0, "timestampUs": 0, "duration100ns": 333333, "submitted": true, "droppedBefore": 0 },
+        { "sampleIndex": 1, "sourceTimestamp100ns": 333333, "timestampUs": 33333, "duration100ns": 333333, "submitted": true, "droppedBefore": 0 }
+      ]
+    },
+    {
+      "recordType": "page", "recordVersion": 1, "id": "page-primary", "title": "1", "createdAt": "2026-08-03T00:00:01.000Z", "updatedAt": "2026-08-03T00:05:00.000Z", "primaryEvidenceId": "evidence-screenshot", "backgroundColor": "#f7f7f5", "notes": "Keyboard-visible finding context.",
+      "placements": [
+        { "type": "MediaPlacement", "placementVersion": 1, "id": "placement-screenshot", "evidenceId": "evidence-screenshot", "left": 68, "top": 112, "scaleX": 0.75, "scaleY": 0.75, "angle": 0, "zIndex": 0 },
+        { "type": "MediaPlacement", "placementVersion": 1, "id": "placement-video", "evidenceId": "evidence-video", "left": 900, "top": 160, "scaleX": 0.25, "scaleY": 0.25, "angle": 0, "crop": { "x": 0, "y": 0, "width": 1920, "height": 1080 }, "posterTimestampUs": 33333, "zIndex": 1 }
+      ],
+      "annotations": [
+        { "id": "annotation-note", "kind": "note", "scope": { "kind": "page" }, "semanticText": "Menu state is not conveyed by color alone.", "fabricObject": { "type": "NoteTextbox", "left": 420, "top": 220, "text": "Menu state is not conveyed by color alone." } },
+        { "id": "annotation-timed", "kind": "box", "scope": { "kind": "time", "evidenceId": "evidence-video", "startUs": 30000, "endUs": 40000 }, "semanticText": "Focus indicator around the selected control.", "fabricObject": { "type": "rect", "left": 120, "top": 80, "width": 320, "height": 180 } }
+      ],
+      "annotationOrder": ["annotation-note", "annotation-timed"],
+      "connectors": [
+        { "id": "connector-primary", "start": { "objectId": "placement-screenshot", "anchor": "right" }, "end": { "objectId": "annotation-note", "anchor": "left" } }
+      ]
+    },
+    {
+      "recordType": "finding", "recordVersion": 1, "id": "finding-primary", "createdAt": "2026-08-03T00:01:00.000Z", "updatedAt": "2026-08-03T00:05:00.000Z", "observation": "Focus becomes difficult to locate.", "interpretation": "The state needs a persistent semantic indicator.", "hypothesis": "A named state and visible outline improve orientation.", "followUp": "Retest with keyboard and screen reader.", "status": "open", "confidence": 0.8, "tagIds": ["tag-accessibility"], "revision": 1,
+      "evidenceReferences": [
+        { "evidenceId": "evidence-screenshot", "pageId": "page-primary", "annotationId": "annotation-note" },
+        { "evidenceId": "evidence-video", "pageId": "page-primary", "annotationId": "annotation-timed", "exactFrame": { "sampleIndex": 1, "sourceTimestamp100ns": 333333, "timestampUs": 33333 } }
+      ]
+    },
+    { "recordType": "tag", "recordVersion": 1, "id": "tag-accessibility", "createdAt": "2026-08-03T00:01:00.000Z", "updatedAt": "2026-08-03T00:01:00.000Z", "normalizedName": "accessibility", "label": "Accessibility", "description": "Accessibility research", "color": "#005FCC", "pattern": "stripe", "sortOrder": 0 },
+    { "recordType": "collection", "recordVersion": 1, "id": "collection-primary", "createdAt": "2026-08-03T00:01:00.000Z", "updatedAt": "2026-08-03T00:01:00.000Z", "title": "Focus review", "description": "Ordered supporting evidence", "evidenceIds": ["evidence-screenshot", "evidence-video", "evidence-frame"] },
+    { "recordType": "relationship", "recordVersion": 1, "id": "relationship-supports", "createdAt": "2026-08-03T00:01:00.000Z", "updatedAt": "2026-08-03T00:01:00.000Z", "source": { "recordType": "evidence", "recordId": "evidence-frame" }, "target": { "recordType": "finding", "recordId": "finding-primary" }, "relation": "supports", "note": "The exact frame supports the observation." },
+    { "recordType": "session", "recordVersion": 1, "id": "session-primary", "createdAt": "2026-08-03T00:00:00.000Z", "updatedAt": "2026-08-03T00:05:00.000Z", "game": "Synthetic Game", "build": "fixture-1", "platform": "Windows", "level": "Test scene", "testLabel": "Accessibility pass", "startedAt": "2026-08-03T00:00:00.000Z", "endedAt": "2026-08-03T00:05:00.000Z", "captureDefaults": { "target": "monitor-under-pointer", "durationSeconds": 30, "frameRateCap": 30, "includeCursor": true, "includeSystemAudio": true, "includeMicrophone": false }, "evidenceIds": ["evidence-screenshot", "evidence-image", "evidence-video", "evidence-clip", "evidence-frame"] },
+    {
+      "recordType": "trash", "recordVersion": 1, "id": "trash-finding-old", "transactionId": "trash-transaction-1", "deletedAt": "2026-08-03T00:04:00.000Z", "eligibleAfter": "2026-09-02T00:04:00.000Z", "originalRecordType": "finding", "originalRecordId": "finding-old", "originalOrder": { "list": "findings", "index": 1 },
+      "dependencySnapshot": { "inbound": [], "outbound": [], "assetDigests": [] },
+      "originalRecord": { "recordType": "finding", "recordVersion": 1, "id": "finding-old", "createdAt": "2026-08-03T00:02:00.000Z", "updatedAt": "2026-08-03T00:02:00.000Z", "observation": "Superseded observation", "interpretation": "", "hypothesis": "", "followUp": "", "status": "archived", "confidence": null, "evidenceReferences": [], "tagIds": [], "revision": 1 }
+    }
+  ]
+}

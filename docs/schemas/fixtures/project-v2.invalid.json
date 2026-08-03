@@ -1,0 +1,30 @@
+{
+  "fixtureSchema": "gamebook.project-v2-invalid-cases.v1",
+  "description": "Each mutation is applied to the complete valid fixture and must fail with the named contract code.",
+  "cases": [
+    { "name": "archive parent traversal", "operation": "replace-archive-name", "value": "../outside.bin", "expectedCode": "archive-path-unsafe" },
+    { "name": "archive drive prefix", "operation": "replace-archive-name", "value": "C:/outside.bin", "expectedCode": "archive-path-unsafe" },
+    { "name": "archive alternate data stream", "operation": "replace-archive-name", "value": "assets/file.png:secret", "expectedCode": "archive-path-unsafe" },
+    { "name": "archive NUL name", "operation": "replace-archive-name", "value": "assets/\u0000file.bin", "expectedCode": "archive-path-unsafe" },
+    { "name": "archive Windows separator", "operation": "replace-archive-name", "value": "assets\\outside.bin", "expectedCode": "archive-path-unsafe" },
+    { "name": "archive symbolic link", "operation": "add-link-entry", "value": "symlink", "expectedCode": "archive-path-unsafe" },
+    { "name": "archive reparse entry", "operation": "add-link-entry", "value": "reparse", "expectedCode": "archive-path-unsafe" },
+    { "name": "case-insensitive duplicate archive destination", "operation": "duplicate-archive-name-case", "expectedCode": "archive-name-duplicate" },
+    { "name": "oversized JSON record", "operation": "set-json-entry-size", "value": 16777217, "expectedCode": "archive-json-limit" },
+    { "name": "oversized preview", "operation": "set-preview-entry-size", "value": 33554433, "expectedCode": "archive-preview-limit" },
+    { "name": "entry count exceeds limit", "operation": "set-entry-count", "value": 250001, "expectedCode": "archive-entry-limit" },
+    { "name": "duplicate asset digest", "operation": "duplicate-asset", "expectedCode": "asset-digest-duplicate" },
+    { "name": "mixed evidence-kind payload", "operation": "add-image-video-payload", "expectedCode": "schema-invalid" },
+    { "name": "missing evidence reference", "operation": "missing-placement-evidence", "expectedCode": "record-reference-missing" },
+    { "name": "reversed clip range", "operation": "reverse-clip-range", "expectedCode": "clip-range-invalid" },
+    { "name": "duplicate timeline identity", "operation": "duplicate-timeline-identity", "expectedCode": "timeline-identity-invalid" },
+    { "name": "duplicate normalized tag name", "operation": "duplicate-normalized-tag", "expectedCode": "tag-name-duplicate" },
+    { "name": "persisted media token", "operation": "add-placement-runtime-token", "expectedCode": "schema-invalid" },
+    { "name": "unsupported future project major", "operation": "set-project-version", "value": 3, "expectedCode": "future-version-rejected" },
+    { "name": "automatic Trash deletion", "operation": "add-trash-auto-delete", "expectedCode": "trash-auto-delete-forbidden" },
+    { "name": "source video trashed with dependents", "operation": "trash-source-video", "expectedCode": "source-retention-violation" },
+    { "name": "microphone enabled without consent", "operation": "enable-microphone-without-consent", "expectedCode": "schema-invalid" },
+    { "name": "repair invents replacement", "operation": "repair-invents-replacement", "expectedCode": "schema-invalid" },
+    { "name": "migration mutates version 1 source", "operation": "migration-mutates-source", "expectedCode": "schema-invalid" }
+  ]
+}

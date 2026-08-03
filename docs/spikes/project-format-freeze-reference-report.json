@@ -1,0 +1,50 @@
+{
+  "schema": "gamebook.project-format-contract-reference.v1",
+  "status": "accepted",
+  "generatedAt": "2026-08-03T09:30:00Z",
+  "governingIssue": 20,
+  "acceptedAdrs": ["ADR-0002", "ADR-0008", "ADR-0009"],
+  "sources": [
+    { "issue": 17, "path": "archive-gate-reference-report.json", "schema": "gamebook.archive-gate-reference.v1" },
+    { "issue": 18, "path": "native-media-freeze-reference-report.json", "schema": "gamebook.native-media-contract-reference.v1" },
+    { "issue": 19, "path": "placement-viewport-freeze-reference-report.json", "schema": "gamebook.placement-viewport-contract-reference.v1" }
+  ],
+  "artifacts": [
+    { "path": "docs/schemas/project-v2.schema.json", "sha256": "952476d4362c47afb5f52236a3e2e5cf5944f880da9d0bccba98d90630cf2787" },
+    { "path": "docs/schemas/global-settings-v1.schema.json", "sha256": "1944557c213db058b2f1dcffdf9d2ffec0e225d1c3c424be4296ae7d2d86b71d" },
+    { "path": "docs/schemas/workspace-v1.schema.json", "sha256": "64369cae464dd0118248bc9024f61ac9d3a4510b78c7c499304c34321c2fe6ad" },
+    { "path": "docs/schemas/migration-repair-v1.schema.json", "sha256": "b18f0468de2c75ab9a0304f92731b17b380cbcfdb212965ba4e57a97ffff3968" },
+    { "path": "docs/schemas/fixtures/project-v2-records.valid.json", "sha256": "bd785e02d2f7261930212c2d2baba3ff74d83109cec886eca00d6a46b8a29f69" },
+    { "path": "docs/schemas/fixtures/workspace-settings-migration.valid.json", "sha256": "db605982aaad72f54036fc24044fd17b57fe7e8f258171cef140c305d3d8521e" },
+    { "path": "docs/schemas/fixtures/project-v2.invalid.json", "sha256": "4204d607e4727a70022ee3ae4df20e551471f1b0b06c5c69c8c54cdf6690d5f3" }
+  ],
+  "version1Fixture": {
+    "path": "projects/version1/basic-screenshot.gamebook.fixture",
+    "projectSha256": "8ac289887f952ff6ab00fdfea894c5a3a245044d64bfdf628a49dc43cb1a4319",
+    "screenshotSha256": "b046e22601151b31c395d18ee2d51b4a86cfb29131b2acf732065f8abc44d714"
+  },
+  "canonicalRecords": ["manifest", "asset", "evidence", "timeline", "page", "placement", "annotation", "connector", "finding", "tag", "collection", "relationship", "session", "trash"],
+  "archiveLimits": { "jsonBytes": 16777216, "previewBytes": 33554432, "entryCount": 250000 },
+  "mediaToken": { "bits": 256, "persisted": false, "bindings": ["application-instance", "workspace", "asset-digest", "allowed-operation"] },
+  "derivedCaches": { "searchCanonical": false, "previewsCanonical": false, "indexesCanonical": false, "mismatchBehavior": "ignore-and-rebuild" },
+  "trash": { "retentionDaysDefault": 30, "expirationMeans": "eligible-for-explicit-cleanup", "automaticDeletionAllowed": false, "transactionalRestore": true, "sourceRetentionRequired": true },
+  "migration": { "sourceFormats": ["gzip-json-v1", "plain-json-v1"], "deterministic": true, "sourceMutated": false, "byteIdenticalAssets": true, "renderWidth": 1600, "renderHeight": 900, "perChannelThreshold": 8, "maximumPixelsOverThresholdRatioExclusive": 0.001, "firstReplacementBackup": "collision-safe-v1-backup" },
+  "repair": { "mode": "read-only", "inventedReplacements": false, "futureMajorMutationAllowed": false },
+  "accessibility": { "semanticResearchOutsideCanvas": true, "keyboardAndFocusRequired": true, "announcementsRequired": true, "highContrast": true, "reducedMotion": true, "minimumViewport": "900x620", "uiScale": [100, 150, 200], "assistiveTechnologyRequiredInProduction": true },
+  "compatibility": { "productionBehaviorChanged": false, "productionSchemaChanged": false, "screenshotBehaviorChanged": false, "version1ProjectChanged": false },
+  "plannedMilestone6Conformance": [
+    "schema-round-trip-and-cross-record-validation",
+    "archive-abuse-size-path-link-and-duplicate-rejection",
+    "workspace-lock-recovery-cache-and-interrupted-save",
+    "gzip-and-plain-version-1-detection",
+    "deterministic-id-and-byte-identical-asset-migration",
+    "annotation-connector-transform-text-background-order-and-metadata-equivalence",
+    "1600x900-render-diff-threshold",
+    "collision-safe-backup-save-reopen-and-repeat-stability",
+    "read-only-repair-and-future-version-rejection",
+    "project-trash-impact-restore-explicit-cleanup-and-source-retention",
+    "settings-fallback-microphone-consent-and-credential-boundary",
+    "keyboard-focus-announcements-forced-colors-reduced-motion-scale-and-assistive-technology",
+    "gamebook-0.5.3-and-version-1-regression"
+  ]
+}
