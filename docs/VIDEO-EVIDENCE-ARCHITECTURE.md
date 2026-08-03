@@ -1,6 +1,6 @@
 # Video and Evidence Architecture
 
-> Status: Mixed. ADR-0003 through ADR-0007 freeze the native capture, timing, exact-decode, audio, color, aperture, and interrupted-recording contracts. `MediaPlacement`, ZIP64 storage, and version 2 record schemas remain proposed until their Milestone 5 decisions are accepted. None of these future features is implemented in Gamebook 0.5.3.
+> Status: Mixed. ADR-0001 freezes `MediaPlacement` rendering and view-only viewport behavior, and ADR-0003 through ADR-0007 freeze native capture, timing, exact-decode, audio, color, aperture, and interrupted-recording behavior. ZIP64 storage and version 2 containing record schemas remain proposed until their Milestone 5 decisions are accepted. None of these future features is implemented in Gamebook 0.5.3.
 
 ## Decision sequence
 
@@ -15,6 +15,8 @@ Implementation must not begin with the final version 2 schema. The required orde
 Spike code is disposable and isolated from production paths. Each spike produces a short report containing configuration, measurements, failures, and the resulting architecture decision.
 
 Issues #6 through #9 passed or resolved every native media gate and Issue #18 froze their measured outcome in [ADR-0003](decisions/0003-direct-windows-media-capture.md), [ADR-0004](decisions/0004-source-timing-and-exact-decode.md), [ADR-0005](decisions/0005-system-audio-loopback.md), [ADR-0006](decisions/0006-sdr-color-and-logical-aperture.md), and [ADR-0007](decisions/0007-interrupted-recording-recovery.md). The strict 60 FPS throughput miss remains a capability gate with 30 FPS as the accepted fallback.
+
+Issues #10 through #13 passed geometry, playback, exact-frame substitution, viewport, lifecycle, performance, scale, forced-colors, reduced-motion, Accessibility Insights, and NVDA gates. Issue #19 accepted their result in [ADR-0001](decisions/0001-media-placement-rendering.md): use the Fabric offscreen surface and ephemeral Fabric viewport transform, with layered DOM video retained as the measured fallback.
 
 Issues #14 through #17 passed the ZIP64 lazy-open, materialization, workspace, lock, recovery, cache, raw-copy, streamed-Save, and Windows replacement gates. [ADR-0002](decisions/0002-zip64-project-storage.md) proposes ZIP64 as the version 2 container for Milestone 5 acceptance. The decision remains proposed: production persistence and record schemas are not frozen or implemented by the spikes.
 
@@ -49,9 +51,9 @@ The direct-binding reference runs retained exact encoded sample counts, one-fram
 
 Every media report records Windows version, CPU, GPU, graphics driver, RAM, display resolution and refresh rate, audio device, WebView2 version, storage type, power mode, and application build.
 
-## Frozen native interfaces and proposed records
+## Frozen native and placement interfaces
 
-User-facing range and playhead values are integer microseconds. Canonical native frame identity retains the decoded sample index and source presentation timestamp in 100-nanosecond Media Foundation ticks. IDs are opaque UUID strings. Issue #20 freezes the containing version 2 records without changing these native fields.
+User-facing range and playhead values are integer microseconds. Canonical native frame identity retains the decoded sample index and source presentation timestamp in 100-nanosecond Media Foundation ticks. IDs are opaque UUID strings. ADR-0001 freezes the placement fields below; Issue #20 freezes their containing version 2 records without adding runtime or viewport state.
 
 ```ts
 interface CaptureSettings {
@@ -65,6 +67,8 @@ interface CaptureSettings {
 }
 
 interface MediaPlacementRecord {
+  type: "MediaPlacement";
+  placementVersion: 1;
   id: string;
   evidenceId: string;
   left: number;
@@ -127,6 +131,8 @@ The encoder output is 8-bit H.264 SDR with explicit BT.709 primaries, transfer, 
 
 ## `MediaPlacement` rendering contract
 
+ADR-0001 accepts this contract. A custom Fabric `MediaPlacement` and one offscreen surface remain the selected production design; layered DOM video is the measured fallback if production evidence misses a frozen gate.
+
 A custom Fabric `MediaPlacement` represents placement geometry and selection. It serializes the `MediaPlacementRecord`, stable object ID, and connector anchor information only.
 
 Each placement owns an offscreen drawing surface used as the Fabric image source:
@@ -153,7 +159,7 @@ On the recorded reference environment, test 1080p60 and 1440p60 playback for 30 
 
 The preferred Fabric approach passes when it sustains at least 55 rendered FPS for a 60 FPS source on reference hardware, keeps transform latency below 50 ms at the 95th percentile, and returns within 100 MB of pre-loop memory after cleanup. If it fails, the architecture review evaluates a layered DOM video surface synchronized with Fabric geometry before the schema is frozen.
 
-Issue #13 measured two passing Fabric runs and one passing layered-DOM fallback run from the same exact implementation revision and fixtures. [ADR-0001](decisions/0001-media-placement-rendering.md) therefore proposes retaining the offscreen Fabric surface because it satisfies the gate while keeping playback, annotations, transforms, hit testing, and z-order in one composition system. The decision remains proposed until Milestone 5; no production rendering or schema contract is frozen by the spike.
+Issue #13 measured two passing Fabric runs and one passing layered-DOM fallback run from the same exact implementation revision and fixtures. [ADR-0001](decisions/0001-media-placement-rendering.md) accepts the offscreen Fabric surface because it satisfies the gate twice while keeping playback, annotations, transforms, hit testing, z-order, and viewport transforms in one composition system. Production re-runs the gate and may use the measured fallback if any frozen threshold or exact-composition invariant fails.
 
 ## View-only zoom and pan
 
@@ -161,11 +167,13 @@ The logical page remains 1600 by 900. Fit is the default view. Users may choose 
 
 Zoom uses the Fabric viewport transform. Pan is available through Space+drag, middle-button drag, dedicated accessible controls, and Space+Arrow. Arrow keys continue moving selected objects by one page pixel; Shift+Arrow moves by ten.
 
-View state is ephemeral per window and is excluded from page serialization, undo/redo, thumbnails, exports, and connector calculations.
+Dedicated controls and Space+Arrow pan by 24 screen pixels, zoom preserves the logical scene center, and at least 80 screen pixels of a page edge remain reachable. Non-finite zoom, pan, or viewport dimensions preserve the prior view.
+
+View mode, zoom, six-value transform, and scene center are ephemeral per window and are excluded from page serialization, undo/redo, thumbnails, exports, and connector calculations.
 
 ## Static and multimedia export rendering
 
-Static composition decodes every video placement at `posterTimestampUs` before rendering the 1600 by 900 page. Timed evidence sheets decode the target source timestamp and include annotations active at that time.
+Static composition suspends playback, resolves every video placement's `posterTimestampUs` through its trusted timeline to the ADR-0004 exact frame identity, and decodes that frame before rendering the 1600 by 900 page. Timed evidence sheets resolve the target source timestamp the same way and include annotations active at that time.
 
 HTML export reconstructs each page with positioned media elements using the saved transform, crop, rotation, and media z-order. An annotation layer applies page-persistent and timed visibility above the media. The report also emits a semantic evidence representation outside the visual page so reading order and research content do not depend on canvas interpretation.
 
