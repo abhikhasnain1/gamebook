@@ -1,0 +1,164 @@
+{
+  "schema": "gamebook.archive-gate-reference.v1",
+  "status": "passed",
+  "generatedAt": "2026-08-03T07:44:21Z",
+  "governingIssue": 17,
+  "recommendation": {
+    "container": "zip64",
+    "decisionStatus": "proposed-for-milestone-5",
+    "sqliteComparisonRequired": false,
+    "reason": "All documented ZIP64 feasibility thresholds passed without unsupported raw-copy behavior or blocking latency."
+  },
+  "sources": [
+    {
+      "issue": 14,
+      "path": "zip64-lazy-materialization-reference-report.json",
+      "schema": "gamebook.zip64-lazy-materialization-reference.v1",
+      "status": "passed",
+      "sourceRevision": "d50f484ad61bf8b7308b25c890cd78d89349e94b",
+      "binarySha256": "02AF3D3A0C9E123998254BF2E35C1E265E7E25E9CDFE13C815E4AB4B2865844E",
+      "reportCount": 11
+    },
+    {
+      "issue": 15,
+      "path": "workspace-lifecycle-reference-report.json",
+      "schema": "gamebook.workspace-lifecycle-reference.v1",
+      "status": "passed",
+      "sourceRevision": "d7ef4ac2ffdc58df635f3a3e5ebc1cbebff147e7",
+      "binarySha256": "DA5E9805E200E1DE66B8B0390BAFABA2C2A0D3396ACFB25B1CF43FCA2C867C9D",
+      "reportCount": 11
+    },
+    {
+      "issue": 16,
+      "path": "streamed-save-reference-report.json",
+      "schema": "gamebook.streamed-save-reference.v1",
+      "status": "passed",
+      "sourceRevision": "b14e0ae73918c23f16bfa6dd43242a6d45c57a67",
+      "binarySha256": "C6B9CEC577605946061E7F16697269BBEA0EEBE2463AD4B3C6CF28BC8CC437C3",
+      "reportCount": 8
+    }
+  ],
+  "metadataOpen": {
+    "logicalArchiveBytes": 5372904638,
+    "allocatedFixtureBytes": 4325376,
+    "openMs": 8,
+    "additionalPrivateBytes": 421888,
+    "memoryLimitBytes": 268435456,
+    "assetPayloadsOpened": 0,
+    "mediaExtractionBytes": 0,
+    "materializedAssets": 0,
+    "passed": true
+  },
+  "selectedMaterialization": {
+    "bytesWritten": 4194304,
+    "onlySelectedAssetRequested": true,
+    "largeAssetRequested": false,
+    "sha256BeforeVisibility": true,
+    "tokenBits": 256,
+    "partialOutputRemoved": true,
+    "passed": true
+  },
+  "workspace": {
+    "sameSourceWorkspaceCount": 1,
+    "copiedProjectWorkspaceCount": 2,
+    "registryContainsSourcePaths": false,
+    "liveLockDisposition": "activate-existing",
+    "deadFreshLockDisposition": "wait-for-owner",
+    "staleLockDisposition": "recovery-required",
+    "malformedLockDisposition": "recovery-required",
+    "externalChangePausedSave": true,
+    "externalChangeAutomaticReplacement": false,
+    "externalChangeChoices": ["save-as", "replace-explicit", "cancel"],
+    "cleanCacheBytesBefore": 6291456,
+    "cleanCacheBytesAfter": 2097152,
+    "protectedEntriesRetained": true,
+    "reparseEscapeRejected": true,
+    "passed": true
+  },
+  "streamedSave": {
+    "fixtureMediaBytes": 5368709120,
+    "memoryLimitBytes": 536870912,
+    "maximumAdditionalPrivateBytes": 1523712,
+    "rawCopiedBytes": 5368709120,
+    "streamHashedBytes": 16777216,
+    "verifiedAssetBytes": 5385486336,
+    "completeReplacementArchivesAtPeak": 1,
+    "extraCompleteTemporaryCopies": 0,
+    "localFirstSaveMs": 17358,
+    "localReplacementMs": 17680,
+    "oneDriveReplacementMs": 19171,
+    "firstSaveOperation": "MoveFileExW",
+    "replacementOperation": "ReplaceFileW",
+    "oneDriveState": "managed-path",
+    "passed": true
+  },
+  "failureAndRecovery": {
+    "materializationDigestFailurePassed": true,
+    "materializationChecksumFailurePassed": true,
+    "materializationCancellationPassed": true,
+    "malformedArchiveRejected": true,
+    "parentTraversalRejected": true,
+    "caseInsensitiveDuplicateRejected": true,
+    "oversizedAndCompressedOversizedJsonRejected": true,
+    "staleAndMalformedLocksPreservedRecovery": true,
+    "externalChangePreservedPriorProject": true,
+    "cacheCancellationPreservedEntries": true,
+    "saveCancellationPreservedPriorProject": true,
+    "lowSpaceRefusedBeforeTemporaryCreation": true,
+    "writeFailurePreservedPriorProject": true,
+    "corruptionRejectedBeforeVisibility": true,
+    "forcedTerminationPreservedPriorProject": true,
+    "passed": true
+  },
+  "durability": {
+    "temporaryFileFlushed": true,
+    "containingDirectoryFlushAttempted": true,
+    "containingDirectoryFlushSupported": false,
+    "firstSaveWriteThrough": true,
+    "replacementWriteThrough": true,
+    "sameVolumeSibling": true,
+    "consequence": "Retain full temporary-file flush, pre-visibility validation, same-volume sibling replacement, and write-through Windows operations. Do not claim a containing-directory flush on systems that reject it."
+  },
+  "accessibility": {
+    "componentTests": 13,
+    "axeSeriousOrCriticalViolations": 0,
+    "keyboardAndFocus": "passed",
+    "announcementsAndSemantics": "passed",
+    "minimumViewport": "900x620",
+    "uiScale": [100, 150, 200],
+    "forcedColors": "passed",
+    "reducedMotion": "passed",
+    "accessibilityInsights": "passed",
+    "nvdaVersion": "2026.1.1",
+    "nvda": "passed",
+    "windowsHighContrast": "passed"
+  },
+  "securityAndPrivacy": {
+    "archiveValidationLimitsEnforced": true,
+    "unsafeNamesLinksReparseAndDuplicatesRejected": true,
+    "sha256BeforeVisibility": true,
+    "workspaceUnderCurrentUserLocalAppData": true,
+    "onlyVerifiedRecreatableCacheEvictable": true,
+    "unsavedInterruptedRecoveryAndTrashProtected": true,
+    "frontendFilesystemAccess": false,
+    "applicationNetworkAccess": false,
+    "productionProjectWrites": false,
+    "reportsRedacted": true,
+    "passed": true
+  },
+  "compatibility": {
+    "productionCommandsChanged": false,
+    "productionSchemaChanged": false,
+    "screenshotBehaviorChanged": false,
+    "version1ProjectChanged": false,
+    "passed": true
+  },
+  "revisitTriggers": [
+    "metadata open reaches 256 MiB additional memory or extracts media",
+    "a 5 GiB Save reaches 512 MiB additional memory or needs another complete temporary copy",
+    "raw stored-entry copy becomes unavailable or invalidates content-addressed assets",
+    "local NTFS or OneDrive-managed replacement cannot preserve the prior project",
+    "archive validation, workspace isolation, recovery, accessibility, or privacy requirements cannot be met",
+    "representative production archives show blocking latency not present in the spike"
+  ]
+}

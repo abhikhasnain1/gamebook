@@ -1,6 +1,6 @@
 # Gamebook Project Format Version 2
 
-> Status: Provisional. ZIP64 is the preferred self-contained container, but the format is not frozen until the archive feasibility spike passes.
+> Status: Proposed. The Milestone 4 archive gate passed and ADR-0002 proposes ZIP64, but the format and record schemas are not frozen until Milestone 5 accepts the storage and schema decisions.
 
 ## Goals
 
@@ -161,6 +161,10 @@ ZIP64 is accepted only when the spike demonstrates:
 - Correct stale-lock, external-change, duplicate-copy, and cache-eviction behavior.
 
 The report records wall-clock open, materialization, validation, and Save times. Unexpectedly poor latency or unsupported raw-copy behavior blocks schema freeze and requires comparison with the SQLite-container alternative.
+
+Issues #14 through #17 passed the complete gate. The 5 GiB metadata open used 421,888 additional private bytes with no media extraction; selected materialization exposed only the requested verified asset; the 5 GiB Save used at most 1,523,712 additional private bytes and one replacement archive; and local NTFS, OneDrive-managed replacement, workspace identity, locks, copied-project separation, recovery, and cache scenarios passed. The combined [archive-gate report](spikes/archive-gate.md) and [ADR-0002](decisions/0002-zip64-project-storage.md) therefore propose ZIP64 for Milestone 5 rather than requiring a SQLite comparison.
+
+The reference system did not support `FlushFileBuffers` on the containing directory. The proposed contract retains complete temporary-file flush, pre-visibility validation, same-volume sibling placement, and write-through `MoveFileExW` or `ReplaceFileW`, records directory-flush support accurately, and reopens the visible archive before marking the workspace clean. Milestone 5 must keep this limitation and the documented SQLite revisit triggers visible when it freezes the storage contract.
 
 ## Migration acceptance
 
