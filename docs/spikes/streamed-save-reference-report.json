@@ -1,0 +1,196 @@
+{
+  "schema": "gamebook.streamed-save-reference.v1",
+  "status": "passed",
+  "generatedAt": "2026-08-03T07:09:12Z",
+  "build": {
+    "name": "gamebook",
+    "version": "0.5.3",
+    "profile": "release",
+    "sourceRevision": "b14e0ae73918c23f16bfa6dd43242a6d45c57a67",
+    "binaryBytes": 642560,
+    "binarySha256": "C6B9CEC577605946061E7F16697269BBEA0EEBE2463AD4B3C6CF28BC8CC437C3"
+  },
+  "environment": {
+    "os": "windows",
+    "windowsRelease": "10.0.26200",
+    "arch": "x86_64",
+    "cpuModel": "Intel(R) Core(TM) Ultra 9 285K",
+    "logicalProcessors": 24,
+    "totalMemoryBytes": 68053327872,
+    "filesystem": "NTFS",
+    "storageHealth": "healthy",
+    "zipCrateVersion": "8.6.0"
+  },
+  "fixture": {
+    "kind": "synthetic-zip64-stored-media",
+    "logicalArchiveBytes": 5368710073,
+    "allocatedSourceBytes": 131072,
+    "mediaBytes": 5368709120,
+    "mediaDigest": "7f06c62352aebd8125b2a1841e2b9e1ffcbed602f381c3dcb3200200e383d1d5",
+    "entryCount": 3,
+    "zip64Required": true
+  },
+  "largeSaves": [
+    {
+      "scenario": "first-save-local",
+      "storageMode": "local-ntfs",
+      "oneDriveState": "not-applicable",
+      "elapsedMs": 17358,
+      "validationMs": 7342,
+      "additionalPrivateBytes": 1523712,
+      "memoryLimitBytes": 536870912,
+      "rawCopiedBytes": 5368709120,
+      "streamHashedBytes": 16777216,
+      "verifiedAssetBytes": 5385486336,
+      "completeReplacementArchivesAtPeak": 1,
+      "extraCompleteTemporaryCopies": 0,
+      "replacementKind": "MoveFileExW",
+      "replacementMs": 2,
+      "writeThrough": true,
+      "priorProjectValidUntilReplacement": true,
+      "finalProjectValid": true,
+      "passed": true
+    },
+    {
+      "scenario": "replacement-local",
+      "storageMode": "local-ntfs",
+      "oneDriveState": "not-applicable",
+      "elapsedMs": 17680,
+      "validationMs": 7161,
+      "additionalPrivateBytes": 1519616,
+      "memoryLimitBytes": 536870912,
+      "rawCopiedBytes": 5368709120,
+      "streamHashedBytes": 16777216,
+      "verifiedAssetBytes": 5385486336,
+      "completeReplacementArchivesAtPeak": 1,
+      "extraCompleteTemporaryCopies": 0,
+      "replacementKind": "ReplaceFileW",
+      "replacementMs": 467,
+      "writeThrough": true,
+      "priorProjectValidUntilReplacement": true,
+      "finalProjectValid": true,
+      "passed": true
+    },
+    {
+      "scenario": "replacement-onedrive",
+      "storageMode": "onedrive-managed-ntfs",
+      "oneDriveState": "managed-path",
+      "elapsedMs": 19171,
+      "validationMs": 7147,
+      "additionalPrivateBytes": 1519616,
+      "memoryLimitBytes": 536870912,
+      "rawCopiedBytes": 5368709120,
+      "streamHashedBytes": 16777216,
+      "verifiedAssetBytes": 5385486336,
+      "completeReplacementArchivesAtPeak": 1,
+      "extraCompleteTemporaryCopies": 0,
+      "replacementKind": "ReplaceFileW",
+      "replacementMs": 451,
+      "writeThrough": true,
+      "priorProjectValidUntilReplacement": true,
+      "finalProjectValid": true,
+      "passed": true
+    }
+  ],
+  "failures": [
+    {
+      "scenario": "cancellation",
+      "elapsedMs": 130,
+      "injectionBytes": 8388608,
+      "temporaryRemoved": true,
+      "priorProjectUnchanged": true,
+      "priorProjectValid": true,
+      "passed": true
+    },
+    {
+      "scenario": "low-space",
+      "estimateBytes": 88081219,
+      "effectiveAvailableBytes": 88081218,
+      "temporaryCreated": false,
+      "priorProjectUnchanged": true,
+      "priorProjectValid": true,
+      "passed": true
+    },
+    {
+      "scenario": "write-failure",
+      "elapsedMs": 133,
+      "injectionBytes": 8388608,
+      "temporaryRemoved": true,
+      "priorProjectUnchanged": true,
+      "priorProjectValid": true,
+      "passed": true
+    },
+    {
+      "scenario": "corruption",
+      "elapsedMs": 355,
+      "replacementRejectedBeforeVisibility": true,
+      "temporaryRemoved": true,
+      "priorProjectUnchanged": true,
+      "priorProjectValid": true,
+      "passed": true
+    },
+    {
+      "scenario": "forced-termination",
+      "checkpointBytes": 8388608,
+      "partialBytes": 8389125,
+      "childTerminated": true,
+      "partialArchiveUnreferenced": true,
+      "temporaryRemovedAfterRecoveryReview": true,
+      "priorProjectUnchanged": true,
+      "priorProjectValid": true,
+      "passed": true
+    }
+  ],
+  "durability": {
+    "temporaryFileFlushed": true,
+    "containingDirectoryFlushAttempted": true,
+    "containingDirectoryFlushSupported": false,
+    "firstSaveWriteThrough": true,
+    "replacementWriteThrough": true,
+    "sameVolumeSibling": true,
+    "validationBeforeVisibility": true
+  },
+  "security": {
+    "destinationLeafValidated": true,
+    "temporaryIsExclusiveSibling": true,
+    "sourceArchiveNamesValidated": true,
+    "manifestRecordLimitBytes": 16777216,
+    "priorProjectPreservedOnFailure": true,
+    "partialReplacementUnreferenced": true,
+    "frontendFilesystemAccess": false,
+    "applicationNetworkAccess": false,
+    "productionProjectWrites": false,
+    "localPathsProjectTitlesAndMediaBytesInReports": false
+  },
+  "accessibility": {
+    "componentTests": 5,
+    "axeSeriousOrCriticalViolations": 0,
+    "keyboardProgressCancellationExternalChangeFailureAndSuccess": "passed",
+    "focusTransferAndRestoration": "passed",
+    "minimumViewport": "900x620",
+    "uiScale": [100, 150, 200],
+    "horizontalOverflowAtSupportedScales": false,
+    "clippedControlTextAtSupportedScales": false,
+    "forcedColorsRulePresent": true,
+    "reducedMotionRulePresent": true,
+    "focusVisibleRulePresent": true,
+    "accessibilityInsightsVersion": "1.1.2924.1",
+    "accessibilityInsightsSemanticInspection": "passed",
+    "accessibilityInsightsChromiumAdvisory": "web-scanner-required-covered-by-axe",
+    "highContrastReview": "passed",
+    "nvdaVersion": "2026.1.1",
+    "nvdaSpokenReview": "passed"
+  },
+  "compatibility": {
+    "productionCommandsChanged": false,
+    "productionSchemaChanged": false,
+    "screenshotBehaviorChanged": false,
+    "version1ProjectChanged": false
+  },
+  "rawEvidence": {
+    "manifestSchema": "gamebook.streamed-save-evidence-manifest.v1",
+    "reportSchema": "gamebook.streamed-save-spike.v1",
+    "reportCount": 8,
+    "retainedInRepository": false
+  }
+}

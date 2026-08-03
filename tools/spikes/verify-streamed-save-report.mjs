@@ -21,7 +21,7 @@ const REQUIRED_ROLES = new Set([
 const SUCCESS_ROLES = new Set(["first-save-local", "replacement-local", "replacement-onedrive"]);
 
 function parseArgs(args) {
-  const options = { reports: [], scenario: undefined, manifest: undefined, selfTest: false };
+  const options = { reports: [], scenario: undefined, manifest: undefined, reference: undefined, selfTest: false };
   for (let index = 0; index < args.length; index += 1) {
     switch (args[index]) {
       case "--scenario":
@@ -30,13 +30,16 @@ function parseArgs(args) {
       case "--manifest":
         options.manifest = args[++index];
         break;
+      case "--reference":
+        options.reference = args[++index];
+        break;
       case "--self-test":
         options.selfTest = true;
         break;
       case "--help":
       case "-h":
         console.log("verify-streamed-save-report [--scenario NAME] REPORT...");
-        console.log("verify-streamed-save-report --manifest MANIFEST");
+        console.log("verify-streamed-save-report --manifest MANIFEST [--reference REFERENCE]");
         console.log("verify-streamed-save-report --self-test");
         process.exit(0);
         break;
@@ -237,6 +240,7 @@ function verifyManifest(manifestPath) {
   const baseDir = dirname(resolve(manifestPath));
   const roles = new Set();
   const fingerprints = new Set();
+  const reports = new Map();
   for (const entry of manifest.reports) {
     assert.ok(REQUIRED_ROLES.has(entry.role), `${label}: unknown role ${entry.role}`);
     assert.ok(!roles.has(entry.role), `${label}: duplicate role ${entry.role}`);
@@ -251,9 +255,80 @@ function verifyManifest(manifestPath) {
     assert.ok(!fingerprints.has(fingerprint), `${label}:${entry.id}: duplicate evidence report`);
     fingerprints.add(fingerprint);
     roles.add(entry.role);
+    reports.set(entry.role, report);
   }
   assert.deepEqual(roles, REQUIRED_ROLES, `${label}: role set mismatch`);
   assertNoPrivateMarkers(manifest, label);
+  return { manifest, reports };
+}
+
+function verifyReference(referencePath, evidence) {
+  const reference = JSON.parse(readFileSync(referencePath, "utf8"));
+  const label = "reference";
+  assert.equal(reference.schema, "gamebook.streamed-save-reference.v1", `${label}: schema mismatch`);
+  assert.ok(["automated-passed-manual-pending", "passed"].includes(reference.status), `${label}: status mismatch`);
+  assert.equal(reference.build?.sourceRevision, evidence.manifest.applicationBuild.sourceRevision, `${label}: source revision mismatch`);
+  assert.equal(reference.build?.binaryBytes, evidence.manifest.binary.bytes, `${label}: binary byte count mismatch`);
+  assert.equal(reference.build?.binarySha256, evidence.manifest.binary.sha256, `${label}: binary hash mismatch`);
+  assert.equal(reference.rawEvidence?.manifestSchema, evidence.manifest.schema, `${label}: manifest schema mismatch`);
+  assert.equal(reference.rawEvidence?.reportSchema, REPORT_SCHEMA, `${label}: report schema mismatch`);
+  assert.equal(reference.rawEvidence?.reportCount, evidence.reports.size, `${label}: report count mismatch`);
+  if (reference.status === "passed") {
+    assert.equal(reference.accessibility?.highContrastReview, "passed", `${label}: High Contrast review is incomplete`);
+    assert.equal(reference.accessibility?.nvdaSpokenReview, "passed", `${label}: NVDA review is incomplete`);
+  }
+
+  const first = evidence.reports.get("first-save-local");
+  for (const key of ["windowsRelease", "arch", "cpuModel", "logicalProcessors", "totalMemoryBytes", "filesystem", "storageHealth", "zipCrateVersion"]) {
+    assert.equal(reference.environment?.[key], first.environment?.[key], `${label}: environment.${key} mismatch`);
+  }
+  for (const key of ["logicalArchiveBytes", "allocatedSourceBytes", "mediaBytes", "entryCount", "zip64Required"]) {
+    assert.equal(reference.fixture?.[key], first.evidence.fixture?.[key], `${label}: fixture.${key} mismatch`);
+  }
+  assert.equal(reference.fixture?.mediaDigest, first.evidence.fixture?.mediaEntryDigest, `${label}: fixture digest mismatch`);
+
+  assert.equal(reference.largeSaves?.length, SUCCESS_ROLES.size, `${label}: large Save count mismatch`);
+  for (const retained of reference.largeSaves) {
+    const report = evidence.reports.get(retained.scenario);
+    assert.ok(report, `${label}: missing raw report for ${retained.scenario}`);
+    const save = report.evidence.save;
+    const replacement = report.evidence.replacement;
+    const expected = {
+      storageMode: report.environment.storageMode,
+      oneDriveState: report.environment.oneDriveState,
+      elapsedMs: save.elapsedMs,
+      validationMs: save.validation.elapsedMs,
+      additionalPrivateBytes: save.additionalPrivateBytes,
+      memoryLimitBytes: save.memoryLimitBytes,
+      rawCopiedBytes: save.rawCopiedBytes,
+      streamHashedBytes: save.streamHashedBytes,
+      verifiedAssetBytes: save.validation.verifiedBytes,
+      completeReplacementArchivesAtPeak: save.completeReplacementArchivesAtPeak,
+      extraCompleteTemporaryCopies: save.extraCompleteTemporaryCopies,
+      replacementKind: replacement.kind,
+      replacementMs: replacement.elapsedMs,
+      writeThrough: replacement.writeThrough,
+      priorProjectValidUntilReplacement: replacement.priorProjectValidUntilReplacement,
+      finalProjectValid: replacement.finalProjectValid,
+      passed: save.passed && replacement.passed,
+    };
+    for (const [key, value] of Object.entries(expected)) {
+      assert.equal(retained[key], value, `${label}:${retained.scenario}.${key} mismatch`);
+    }
+  }
+
+  assert.equal(reference.failures?.length, 5, `${label}: failure count mismatch`);
+  for (const retained of reference.failures) {
+    const report = evidence.reports.get(retained.scenario);
+    assert.ok(report, `${label}: missing raw report for ${retained.scenario}`);
+    const save = report.evidence.save;
+    for (const [key, value] of Object.entries(retained)) {
+      if (key === "scenario") continue;
+      assert.equal(value, save[key], `${label}:${retained.scenario}.${key} mismatch`);
+    }
+  }
+  assertNoPrivateMarkers(reference, label);
+  console.log(`Verified streamed Save reference report: ${referencePath}`);
 }
 
 function assertNoPrivateMarkers(value, label) {
@@ -354,7 +429,8 @@ function main() {
     return;
   }
   if (options.manifest) {
-    verifyManifest(options.manifest);
+    const evidence = verifyManifest(options.manifest);
+    if (options.reference) verifyReference(options.reference, evidence);
     console.log(`Verified streamed Save evidence manifest: ${options.manifest}`);
     return;
   }
