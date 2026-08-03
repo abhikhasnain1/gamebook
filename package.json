@@ -19,6 +19,7 @@
     "wasapi-sync:verify": "node tools/spikes/verify-wasapi-av-sync-report.mjs",
     "native-decode:verify": "node tools/spikes/verify-native-decode-report.mjs",
     "direct-stack:verify": "node tools/spikes/verify-direct-capture-stack-report.mjs",
+    "native-media-contract:verify": "node tools/spikes/verify-native-media-contract.mjs",
     "media-placement:verify": "node tools/spikes/verify-media-placement-geometry-report.mjs",
     "media-playback:verify": "node tools/spikes/verify-media-playback-report.mjs",
     "viewport:verify": "node tools/spikes/verify-viewport-report.mjs",

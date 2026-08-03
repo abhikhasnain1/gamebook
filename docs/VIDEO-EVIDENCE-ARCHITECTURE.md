@@ -1,6 +1,6 @@
 # Video and Evidence Architecture
 
-> Status: Proposed architecture. Media, `MediaPlacement`, and archive feasibility spikes must pass before this design becomes the version 2 implementation contract.
+> Status: Mixed. ADR-0003 through ADR-0007 freeze the native capture, timing, exact-decode, audio, color, aperture, and interrupted-recording contracts. `MediaPlacement`, ZIP64 storage, and version 2 record schemas remain proposed until their Milestone 5 decisions are accepted. None of these future features is implemented in Gamebook 0.5.3.
 
 ## Decision sequence
 
@@ -14,6 +14,8 @@ Implementation must not begin with the final version 2 schema. The required orde
 
 Spike code is disposable and isolated from production paths. Each spike produces a short report containing configuration, measurements, failures, and the resulting architecture decision.
 
+Issues #6 through #9 passed or resolved every native media gate and Issue #18 froze their measured outcome in [ADR-0003](decisions/0003-direct-windows-media-capture.md), [ADR-0004](decisions/0004-source-timing-and-exact-decode.md), [ADR-0005](decisions/0005-system-audio-loopback.md), [ADR-0006](decisions/0006-sdr-color-and-logical-aperture.md), and [ADR-0007](decisions/0007-interrupted-recording-recovery.md). The strict 60 FPS throughput miss remains a capability gate with 30 FPS as the accepted fallback.
+
 Issues #14 through #17 passed the ZIP64 lazy-open, materialization, workspace, lock, recovery, cache, raw-copy, streamed-Save, and Windows replacement gates. [ADR-0002](decisions/0002-zip64-project-storage.md) proposes ZIP64 as the version 2 container for Milestone 5 acceptance. The decision remains proposed: production persistence and record schemas are not frozen or implemented by the spikes.
 
 ## Runtime ownership
@@ -24,11 +26,11 @@ React owns settings, the Evidence Library, research metadata, timeline controls,
 
 Fabric owns logical page geometry, object selection, transforms, z-order, connector anchors, annotation drawing, undo/redo, and static composition. It does not own source media bytes or native recording state.
 
-## Native media feasibility gate
+## Accepted native media foundation
 
-Milestone 2 selected direct Windows Graphics Capture and D3D11 bindings, direct Media Foundation H.264/AAC encoding and decoding, and direct WASAPI loopback audio as the proposed native foundation. The `windows-capture` 2.0.0 integrated recording path is not adopted. No FFmpeg executable is bundled in version 1.
+Milestone 2 selected direct Windows Graphics Capture and D3D11 bindings, direct Media Foundation H.264/AAC encoding and decoding, and direct WASAPI loopback audio. ADR-0003 through ADR-0007 accept that native foundation. The `windows-capture` 2.0.0 integrated recording path is not adopted, and no FFmpeg executable is bundled for this pipeline.
 
-The spike must validate:
+The retained evidence validates or explicitly resolves:
 
 - Full-resolution 1080p60 and 1440p60 capture on reference hardware.
 - Capability-reported 4K60 with a clear lower-rate fallback when unsupported.
@@ -43,13 +45,13 @@ The spike must validate:
 - Recovery behavior for interruption during recording and finalization.
 - Encoder, decoder, GPU-device, protected-content, and source-closed failures.
 
-The direct-binding reference runs retained exact encoded sample counts, one-frame output duration, fast finalization, and explicit lifecycle/recovery behavior, but repeated 1080p, 1440p, and selected-window runs did not meet the strict 95% sustained-frame threshold. Production therefore preserves the interfaces below while capability-gating 60 FPS and exposing a clear lower-rate fallback until that threshold is separately proved.
+The direct-binding reference runs retained exact encoded sample counts, one-frame output duration, fast finalization, and explicit lifecycle/recovery behavior, but repeated 1080p, 1440p, and selected-window runs did not meet the strict 95 percent sustained-frame threshold. Production therefore uses 30 FPS for an unqualified target class. It may expose 60 FPS only after that exact class passes repeated 30-second runs at 95 percent of requested frames, one-frame duration tolerance, and five-second finalization. Encoder initialization, including 4K60 initialization, is capability evidence only.
 
 Every media report records Windows version, CPU, GPU, graphics driver, RAM, display resolution and refresh rate, audio device, WebView2 version, storage type, power mode, and application build.
 
-## Proposed domain interfaces
+## Frozen native interfaces and proposed records
 
-All time values are integer microseconds. IDs are opaque UUID strings.
+User-facing range and playhead values are integer microseconds. Canonical native frame identity retains the decoded sample index and source presentation timestamp in 100-nanosecond Media Foundation ticks. IDs are opaque UUID strings. Issue #20 freezes the containing version 2 records without changing these native fields.
 
 ```ts
 interface CaptureSettings {
@@ -81,6 +83,7 @@ interface DecodedFrameRef {
   height: number;
   timestampUs: number;
   sampleIndex: number;
+  sourceTimestamp100ns: number;
   mimeType: "image/png";
 }
 
@@ -89,9 +92,9 @@ type AnnotationScope =
   | { kind: "time"; evidenceId: string; startUs: number; endUs: number };
 ```
 
-`assetToken` is a short-lived reference to a verified cache entry exposed through the narrowly scoped application media protocol. Decoded bytes never cross IPC as base64.
+`assetToken` is a 256-bit cryptographically random reference bound to one application instance, workspace, asset digest, and allowed operation. It contains no path or readable metadata, is never persisted, expires ten minutes after last access, and is revoked on project close, asset eviction, or application exit. The scoped protocol permits only `GET` and `HEAD` with validated ranges and no directory listing. Decoded bytes never cross IPC as base64.
 
-Proposed commands:
+The accepted native command boundary is:
 
 ```ts
 startVideoCapture(settings: CaptureSettings): Promise<RecordingId>
@@ -102,7 +105,7 @@ extractFrames(request: ExtractionRequest): Promise<JobId>
 cancelMediaJob(jobId: JobId): Promise<void>
 ```
 
-Proposed events are `video-recording-state`, `video-capture-created`, `media-job-progress`, `media-job-completed`, and `media-job-error`. Every event includes its recording or job ID so stale events cannot mutate a newer operation.
+Native events are `video-recording-state`, `video-capture-created`, `media-job-progress`, `media-job-completed`, and `media-job-error`. Every event includes its recording or job ID so stale events cannot mutate a newer operation. Production payload schemas must preserve these behavioral boundaries even if command naming changes before implementation.
 
 ## Recording state and timing
 
@@ -112,15 +115,15 @@ The encoder writes into a staging path with a recording journal containing the r
 
 At startup, interrupted staging files enter Recovery. If native probing confirms that a file is playable and has at least one decoded video sample, the user may recover it as draft evidence. Unplayable files remain quarantined with size and failure details until the user explicitly discards them. Version 1 does not attempt destructive media repair unless the feasibility spike proves a deterministic native repair path.
 
-Captured media stores each submitted frame's presentation timestamp and dropped-frame metadata. Imported variable-frame-rate media uses decoder sample order and source presentation timestamps; Gamebook never invents constant-rate frame numbers for it.
+Captured media stores each submitted frame's source presentation timestamp in 100-nanosecond ticks and dropped-frame metadata. Imported variable-frame-rate media uses decoder sample order and source presentation timestamps; Gamebook never invents constant-rate frame numbers for it. The canonical frame identity is `(decodedSampleIndex, sourcePresentationTimestamp100ns)`. Exact requests supply both values and fail on mismatch instead of returning a nearby frame.
 
 Clips and timed annotations store source-video time, not clip-relative time. A clip maps its local playhead into the source interval. Splitting or trimming therefore changes only clip boundaries.
 
-System audio uses whole-output-device WASAPI loopback in version 1. The recording metadata stores the selected endpoint ID, format, discontinuities, and whether the user acknowledged the current disclosure version. Per-process game audio is not claimed or simulated.
+System audio uses shared-mode whole-output-device WASAPI loopback of the default multimedia render endpoint. The active endpoint is pinned for the recording. A default-endpoint change is detected and recorded without silently switching sources. Canonical metadata stores the role, format, discontinuities, endpoint-change outcome, and disclosure version; native endpoint IDs remain limited to the live session or protected recovery journal and are excluded from project records and diagnostics. Per-process game audio is not claimed or simulated. Microphone is separate, default off, and separately consented.
 
 If system audio fails after recording starts, video continues, the audio discontinuity is recorded in metadata, and the editor presents a warning. Capture or encoder initialization failure aborts without creating referenced partial evidence.
 
-The encoder output is 8-bit H.264 SDR Rec.709. HDR source state and color-space metadata are recorded separately. HDR capture must pass reference color-pattern and representative-game comparisons after tone mapping; otherwise recording is blocked while HDR is active. At most one replicated-edge pixel is added to satisfy even encoder dimensions. The exact-decode spike found that Media Foundation MP4 output does not retain the submitted `MFVideoArea` as container metadata, so trusted evidence metadata must retain the logical dimensions and reapply the aperture during decode; production must not infer the logical aperture from the MP4 alone.
+The encoder output is 8-bit H.264 SDR with explicit BT.709 primaries, transfer, matrix, and full nominal range. PQ/BT.2020 and HLG/BT.2020 are blocked before output until a separate representative-pattern and game-content tone-mapping decision is accepted. At most one replicated right or bottom edge pixel is added to satisfy even encoder dimensions. The exact-decode spike found that Media Foundation MP4 output does not retain the submitted `MFVideoArea` as container metadata, so trusted evidence metadata retains logical dimensions and reapplies the aperture during decode; production never infers logical aperture from the MP4 alone.
 
 ## `MediaPlacement` rendering contract
 
@@ -170,8 +173,8 @@ HTML export reconstructs each page with positioned media elements using the save
 
 - Cancellation is idempotent.
 - Late native events are ignored unless their recording/job ID is current.
-- Partial generated assets remain unreferenced and are removed after the job stops.
-- Interrupted recording outputs are quarantined for explicit recovery or deletion rather than silently removed.
+- Partial non-recording job assets remain unreferenced and are removed after the job stops.
+- Playable finalized-but-unpromoted recordings become explicitly labeled recoverable drafts. Unplayable interrupted recordings are quarantined. Neither state is automatically promoted, referenced, repaired, deleted, or included in diagnostics.
 - Device loss or page disposal releases render callbacks and native handles.
 - Source evidence cannot be deleted while dependents remain.
 - Unsupported imported codecs are rejected before an evidence record is created.
