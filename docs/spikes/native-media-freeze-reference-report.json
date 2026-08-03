@@ -1,0 +1,248 @@
+{
+  "schema": "gamebook.native-media-contract-reference.v1",
+  "status": "accepted",
+  "generatedAt": "2026-08-03T08:00:25Z",
+  "governingIssue": 18,
+  "sources": [
+    {
+      "issue": 6,
+      "document": "native-capture-h264.md",
+      "sourceRevision": "fd166f796a4f5411919798495a8e7b7b11c0dc33",
+      "outcome": "windows-capture-integrated-path-rejected"
+    },
+    {
+      "issue": 7,
+      "document": "wasapi-av-sync.md",
+      "sourceRevision": "43d3f2d15338b75263f4e69985af5ce5b3e4baa1",
+      "binarySha256": "0FA775A6A61F8E49E9F04451B27637DCB0FAABBD04C3572E96FF8A811EB0EB8F",
+      "reportCount": 9,
+      "outcome": "passed"
+    },
+    {
+      "issue": 8,
+      "document": "native-decode-color.md",
+      "sourceRevision": "eb9cba1efee25f5e3249e6236e9ea7c295c05463",
+      "binarySha256": "8CE0DC2EE94CB5A22BA9F63684ACC0D89E0D162F4EF58C3B595AFE243CA484DC",
+      "reportCount": 11,
+      "outcome": "passed"
+    },
+    {
+      "issue": 9,
+      "document": "direct-capture-stack.md",
+      "sourceRevision": "f615378cb003b1a7e832ab601d59c56352658928",
+      "binarySha256": "CF3E208FF67641E0D7CA93238DF7E7EACF274776F556ED2DFD5EF772EF5B5CD9",
+      "reportCount": 29,
+      "outcome": "direct-windows-stack-selected"
+    }
+  ],
+  "acceptedAdrs": [
+    "ADR-0003",
+    "ADR-0004",
+    "ADR-0005",
+    "ADR-0006",
+    "ADR-0007"
+  ],
+  "fieldTraceability": {
+    "capture.*": {
+      "sourceIssues": [6, 9],
+      "plannedConformance": ["capture-target-resolution", "capture-30fps-baseline", "capture-60fps-qualification", "duration-and-finalization", "hud-protected-content-and-source-lifecycle"]
+    },
+    "timingAndDecode.*": {
+      "sourceIssues": [8, 9],
+      "plannedConformance": ["exact-cfr-vfr-decode", "duration-and-finalization"]
+    },
+    "audio.*": {
+      "sourceIssues": [7, 9],
+      "requiredSpecifications": ["PRODUCT-SPEC.md", "SECURITY-PRIVACY.md"],
+      "plannedConformance": ["audio-drift-duration-endpoint-and-failure", "privacy-redaction-local-only-and-no-project-reference-before-probe"]
+    },
+    "colorAndAperture.*": {
+      "sourceIssues": [8, 9],
+      "plannedConformance": ["sdr-color-hdr-blocking-and-aperture"]
+    },
+    "recovery.*": {
+      "sourceIssues": [9],
+      "requiredSpecifications": ["SECURITY-PRIVACY.md"],
+      "plannedConformance": ["cancellation-failure-interruption-recovery-and-quarantine", "privacy-redaction-local-only-and-no-project-reference-before-probe"]
+    },
+    "accessibility.*": {
+      "sourceIssues": [6, 7, 8, 9],
+      "requiredSpecifications": ["ACCESSIBILITY.md", "PRODUCT-SPEC.md"],
+      "plannedConformance": ["keyboard-focus-announcements-high-contrast-reduced-motion-and-scale"]
+    },
+    "securityAndPrivacy.*": {
+      "sourceIssues": [6, 7, 8, 9],
+      "requiredSpecifications": ["SECURITY-PRIVACY.md"],
+      "plannedConformance": ["privacy-redaction-local-only-and-no-project-reference-before-probe", "token-and-native-identifier-boundaries"]
+    },
+    "compatibility.*": {
+      "currentBehaviorSources": ["README.md", "ARCHITECTURE.md", "QA.md"],
+      "plannedConformance": ["gamebook-0.5.3-and-version-1-regression"]
+    }
+  },
+  "capture": {
+    "runtimeOwner": "rust-native",
+    "graphicsCapture": "direct-windows-graphics-capture",
+    "graphicsDevice": "direct-d3d11",
+    "videoEncoder": "direct-media-foundation-h264-nv12",
+    "videoDecoder": "direct-media-foundation-source-reader-nv12",
+    "integratedWindowsCaptureCrateRecordingAdopted": false,
+    "ffmpegExecutableBundled": false,
+    "supportedTargets": [
+      "monitor-under-pointer",
+      "selected-monitor",
+      "selected-window"
+    ],
+    "systemPickerRequired": false,
+    "frameRateRequestValues": [30, 60],
+    "sustainedFrameQualificationRatio": 0.95,
+    "unqualifiedFallbackFps": 30,
+    "encoderInitializationQualifiesThroughput": false,
+    "fourK60Evidence": "encoder-initialization-only",
+    "referencePerformance": [
+      { "role": "1080p60-monitor-1", "submittedFrames": 1651, "requiredFrames": 1710, "durationErrorMs": -16.4501, "finalizationMs": 37.4444, "throughputPassed": false },
+      { "role": "1080p60-monitor-2", "submittedFrames": 1648, "requiredFrames": 1710, "durationErrorMs": 0.2499, "finalizationMs": 36.8513, "throughputPassed": false },
+      { "role": "1440p60-monitor-1", "submittedFrames": 1641, "requiredFrames": 1710, "durationErrorMs": -1.2334, "finalizationMs": 31.6845, "throughputPassed": false },
+      { "role": "1440p60-monitor-2", "submittedFrames": 1641, "requiredFrames": 1710, "durationErrorMs": -1.2334, "finalizationMs": 27.4024, "throughputPassed": false },
+      { "role": "selected-window-1", "submittedFrames": 1621, "requiredFrames": 1710, "durationErrorMs": 4.8332, "finalizationMs": 31.8227, "throughputPassed": false },
+      { "role": "selected-window-2", "submittedFrames": 1621, "requiredFrames": 1710, "durationErrorMs": 4.7999, "finalizationMs": 31.9638, "throughputPassed": false }
+    ],
+    "hudExclusion": {
+      "monitorCaptureVerified": true,
+      "selectedWindowProtectionClaimed": false,
+      "fallback": "textual-nonvisual-recording-status"
+    },
+    "sourceClose": {
+      "wgcClosedEventRequired": false,
+      "explicitSourceLifecycleFallbackRequired": true
+    }
+  },
+  "timingAndDecode": {
+    "nativeTimebase": "100ns-media-foundation-ticks",
+    "frameIdentity": ["decoded-sample-index", "source-presentation-timestamp-100ns"],
+    "uiAndClipTimebase": "integer-microseconds-derived-from-source-time",
+    "decodedPresentationTimestampsExact": true,
+    "decoderDurationNormalizationTolerance100ns": 1,
+    "cfr30Exact": true,
+    "cfr60Exact": true,
+    "vfrExact": true,
+    "directNv12Required": true,
+    "rgbSinkWriterConversionAllowedForExactEvidence": false,
+    "requestedFrameRequiresSampleIndexAndTimestamp": true,
+    "repeatedPlaybackUpdatesThrottledForAssistiveTechnology": true
+  },
+  "audio": {
+    "captureMode": "wasapi-shared-loopback-default-render-multimedia",
+    "capturesCompleteOutputDeviceMix": true,
+    "perProcessAudioClaimed": false,
+    "acceptedInput": ["mono-44100", "stereo-44100", "mono-48000", "stereo-48000"],
+    "acceptedSampleKinds": ["pcm", "float"],
+    "encoderInput": "pcm16",
+    "encoder": "media-foundation-aac",
+    "clock": "shared-qpc",
+    "maximumDriftMsAfter30Seconds": 50,
+    "maximumMeasuredAbsoluteDriftMs": 22.28,
+    "encodedDurationTolerance": "one-endpoint-buffer",
+    "referenceEndpointBufferMs": 100,
+    "finalizationLimitMs": 5000,
+    "maximumMeasuredFinalizationMs": 3,
+    "endpointPinnedForRecording": true,
+    "defaultEndpointChangeDetectedAndRecorded": true,
+    "silentAutomaticEndpointSwitchAllowed": false,
+    "postStartAudioFailure": "video-continues-with-discontinuity-and-warning",
+    "systemAudioFirstUseDisclosureRequired": true,
+    "microphoneDefault": "off",
+    "microphoneConsentSeparate": true,
+    "microphoneImplicitEnableAllowed": false
+  },
+  "colorAndAperture": {
+    "encodedVideo": "8-bit-h264-sdr-rec709-full-range",
+    "primaries": "bt709",
+    "transfer": "bt709",
+    "matrix": "bt709",
+    "nominalRange": "full",
+    "sdrPatchTolerancePerChannel": 24,
+    "maximumMeasuredPatchError": 1,
+    "pqBt2020": "blocked-before-output",
+    "hlgBt2020": "blocked-before-output",
+    "toneMappingAccepted": false,
+    "maximumPaddingRightPixels": 1,
+    "maximumPaddingBottomPixels": 1,
+    "paddingMode": "replicated-edge",
+    "logicalDimensionsTrustedOutsideMp4": true,
+    "containerApertureTrusted": false,
+    "decodedPngColor": "srgb",
+    "decodedPngRestoresLogicalDimensions": true
+  },
+  "recovery": {
+    "states": ["idle", "preparing", "recording", "finalizing", "completed", "failed", "cancelled"],
+    "stagingMediaAndJournalUntilProbe": true,
+    "projectReferenceBeforeProbeAllowed": false,
+    "playableFinalizedUnpromoted": "recoverable-draft",
+    "unplayableInterrupted": "quarantined",
+    "automaticDeletionAllowed": false,
+    "automaticProjectPromotionAllowed": false,
+    "diagnosticsIncludeMediaByDefault": false,
+    "userActions": ["retry-probe", "recover-draft", "reveal", "delete"],
+    "cancellationIdempotent": true,
+    "lateEventsRequireCurrentRecordingId": true,
+    "partialGeneratedAssetsRemainUnreferenced": true,
+    "failureBoundaries": ["initialization", "encoder", "decoder", "gpu", "storage", "finalization", "device-loss", "source-close", "protected-content"]
+  },
+  "accessibility": {
+    "keyboardOperations": ["start", "stop", "cancel", "target-selection", "disclosure", "failure-review", "recovery", "quarantine"],
+    "announcedStates": ["preparing", "recording", "elapsed", "remaining", "stopping", "finalizing", "completed", "cancelled", "failed", "source-closed"],
+    "textualIndependentStates": ["video", "system-audio", "microphone"],
+    "warnings": ["hud-fallback", "protected-content", "hdr-blocked", "device-loss", "audio-failure", "quarantine"],
+    "visibleFocus": true,
+    "highContrast": true,
+    "reducedMotion": true,
+    "minimumViewport": "900x620",
+    "uiScale": [100, 150, 200],
+    "screenReaderUpdatesThrottled": true
+  },
+  "securityAndPrivacy": {
+    "localOnly": true,
+    "networkAccessRequired": false,
+    "gameInjection": false,
+    "gameMemoryInspection": false,
+    "windowsPrivacySettingMutation": false,
+    "deviceDestructionForFailureTesting": false,
+    "frontendUnrestrictedFilesystemPermission": false,
+    "nativeTargetAndEndpointIdsInProjectRecords": false,
+    "mediaTokenBits": 256,
+    "mediaTokenBinding": ["application-instance", "workspace", "asset-digest", "allowed-operation"],
+    "mediaTokenContainsPathOrReadableMetadata": false,
+    "mediaTokenPersisted": false,
+    "mediaTokenIdleExpiryMinutes": 10,
+    "mediaTokenRevokedOn": ["project-close", "asset-eviction", "application-exit"],
+    "mediaProtocolMethods": ["GET", "HEAD"],
+    "mediaProtocolValidatedByteRanges": true,
+    "mediaProtocolDirectoryListing": false,
+    "pathsTitlesDeviceIdsAndMediaExcludedFromDiagnostics": true,
+    "quarantinedMediaUserControlled": true,
+    "quarantinedMediaUnreferenced": true,
+    "quarantinedMediaExcludedFromDiagnosticsByDefault": true
+  },
+  "compatibility": {
+    "productionCommandsChanged": false,
+    "productionSchemaChanged": false,
+    "screenshotBehaviorChanged": false,
+    "version1ProjectChanged": false
+  },
+  "plannedConformance": [
+    "capture-target-resolution",
+    "capture-30fps-baseline",
+    "capture-60fps-qualification",
+    "duration-and-finalization",
+    "exact-cfr-vfr-decode",
+    "audio-drift-duration-endpoint-and-failure",
+    "sdr-color-hdr-blocking-and-aperture",
+    "hud-protected-content-and-source-lifecycle",
+    "cancellation-failure-interruption-recovery-and-quarantine",
+    "keyboard-focus-announcements-high-contrast-reduced-motion-and-scale",
+    "privacy-redaction-local-only-and-no-project-reference-before-probe",
+    "token-and-native-identifier-boundaries",
+    "gamebook-0.5.3-and-version-1-regression"
+  ]
+}

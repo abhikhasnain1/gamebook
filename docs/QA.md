@@ -49,6 +49,8 @@ Current dry-run gaps for the screenshot workflow:
 - `npm.cmd run native-decode:verify -- --manifest PATH` validates a complete issue #8 release evidence set against one exact build and binary hash.
 - `npm.cmd run direct-stack:verify -- --self-test` checks the isolated direct-capture report verifier.
 - `npm.cmd run direct-stack:verify -- --manifest PATH` validates issue #9 reports, retained-media hashes, fixed scenario counts, and the exact release binary hash.
+- `npm.cmd run native-media-contract:verify -- --self-test` proves that the architecture-freeze verifier rejects softened 60 FPS, HDR, token, and interrupted-media policies.
+- `npm.cmd run native-media-contract:verify -- --reference docs/spikes/native-media-freeze-reference-report.json` validates Issue #18 source revisions and hashes, every accepted native contract, ADR status and required sections, dependent architecture prose, accessibility and privacy boundaries, compatibility, and planned production conformance.
 - `npm.cmd run media-placement:verify -- --self-test` checks the isolated placement-geometry report verifier.
 - `npm.cmd run media-placement:verify -- --report PATH` validates issue #10 stable serialization, Fabric reconstruction, geometry, connector, z-order, history, page-switch, static-export, and semantic-control evidence against one exact commit.
 - `npm.cmd run media-playback:verify -- --self-test` checks the isolated offscreen-playback report verifier.
