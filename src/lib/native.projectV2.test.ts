@@ -62,6 +62,59 @@ describe("version 2 native command boundary", () => {
     });
   });
 
+  it("creates an unsaved workspace and claims captures without renderer media bytes", async () => {
+    const {
+      claimScreenshotCapture,
+      createProjectV2,
+      openProjectForEditor,
+      recoverProjectV2Workspace,
+    } = await import("./native");
+    invoke
+      .mockResolvedValueOnce({
+        workspaceId: "workspace-unsaved",
+        projectId: "project-unsaved",
+        manifest: { formatVersion: 2 },
+        records: [],
+      })
+      .mockResolvedValueOnce({
+        workspaceId: "workspace-unsaved",
+        projectId: "project-unsaved",
+        manifest: { formatVersion: 2 },
+        records: [],
+      })
+      .mockResolvedValueOnce({
+        token: "a".repeat(64),
+        digest: "b".repeat(64),
+        mimeType: "image/png",
+        byteLength: 42,
+        expiresAfterSeconds: 600,
+      })
+      .mockResolvedValueOnce({
+        outcome: "repair",
+        report: { mode: "read-only", sourceMutated: false },
+      });
+
+    await createProjectV2();
+    await recoverProjectV2Workspace("workspace-unsaved");
+    await claimScreenshotCapture("workspace-unsaved", "c".repeat(64));
+    await openProjectForEditor("open-alpha");
+
+    expect(invoke).toHaveBeenNthCalledWith(1, "create_project_v2");
+    expect(invoke).toHaveBeenNthCalledWith(2, "recover_project_v2_workspace", {
+      workspaceId: "workspace-unsaved",
+    });
+    expect(invoke).toHaveBeenNthCalledWith(3, "claim_screenshot_capture", {
+      workspaceId: "workspace-unsaved",
+      captureId: "c".repeat(64),
+    });
+    expect(invoke).toHaveBeenNthCalledWith(4, "open_project_for_editor", {
+      operationId: "open-alpha",
+    });
+    expect(JSON.stringify(invoke.mock.calls)).not.toMatch(
+      /data:image|base64|pngBytes|workspacePath|archivePath/i,
+    );
+  });
+
   it("migrates and inspects repair without accepting paths or media bytes", async () => {
     const { inspectProjectV2Repair, migrateProjectV1 } = await import("./native");
     invoke

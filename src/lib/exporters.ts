@@ -1,4 +1,7 @@
-import type { GamebookSession } from "../types/session";
+interface TextExportProject {
+  title: string;
+  pages: Array<{ title: string; extractedText: string }>;
+}
 
 export async function pageImagesToPdf(images: string[]): Promise<string> {
   const { PDFDocument } = await import("pdf-lib");
@@ -12,7 +15,7 @@ export async function pageImagesToPdf(images: string[]): Promise<string> {
   return bytesToDataUrl(await pdf.save(), "application/pdf");
 }
 
-export function sessionToText(session: GamebookSession): string {
+export function sessionToText(session: TextExportProject): string {
   const lines = [session.title, "=".repeat(session.title.length), ""];
   session.pages.forEach((page, index) => {
     lines.push(`${index + 1}. ${page.title}`, "-".repeat(page.title.length + 3));

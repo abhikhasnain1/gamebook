@@ -1,6 +1,6 @@
 # Gamebook Project Format Version 2
 
-> Status: Accepted architecture contract under dependency-ordered implementation. ADR-0002, ADR-0008, and ADR-0009 freeze the container, records, settings, workspace, migration, repair, and compatibility boundaries. The native archive/workspace foundation is implemented; the visible Gamebook 0.5.3 editor still reads and writes version 1 projects until migration and canonical screenshot placement adoption are complete.
+> Status: Accepted architecture contract under dependency-ordered implementation. ADR-0002, ADR-0008, and ADR-0009 freeze the container, records, settings, workspace, migration, repair, and compatibility boundaries. The production screenshot editor uses the version 2 archive, workspace, migration, repair, and canonical placement path. Video, research, settings, and Project Trash behavior remain assigned to later roadmap issues.
 
 ## Goals
 
@@ -21,9 +21,11 @@ Cross-record constraints that JSON Schema cannot express are part of this contra
 
 ## Implementation status
 
-The Rust-owned foundation validates archive names, metadata, compression, limits, canonical records, record identity, annotation order, typed relationships, source-video/timeline links, source retention, and Trash wrapper identity. Initial open reads the central directory, manifest, active page, immediate evidence, and required timeline only; other records load on demand. Asset materialization, source-keyed workspaces, locks, recovery and Save journals, scoped media tokens, clean-cache eviction, external-change choices, cancellable raw copy, complete replacement validation, same-volume write-through replacement, directory-flush reporting, and visible reopen are implemented behind typed native commands.
+The Rust-owned implementation validates archive names, metadata, compression, limits, canonical records, record identity, annotation order, typed relationships, source-video/timeline links, source retention, and Trash wrapper identity. Initial open reads the central directory, manifest, active page, immediate evidence, and required timeline only; other records load on demand. Asset materialization, source-keyed workspaces, locks, recovery and Save journals, scoped media tokens, clean-cache eviction, external-change choices, cancellable raw copy, complete replacement validation, same-volume write-through replacement, directory-flush reporting, and visible reopen are reachable through typed native commands.
 
-Deterministic Gzip/plain version 1 migration, byte-identical screenshot staging, canonical screenshot/page/annotation records, schema-valid migration and read-only repair reports, future-major rejection, and collision-safe first-replacement backups are also implemented in the native foundation. The current React/Fabric editor does not call these commands yet. Canonical page placement rendering, measured 1600 by 900 raster comparison, and accessible production migration, repair, progress, conflict, and recovery controls remain gated to the dependent placement-adoption change. Until then, current version 1 open, Save, autosave, recovery, editing, and export behavior remains authoritative.
+The React/Fabric screenshot editor creates canonical screenshot evidence, page, annotation, connector, and `MediaPlacement` records. Native screenshot events expose only an opaque capture claim ID and display metadata; screenshot bytes enter the workspace without crossing renderer IPC as base64. Open, autosave, Save, Save As, cancellation, external-change conflict, recovery, materialization, and clean-cache controls use the version 2 workspace path. Viewport and runtime token state remain ephemeral, while PNG, PDF, Markdown, text, thumbnails, history, connectors, and crop extraction continue to use the 1600 by 900 logical page.
+
+Deterministic Gzip/plain version 1 migration, byte-identical screenshot staging, schema-valid migration reports, read-only repair reports, future-major rejection, and collision-safe first-replacement backups are integrated into the same visible Open workflow. The 1600 by 900 screenshot comparison reports zero pixels above the per-channel threshold of 8 for the committed migration fixture, below the required 0.1 percent limit. Versioned global settings, Project Trash, canonical research UI, and video records remain future implementation work.
 
 ## Package layout
 

@@ -24,6 +24,7 @@ import {
   applyPageBackground,
   composePage,
   createCropExtraction,
+  enlivenPageAnnotations,
   extractText,
   getScreenshotObject,
   isAnnotationObject,
@@ -32,7 +33,7 @@ import {
   PAGE_WIDTH,
   renderPageToDataUrl,
   snapshotAnnotations,
-  snapshotScreenshotLayout,
+  snapshotMediaPlacement,
   tagObject,
   type TaggedObject,
 } from "../lib/canvasPage";
@@ -44,14 +45,30 @@ import {
   syncConnectorBindings,
 } from "../lib/Connector";
 import { NoteTextbox } from "../lib/NoteTextbox";
+import { MediaPlacement } from "../lib/MediaPlacement";
+import {
+  KEYBOARD_PAN_PIXELS,
+  PointerPanSession,
+  ViewportController,
+  resolveArrowIntent,
+  viewportStateLabel,
+  type ViewportState,
+} from "../lib/viewportController";
 import type {
   AnnotationSnapshot,
-  GamebookPage,
-  PageContentPatch,
-  ScreenshotLayout,
   ToolId,
 } from "../types/session";
+import type {
+  EditorPage,
+  EditorPageContentPatch,
+  MediaPlacementRecord,
+} from "../types/projectV2";
 import { TextFormatBar, type TextFormatAction } from "./TextFormatBar";
+import {
+  PageOutline,
+  type OutlineAnnotation,
+} from "./PageOutline";
+import { ViewportControls } from "./ViewportControls";
 import {
   ObjectStyleBar,
   type SelectionStyle,
@@ -59,21 +76,21 @@ import {
 
 export interface CanvasEditorHandle {
   exportCurrent: (multiplier?: number) => string | null;
-  renderPage: (page: GamebookPage, multiplier?: number) => Promise<string>;
+  renderPage: (page: EditorPage, multiplier?: number) => Promise<string>;
   undo: () => void;
   redo: () => void;
   deleteSelection: () => void;
   isTextEditing: () => boolean;
-  flush: () => PageContentPatch | null;
+  flush: () => EditorPageContentPatch | null;
 }
 
 interface CanvasEditorProps {
-  page: GamebookPage;
+  page: EditorPage;
   tool: ToolId;
   color: string;
   strokeWidth: number;
   onToolChange: (tool: ToolId) => void;
-  onPageChange: (pageId: string, patch: PageContentPatch) => void;
+  onPageChange: (pageId: string, patch: EditorPageContentPatch) => void;
   onClose: () => void;
   onError: (message: string) => void;
 }
@@ -87,7 +104,7 @@ interface DrawState {
 
 interface EditorSnapshot {
   annotations: AnnotationSnapshot;
-  screenshotLayout: ScreenshotLayout;
+  placement: MediaPlacementRecord;
 }
 
 interface FormatBarState {
@@ -133,12 +150,24 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
     const historyRef = useRef<EditorSnapshot[]>([]);
     const historySerializedRef = useRef<string[]>([]);
     const historyIndexRef = useRef(-1);
+    const viewportControllerRef = useRef<ViewportController | null>(null);
+    const panSessionRef = useRef(new PointerPanSession());
+    const spacePressedRef = useRef(false);
     const bulletHandlersRef = useRef(
       new WeakMap<Textbox, { textarea: HTMLTextAreaElement; handler: EventListener }>(),
     );
     const textHistoryRef = useRef(new WeakMap<Textbox, string>());
-    const [scale, setScale] = useState(0.75);
-    const scaleRef = useRef(scale);
+    const [viewportState, setViewportState] = useState<ViewportState>({
+      mode: "fit",
+      zoom: 1,
+      zoomPercent: 100,
+      transform: [1, 0, 0, 1, 0, 0],
+      sceneCenterX: PAGE_WIDTH / 2,
+      sceneCenterY: PAGE_HEIGHT / 2,
+    });
+    const [outlinePlacement, setOutlinePlacement] = useState(page.placement);
+    const [outlineAnnotations, setOutlineAnnotations] = useState<OutlineAnnotation[]>([]);
+    const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
     const [formatBar, setFormatBar] = useState<FormatBarState | null>(null);
     const [selectionStyle, setSelectionStyle] = useState<SelectionStyle | null>(
       null,
@@ -148,38 +177,48 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
     toolRef.current = tool;
     colorRef.current = color;
     widthRef.current = strokeWidth;
-    scaleRef.current = scale;
-
-    function updateEditorScale() {
-      const viewport = viewportRef.current;
-      if (!viewport) return;
-      const next = Math.min(
-        (viewport.clientWidth - 40) / PAGE_WIDTH,
-        (viewport.clientHeight - 40) / PAGE_HEIGHT,
-      );
-      setScale(Math.max(0.2, Math.min(1.25, next)));
-      queueToolbarUpdate();
-    }
 
     function captureSnapshot(canvas: Canvas): EditorSnapshot {
       return {
         annotations: snapshotAnnotations(canvas),
-        screenshotLayout:
-          snapshotScreenshotLayout(canvas) ?? pageRef.current.screenshotLayout,
+        placement: snapshotMediaPlacement(canvas, pageRef.current.placement),
       };
     }
 
-    function collectPagePatch(snapshot?: EditorSnapshot): PageContentPatch | null {
+    function refreshOutline(canvas: Canvas) {
+      setOutlinePlacement(snapshotMediaPlacement(canvas, pageRef.current.placement));
+      setOutlineAnnotations(
+        canvas
+          .getObjects()
+          .filter(isAnnotationObject)
+          .flatMap((object, index) => {
+            const data = (object as TaggedObject).data;
+            if (!data?.id) return [];
+            const text = object instanceof Textbox ? object.text.trim() : "";
+            return [
+              {
+                id: data.id,
+                kind: data.kind ?? object.type.toLowerCase(),
+                label: text || `${data.kind ?? "Annotation"} ${index + 1}`,
+              },
+            ];
+          }),
+      );
+    }
+
+    function collectPagePatch(
+      snapshot?: EditorSnapshot,
+    ): EditorPageContentPatch | null {
       const canvas = canvasRef.current;
       if (!canvas || suspendedRef.current) return null;
       const currentSnapshot = snapshot ?? captureSnapshot(canvas);
       return {
         annotations: currentSnapshot.annotations,
-        screenshotLayout: currentSnapshot.screenshotLayout,
-        thumbnailDataUrl: canvas.toDataURL({
+        placement: currentSnapshot.placement,
+        thumbnailUrl: canvasToLogicalPageDataUrl(canvas, {
           format: "jpeg",
           quality: 0.62,
-          multiplier: 0.12 / scaleRef.current,
+          multiplier: 0.12,
         }),
         extractedText: extractText(canvas),
         backgroundColor: pageRef.current.backgroundColor,
@@ -209,6 +248,7 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       const canvas = canvasRef.current;
       if (!canvas || suspendedRef.current) return;
       const snapshot = captureSnapshot(canvas);
+      refreshOutline(canvas);
       const serialized = JSON.stringify(snapshot);
       const currentSerialized = historySerializedRef.current[historyIndexRef.current];
       if (currentSerialized === serialized) {
@@ -253,8 +293,13 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       if (!canvas) return;
       suspendedRef.current = true;
       canvas.getObjects().filter(isAnnotationObject).forEach((object) => canvas.remove(object));
-      getScreenshotObject(canvas)?.set(snapshot.screenshotLayout).setCoords();
-      const objects = await util.enlivenObjects<FabricObject>(snapshot.annotations.objects);
+      const screenshot = getScreenshotObject(canvas);
+      if (screenshot instanceof MediaPlacement) {
+        screenshot.applyPlacementRecord(snapshot.placement);
+      }
+      const sourceUrl = pageRef.current.sourceUrl;
+      if (!sourceUrl) throw new Error("The screenshot asset is not materialized.");
+      const objects = await enlivenPageAnnotations(snapshot.annotations, sourceUrl);
       objects.forEach((enlivenedObject) => {
         const object = normalizeAnnotationObject(enlivenedObject);
         const data = (object as TaggedObject).data;
@@ -271,6 +316,8 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       canvas.requestRenderAll();
       suspendedRef.current = false;
       setFormatBar(null);
+      setSelectedObjectId(null);
+      refreshOutline(canvas);
       commitPage();
     }
 
@@ -328,17 +375,22 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       const canvasRect = canvas.upperCanvasEl.getBoundingClientRect();
       const viewportRect = viewport.getBoundingClientRect();
       const bounds = active.getBoundingRect();
-      const displayScale = canvasRect.width / PAGE_WIDTH;
+      const transform = canvas.viewportTransform;
+      const displayScale = transform[0];
       const relativeLeft = canvasRect.left - viewportRect.left;
       const relativeTop = canvasRect.top - viewportRect.top;
       const halfToolbarWidth = 188;
       const center = clamp(
-        relativeLeft + (bounds.left + bounds.width / 2) * displayScale,
+        relativeLeft + transform[4] + (bounds.left + bounds.width / 2) * displayScale,
         halfToolbarWidth + 8,
         viewport.clientWidth - halfToolbarWidth - 8,
       );
-      const above = relativeTop + bounds.top * displayScale - 10;
-      const below = relativeTop + (bounds.top + bounds.height) * displayScale + 10;
+      const above = relativeTop + transform[5] + bounds.top * displayScale - 10;
+      const below =
+        relativeTop +
+        transform[5] +
+        (bounds.top + bounds.height) * displayScale +
+        10;
       const placement = above >= 48 || below > viewport.clientHeight - 48 ? "above" : "below";
       setFormatBar({
         left: center,
@@ -468,10 +520,12 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
 
     useImperativeHandle(ref, () => ({
       exportCurrent: (multiplier = 2) =>
-        canvasRef.current?.toDataURL({
-          format: "png",
-          multiplier: multiplier / scaleRef.current,
-        }) ?? null,
+        canvasRef.current
+          ? canvasToLogicalPageDataUrl(canvasRef.current, {
+              format: "png",
+              multiplier,
+            })
+          : null,
       renderPage: renderPageToDataUrl,
       undo,
       redo,
@@ -502,6 +556,17 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
         selectionBorderColor: "#1e7a6c",
       });
       canvasRef.current = canvas;
+      const viewport = viewportRef.current;
+      const viewportSize = {
+        width: Math.max(1, viewport?.clientWidth ?? PAGE_WIDTH),
+        height: Math.max(1, viewport?.clientHeight ?? PAGE_HEIGHT),
+      };
+      canvas.setDimensions(viewportSize);
+      viewportControllerRef.current = new ViewportController(
+        canvas,
+        viewportSize,
+        setViewportState,
+      );
 
       const brush = new PencilBrush(canvas);
       brush.color = colorRef.current;
@@ -509,6 +574,8 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       canvas.freeDrawingBrush = brush;
 
       const updateSelection = () => {
+        const active = canvas.getActiveObject() as TaggedObject | undefined;
+        setSelectedObjectId(active?.data?.id ?? null);
         queueToolbarUpdate();
         setSelectionStyle(readSelectionStyle(canvas));
         refreshAnchorGuides(canvas);
@@ -523,6 +590,7 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
         setSelectionStyle(readSelectionStyle(canvas));
         queueToolbarUpdate();
         canvas.requestRenderAll();
+        refreshOutline(canvas);
         checkpoint();
       };
       const onObjectResizing = (event: { target?: FabricObject }) => {
@@ -592,6 +660,17 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
 
       const onMouseDown = (event: TPointerEventInfo) => {
         cancelCommit();
+        if (
+          "button" in event.e &&
+          panSessionRef.current.start(
+            event.e.button,
+            spacePressedRef.current,
+            new Point(event.e.clientX, event.e.clientY),
+          )
+        ) {
+          event.e.preventDefault();
+          return;
+        }
         const activeTool = toolRef.current;
         if (activeTool === "select" || activeTool === "pen") return;
         const point = canvas.getScenePoint(event.e);
@@ -615,6 +694,14 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       };
 
       const onMouseMove = (event: TPointerEventInfo) => {
+        if (panSessionRef.current.active) {
+          if (!("clientX" in event.e)) return;
+          const delta = panSessionRef.current.move(
+            new Point(event.e.clientX, event.e.clientY),
+          );
+          if (delta) viewportControllerRef.current?.panContentBy(delta.x, delta.y);
+          return;
+        }
         const drawing = drawRef.current;
         if (!drawing) return;
         pendingDrawPointRef.current = canvas.getScenePoint(event.e);
@@ -635,6 +722,10 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       };
 
       const onMouseUp = (event: TPointerEventInfo) => {
+        if (panSessionRef.current.active) {
+          panSessionRef.current.end();
+          return;
+        }
         const drawing = drawRef.current;
         if (!drawing) {
           if (pendingSnapshotRef.current) commitPage();
@@ -756,9 +847,19 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       canvas.on("mouse:move", onMouseMove);
       canvas.on("mouse:up", onMouseUp);
 
-      const resizeObserver = new ResizeObserver(updateEditorScale);
+      const resizeObserver = new ResizeObserver(() => {
+        const currentViewport = viewportRef.current;
+        if (!currentViewport) return;
+        const size = {
+          width: Math.max(1, currentViewport.clientWidth),
+          height: Math.max(1, currentViewport.clientHeight),
+        };
+        canvas.setDimensions(size);
+        viewportControllerRef.current?.resize(size);
+        canvas.calcOffset();
+        queueToolbarUpdate();
+      });
       if (viewportRef.current) resizeObserver.observe(viewportRef.current);
-      updateEditorScale();
 
       return () => {
         cancelCommit();
@@ -770,6 +871,8 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
         }
         if (toolbarFrameRef.current) cancelAnimationFrame(toolbarFrameRef.current);
         resizeObserver.disconnect();
+        viewportControllerRef.current = null;
+        panSessionRef.current.end();
         canvas.dispose();
         canvasRef.current = null;
       };
@@ -791,10 +894,17 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
           historyRef.current = [initialSnapshot];
           historySerializedRef.current = [JSON.stringify(initialSnapshot)];
           historyIndexRef.current = 0;
+          refreshOutline(canvas);
+          setOutlinePlacement(page.placement);
+          setSelectedObjectId(null);
+          viewportControllerRef.current?.fit();
           canvas.requestRenderAll();
         })
         .catch((error: unknown) => {
-          if (!controller.signal.aborted) console.error("Could not load page", error);
+          if (!controller.signal.aborted) {
+            suspendedRef.current = false;
+            onError(`Could not load page: ${String(error)}`);
+          }
         });
       return () => controller.abort();
     }, [page.id]);
@@ -881,26 +991,40 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
     }, [strokeWidth]);
 
     useEffect(() => {
-      const canvas = canvasRef.current;
-      if (canvas) {
-        canvas.setDimensions({
-          width: Math.round(PAGE_WIDTH * scale),
-          height: Math.round(PAGE_HEIGHT * scale),
-        });
-        canvas.setViewportTransform([scale, 0, 0, scale, 0, 0]);
-        canvas.calcOffset();
-        refreshAnchorGuides(canvas);
-        canvas.requestRenderAll();
-      }
-      queueToolbarUpdate();
-    }, [scale]);
-
-    useEffect(() => {
       const onKeyDown = (event: KeyboardEvent) => {
         const target = event.target as HTMLElement;
         if (target.matches("input, textarea, [contenteditable='true']")) return;
         const canvas = canvasRef.current;
         const active = canvas?.getActiveObject();
+        if (event.code === "Space") {
+          spacePressedRef.current = true;
+          event.preventDefault();
+          return;
+        }
+        const arrowIntent = resolveArrowIntent(event.key, {
+          spacePressed: spacePressedRef.current,
+          shiftPressed: event.shiftKey,
+        });
+        if (arrowIntent && canvas) {
+          event.preventDefault();
+          if (arrowIntent.kind === "pan") {
+            viewportControllerRef.current?.panViewBy(
+              arrowIntent.dx,
+              arrowIntent.dy,
+            );
+          } else if (active && !(active instanceof Textbox && active.isEditing)) {
+            active.set({
+              left: active.left + arrowIntent.dx,
+              top: active.top + arrowIntent.dy,
+            });
+            keepObjectOnPage(active);
+            active.setCoords();
+            syncConnectorBindings(canvas, active);
+            canvas.requestRenderAll();
+            checkpoint();
+          }
+          return;
+        }
         if (event.key === "Escape") {
           if (active instanceof Textbox && active.isEditing) {
             active.exitEditing();
@@ -922,8 +1046,21 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
           deleteSelection();
         }
       };
+      const onKeyUp = (event: KeyboardEvent) => {
+        if (event.code === "Space") spacePressedRef.current = false;
+      };
+      const onBlur = () => {
+        spacePressedRef.current = false;
+        panSessionRef.current.end();
+      };
       window.addEventListener("keydown", onKeyDown);
-      return () => window.removeEventListener("keydown", onKeyDown);
+      window.addEventListener("keyup", onKeyUp);
+      window.addEventListener("blur", onBlur);
+      return () => {
+        window.removeEventListener("keydown", onKeyDown);
+        window.removeEventListener("keyup", onKeyUp);
+        window.removeEventListener("blur", onBlur);
+      };
     }, [onClose]);
 
     function formatText(action: TextFormatAction) {
@@ -1006,46 +1143,131 @@ export const CanvasEditor = forwardRef<CanvasEditorHandle, CanvasEditorProps>(
       checkpoint();
     }
 
+    function selectOutlineObject(id: string) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const object = canvas
+        .getObjects()
+        .find((candidate) => (candidate as TaggedObject).data?.id === id);
+      if (!object) return;
+      canvas.setActiveObject(object);
+      setSelectedObjectId(id);
+      canvas.requestRenderAll();
+    }
+
+    function changeOutlinePlacement(patch: Partial<MediaPlacementRecord>) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const placement = getScreenshotObject(canvas);
+      if (!(placement instanceof MediaPlacement)) return;
+      try {
+        placement.applyPlacementRecord({
+          ...placement.toPlacementRecord(),
+          ...patch,
+        });
+        keepObjectOnPage(placement);
+        syncConnectorBindings(canvas, placement);
+        canvas.requestRenderAll();
+        refreshOutline(canvas);
+        checkpoint();
+      } catch (error) {
+        onError(String(error));
+      }
+    }
+
+    function setZoom(percent: number) {
+      try {
+        viewportControllerRef.current?.setZoomPercent(percent);
+        queueToolbarUpdate();
+      } catch (error) {
+        onError(String(error));
+      }
+    }
+
     return (
-      <div className="editor-viewport" ref={viewportRef}>
-        {formatBar && (
-          <TextFormatBar
-            left={formatBar.left}
-            top={formatBar.top}
-            placement={formatBar.placement}
-            fontSize={formatBar.fontSize}
-            onFormat={formatText}
-            onFontSizeChange={changeFontSize}
+      <div className="canvas-editor-layout">
+        <div className="editor-viewport" ref={viewportRef}>
+          {formatBar && (
+            <TextFormatBar
+              left={formatBar.left}
+              top={formatBar.top}
+              placement={formatBar.placement}
+              fontSize={formatBar.fontSize}
+              onFormat={formatText}
+              onFontSizeChange={changeFontSize}
+            />
+          )}
+          {selectionStyle && (
+            <ObjectStyleBar
+              style={selectionStyle}
+              onStrokeColorChange={(value) =>
+                changeSelectedAppearance("stroke", value)
+              }
+              onFillColorChange={(value) =>
+                changeSelectedAppearance("fill", value)
+              }
+              onTransparent={() => changeSelectedAppearance("transparent")}
+              onBorderWidthChange={(value) =>
+                changeSelectedAppearance("width", value)
+              }
+              onCornerRadiusChange={(value) =>
+                changeSelectedAppearance("radius", value)
+              }
+            />
+          )}
+          <div className="canvas-scaled-frame">
+            <canvas ref={elementRef} />
+          </div>
+          <ViewportControls
+            state={viewportState}
+            onFit={() => viewportControllerRef.current?.fit()}
+            onReset={() => viewportControllerRef.current?.reset()}
+            onZoom={setZoom}
+            onPan={(dx, dy) =>
+              viewportControllerRef.current?.panViewBy(
+                dx * KEYBOARD_PAN_PIXELS,
+                dy * KEYBOARD_PAN_PIXELS,
+              )
+            }
           />
-        )}
-        {selectionStyle && (
-          <ObjectStyleBar
-            style={selectionStyle}
-            onStrokeColorChange={(value) =>
-              changeSelectedAppearance("stroke", value)
-            }
-            onFillColorChange={(value) =>
-              changeSelectedAppearance("fill", value)
-            }
-            onTransparent={() => changeSelectedAppearance("transparent")}
-            onBorderWidthChange={(value) =>
-              changeSelectedAppearance("width", value)
-            }
-            onCornerRadiusChange={(value) =>
-              changeSelectedAppearance("radius", value)
-            }
-          />
-        )}
-        <div
-          className="canvas-scaled-frame"
-          style={{ width: PAGE_WIDTH * scale, height: PAGE_HEIGHT * scale }}
-        >
-          <canvas ref={elementRef} />
+          <div className="sr-only" role="status" aria-live="polite">
+            {viewportStateLabel(viewportState)}
+          </div>
         </div>
+        <PageOutline
+          placement={outlinePlacement}
+          placementLabel={`Screenshot on page ${page.title}`}
+          annotations={outlineAnnotations}
+          selectedId={selectedObjectId}
+          onSelect={selectOutlineObject}
+          onPlacementChange={changeOutlinePlacement}
+        />
       </div>
     );
   },
 );
+
+function canvasToLogicalPageDataUrl(
+  canvas: Canvas,
+  options: {
+    format: "png" | "jpeg";
+    quality?: number;
+    multiplier: number;
+  },
+): string {
+  const width = canvas.getWidth();
+  const height = canvas.getHeight();
+  const transform = [...canvas.viewportTransform] as [number, number, number, number, number, number];
+  canvas.setDimensions({ width: PAGE_WIDTH, height: PAGE_HEIGHT });
+  canvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+  canvas.requestRenderAll();
+  const dataUrl = canvas.toDataURL(options);
+  canvas.setDimensions({ width, height });
+  canvas.setViewportTransform(transform);
+  canvas.calcOffset();
+  canvas.requestRenderAll();
+  return dataUrl;
+}
 
 function updateDrawingPreview(
   canvas: Canvas,

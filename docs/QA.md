@@ -38,24 +38,30 @@ For every issue, record accessibility evidence in the owning GitHub issue or pul
 
 Unmet accessibility criteria block milestone closure when they affect the milestone workflow. A follow-up issue may defer only independent work that is outside the milestone scope and does not leave the shipped workflow with a serious or critical barrier.
 
-Current dry-run gaps for the screenshot workflow:
+Current manual coverage for the screenshot workflow remains required for native display capture, parented file dialogs, rendered PNG/PDF/Markdown inspection, keyboard-only end-to-end editing, NVDA, Accessibility Insights, High Contrast, reduced motion, and 100/150/200 percent Windows UI scale. Automated coverage supplements but does not replace those checks.
 
-- Native capture, save/recovery dialogs, rendered PNG/PDF/Markdown output, keyboard-only editing, NVDA, High Contrast, reduced-motion, and 150%/200% scale remain manual until dedicated automation is added.
-- Existing frontend tests cover automated axe/component checks for the tool rail and regression assertions for version 1 session compatibility, fixture contracts, and text export order.
+Frontend tests cover axe/component checks for the tool rail, Outline, viewport, migration/repair/conflict/storage dialogs, capture claim flow, production project orchestration, placement serialization, version 1 compatibility, fixture contracts, render differences, and text export order.
 
 ## Version 2 persistence foundation
 
 - Rust library tests cover lazy active-page open, on-demand record reads, schema and cross-record validation, relative-path and duplicate rejection, immutable asset CRC/SHA-256 visibility, scoped range responses, token invalidation, source-keyed workspace reuse, copied-project separation, live/fresh/stale/malformed locks, corrupt-state recovery, registry traversal rejection, autosave journals, cancellation cleanup, external-change choices, Save As preservation, streamed replacement, visible reopen, cache eviction, and operation cleanup after failures.
-- Frontend command-contract tests verify that version 2 open and Save accept no renderer-supplied path, materialization returns only a scoped token and metadata, and media URLs reject non-token input. These commands are not connected to the production editor before deterministic migration and canonical screenshot placement adoption.
+- Frontend command-contract tests verify that version 2 Open and Save accept no renderer-supplied path, materialization returns only a scoped token and metadata, media URLs reject non-token input, and the production editor stages no path, token, runtime URL, or base64 asset.
 - Run `cargo test --manifest-path src-tauri/Cargo.toml --lib`, `cargo clippy --manifest-path src-tauri/Cargo.toml --lib -- -D warnings`, `npm.cmd run frontend:test`, and `npm.cmd run frontend:build` for every persistence change.
-- Production adoption must rerun the 5 GiB archive, OneDrive-managed replacement, forced-interruption, low-space, accessibility, and current screenshot/version 1 matrices. The current issue introduces no new visible control, so keyboard, focus, announcement, scale, High Contrast, Accessibility Insights, and NVDA validation attach to the dependent production migration and placement surfaces rather than to an unreachable backend command.
+- Production persistence changes rerun the 5 GiB archive, OneDrive-managed replacement, forced-interruption, low-space, accessibility, and current screenshot/version 1 matrices.
 
 ## Version 1 migration and repair foundation
 
 - Rust tests cover Gzip and plain JSON content detection, deterministic IDs and records, byte-identical screenshot assets, page order and active-page mapping, annotation IDs/order/text/transforms, schema-valid ordered reports, read-only valid/missing/future/malformed repair outcomes, cancellation, source preservation, failed-save cleanup, collision-safe first-replacement backup, materialization, and stable repeated version 2 Save.
-- Frontend command-contract tests verify that migration accepts only an operation ID, repair accepts no renderer-supplied data, reports expose stable textual code/severity/status without paths or base64 media, and Save reports whether the version 1 backup was created.
-- The engine-only commands are not connected to the production editor. Keyboard, focus, announcements, 900 by 620 layout, 100/150/200 percent scale, High Contrast, reduced motion, Accessibility Insights, NVDA, and measured 1600 by 900 render-difference evidence attach to the dependent canonical placement and production migration workflow.
+- Frontend command-contract and component tests verify that migration accepts only an operation ID, repair accepts no renderer-supplied data, reports expose stable textual code/severity/status without paths or base64 media, Save reports whether the version 1 backup was created, and every report/conflict/storage dialog is keyboard operable with trapped and restored focus.
+- Production migration validation includes keyboard, focus, announcements, 900 by 620 layout, 100/150/200 percent scale, High Contrast, reduced motion, Accessibility Insights, NVDA, and measured 1600 by 900 render-difference evidence.
 - Run `cargo test --manifest-path src-tauri/Cargo.toml --lib`, `cargo clippy --manifest-path src-tauri/Cargo.toml --lib -- -D warnings`, `npm.cmd run frontend:test`, both project-format verifier modes, both architecture-readiness verifier modes, and fixture verification for every migration or repair change.
+
+## Production version 2 screenshot workflow
+
+- Native tests cover opaque screenshot claim IDs, protected unsaved workspaces, autosave, first Save As, bootstrap cleanup, reopen, exact asset bytes, valid-version lock errors, external conflicts, cancellation, version 1 backup, stable repeated Save, and read-only repair/future rejection.
+- Frontend tests cover lazy workspace creation on first capture, active-page materialization, canonical record staging, immediate title changes, Save As, migration reports, recovery by opaque workspace ID, clean-cache results, placement history, semantic Outline controls, and viewport state exclusion.
+- The committed render comparison builds the legacy 0.5.3 and canonical `MediaPlacement` scenes at 1600 by 900. Fewer than 0.1 percent of pixels may exceed a per-channel difference of 8; the expected current result is zero differing pixels.
+- Manual production review exercises Open, migration report, repair report, edit, Save, Save As, external conflict, cancellation, recovery, Project storage, PNG/PDF/Markdown/text export, and focus restoration at the supported sizes and accessibility modes.
 
 ## Deterministic fixtures
 

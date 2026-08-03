@@ -16,24 +16,18 @@ Interactive rendering is explicitly scheduled. Fabric automatic add/remove rende
 1. The global-shortcut plugin receives `Ctrl+Shift+F12`.
 2. Rust hides the overlay and waits briefly for the desktop compositor.
 3. xcap captures the monitor under the pointer, with primary-display fallback.
-4. Rust encodes the PNG in memory, creates a 224 by 126 JPEG page-strip thumbnail, and emits both with the display metadata in `capture-created`.
-5. The renderer appends a page and makes it active. The native layer sizes the borderless window to 89% of the captured monitor width and 88% of its height, centers it, then reveals and focuses it.
+4. Rust encodes the PNG, retains the bytes behind a short-lived opaque capture ID, and emits only that ID plus display metadata in `capture-created`.
+5. The renderer lazily creates an unsaved version 2 workspace on the first capture, claims the PNG into its immutable asset store, and appends canonical screenshot evidence, placement, and page records. The native layer sizes the borderless window to 89% of the captured monitor width and 88% of its height, centers it, then reveals and focuses it.
 
 An atomic in-process guard rejects overlapping capture requests.
 
 ## Page model
 
-Each page stores:
+Each canonical page stores ordered `MediaPlacement` records, normalized Fabric annotations, extracted note text, and a page background. Screenshot evidence stores capture metadata, source dimensions, and an immutable asset digest. Source bytes, scoped media tokens, runtime URLs, and viewport transforms are not project fields.
 
-- source PNG as a data URL;
-- capture timestamp, display name, and source dimensions;
-- the screenshot's position, scale, and rotation;
-- Fabric annotation objects, excluding fixed page chrome and screenshot pixels;
-- a small thumbnail;
-- extracted note text for text and Markdown export.
-- a page background color; the dotted grid is generated as a repeatable Fabric pattern.
+The screenshot is reconstructed as an interactive `MediaPlacement` whenever a page loads. Its verified bytes are exposed through a workspace-scoped token that expires and is never persisted. History snapshots contain the frozen placement fields alongside annotation JSON, so screenshot movement and resizing participate in undo/redo without duplicating screenshot pixels or recording view state.
 
-The screenshot is reconstructed as an interactive Fabric image whenever a page loads. History snapshots contain its small transform record alongside annotation JSON, so screenshot movement and resizing participate in undo/redo without duplicating screenshot pixels.
+The logical page remains a finite 1600 by 900 surface. Fit is the default, with 25-200 percent zoom, reset, keyboard and pointer panning, and a semantic Outline. Fabric viewport transforms are ephemeral and cannot change page geometry, history, thumbnails, connectors, or exports.
 
 Text notes use a registered `NoteTextbox` Fabric subclass. It preserves a user-drawn minimum height, uses width and height resize controls, and still expands when text needs more room. Content padding participates in wrapping, alignment, pointer hit testing, selection, and caret rendering, while the background and border share one adjustable rounded outline at the complete outer dimensions. Legacy `Textbox` notes are upgraded during deserialization.
 
@@ -45,19 +39,17 @@ The page strip uses dnd-kit's pointer and keyboard sensors rather than native HT
 
 ## Persistence
 
-`GamebookSession` is a versioned JSON document. Project and recovery files are Gzip-compressed JSON with the `.gamebook` extension. The format is intentionally self-contained so projects remain portable and do not depend on hidden sidecar assets. Version 1 projects from the fixed-layout editor are normalized with a default screenshot transform when opened.
+Version 2 `.gamebook` projects are portable ZIP64 archives containing canonical records and immutable content-addressed assets. Rust validates metadata and records, lazily opens the active page and immediate evidence, materializes assets by verified SHA-256, owns source-keyed workspaces and locks, writes recovery and Save journals, detects external source changes, evicts only verified clean cache data, and performs validated same-volume write-through replacement. Large unchanged stored entries remain raw-copied through a cancellation-aware reader. Scoped 256-bit media tokens expose verified bytes through the local `gamebook-media` protocol without returning an archive or workspace path.
 
-Autosave waits for a quiet period and uses the latest session reference, so page selection alone does not rewrite the project. The session is serialized once by Tauri IPC; Rust streams the JSON into fast Gzip compression on a blocking worker instead of recompressing the complete multi-page document on either UI thread. Minimizing hides the native window first, then snapshots and persists recovery data in the background; quitting still awaits its final recovery write before exiting.
+Autosave waits for a quiet period, stages changed canonical documents atomically inside the workspace, and never rebuilds the archive. Unsaved and recovery-pending workspaces remain protected. Manual Save streams one replacement archive, validates it before visibility, and marks the workspace clean only after the visible archive reopens. Save cancellation and external-source conflicts preserve the prior project; the conflict flow offers Save As or explicit replacement.
 
-The native layer also contains the version 2 persistence foundation accepted by ADR-0002, ADR-0008, and ADR-0009. Rust validates ZIP64 metadata and canonical records, lazily opens the active page and immediate evidence, materializes immutable assets by verified SHA-256, owns source-keyed workspaces and locks, writes recovery and Save journals, detects external source changes, evicts only clean cache data, and performs validated same-volume write-through replacement. Large unchanged stored entries remain raw-copied through a cancellation-aware reader. Scoped 256-bit media tokens expose verified bytes through the local `gamebook-media` protocol without returning an archive or workspace path.
-
-This foundation is not yet the visible editor persistence path. The native layer can now detect Gzip or plain version 1 sources by content, stage deterministic canonical screenshot records and byte-identical assets, inspect damaged version 2 archives without mutation or invented content, reject future major versions before workspace creation, and retain a verified collision-safe backup before the first successful same-path version 2 replacement. The production editor continues to open, edit, autosave, save, recover, and export version 1 screenshot projects exactly as above. Canonical screenshot placement rendering and production migration/repair controls remain the next dependency-ordered change; the typed native commands remain unused by the current editor until that adoption is complete.
+Open accepts valid version 2 archives and Gzip or plain version 1 projects. Version 1 migration runs in an isolated workspace, preserves byte-identical screenshots and canonical page semantics, displays a migration report, and creates a collision-safe `.v1-backup` only on the first successful same-path replacement. Damaged version 2 input receives a read-only repair report, unsupported future versions are rejected before workspace creation, and failed or cancelled inputs are not mutated.
 
 History snapshots cache their serialized comparison value, text edits are grouped over a short typing interval, and page patches reuse the latest snapshot. Thumbnail rendering runs in an idle callback at 192 by 108 pixels, while page-strip images decode asynchronously.
 
 ## Export pipeline
 
-Pages render offscreen at a caller-selected multiplier. PNG is a single rendered page. PDF embeds each rendered page as a 1600 by 900 landscape page. Markdown writes rendered page images to a sibling asset directory and uses relative links. Text export uses the extracted content of all note boxes.
+Pages materialize their verified screenshot asset as needed and render offscreen at a caller-selected multiplier with the viewport transform removed. PNG is a single rendered page. PDF embeds each rendered page as a 1600 by 900 landscape page. Markdown writes rendered page images to a sibling asset directory and uses relative links. Text export uses the extracted content of all note boxes.
 
 Native dialogs are parented to the main WebView window and return the final destination; Rust performs all writes. The WebView receives no broad filesystem permission.
 
@@ -77,6 +69,8 @@ Native dialogs are parented to the main WebView window and return the final dest
 - `src/lib/NoteTextbox.ts`: resizable fixed-height text-note object
 - `src/lib/Connector.ts`: connector geometry, endpoint controls, anchors, snapping, and live relationship updates
 - `src/lib/canvasPage.ts`: deterministic page composition, serialization, and rendering
-- `src/App.tsx`: session UI, save/export orchestration, and keyboard flow
-- `src/types/session.ts`: durable project schema
-- `src/lib/native.ts`: typed renderer-to-native command boundaries for version 1 and the gated version 2 foundation
+- `src/App.tsx`: project UI, save/export orchestration, and keyboard flow
+- `src/hooks/useProjectV2.ts`: reachable version 2 open, migration, workspace, save, recovery, and capture orchestration
+- `src/types/projectV2.ts`: canonical screenshot editor adapters and serialization boundaries
+- `src/types/session.ts`: version 1 compatibility parsing and shared annotation types
+- `src/lib/native.ts`: typed renderer-to-native command boundaries

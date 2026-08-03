@@ -18,10 +18,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import type { GamebookPage } from "../types/session";
+import type { EditorPage } from "../types/projectV2";
 
 interface PageStripProps {
-  pages: GamebookPage[];
+  pages: EditorPage[];
   activePageId: string | null;
   onSelect: (pageId: string) => void;
   onRemove: (pageId: string) => void;
@@ -111,7 +111,7 @@ function SortablePage({
   onSelect,
   onRemove,
 }: {
-  page: GamebookPage;
+  page: EditorPage;
   index: number;
   active: boolean;
   onSelect: (pageId: string) => void;
@@ -154,13 +154,17 @@ function SortablePage({
         data-tooltip-side="top"
         onClick={() => onSelect(page.id)}
       >
-        <img
-          src={page.thumbnailDataUrl}
-          alt=""
-          draggable={false}
-          decoding="async"
-          loading="lazy"
-        />
+        {page.thumbnailUrl ?? page.sourceUrl ? (
+          <img
+            src={page.thumbnailUrl ?? page.sourceUrl ?? undefined}
+            alt=""
+            draggable={false}
+            decoding="async"
+            loading="lazy"
+          />
+        ) : (
+          <span className="page-thumbnail-placeholder" aria-hidden="true" />
+        )}
         <span>{index + 1}</span>
       </button>
       <button
@@ -177,17 +181,21 @@ function SortablePage({
   );
 }
 
-function PagePreview({ page, index }: { page: GamebookPage; index: number }) {
+function PagePreview({ page, index }: { page: EditorPage; index: number }) {
   return (
     <div className="page-tab drag-overlay is-active" aria-hidden="true">
       <span className="page-drag-handle"><GripVertical /></span>
       <span className="page-select">
-        <img
-          src={page.thumbnailDataUrl}
-          alt=""
-          draggable={false}
-          decoding="async"
-        />
+        {page.thumbnailUrl ?? page.sourceUrl ? (
+          <img
+            src={page.thumbnailUrl ?? page.sourceUrl ?? undefined}
+            alt=""
+            draggable={false}
+            decoding="async"
+          />
+        ) : (
+          <span className="page-thumbnail-placeholder" aria-hidden="true" />
+        )}
         <span>{index + 1}</span>
       </span>
     </div>

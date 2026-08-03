@@ -6,6 +6,7 @@ import {
   Line,
   Pattern,
   Point,
+  Rect,
   Shadow,
   StaticCanvas,
   Textbox,
@@ -16,12 +17,14 @@ import type {
   GamebookPage,
   ScreenshotLayout,
 } from "../types/session";
+import type { EditorPage, MediaPlacementRecord } from "../types/projectV2";
 import { NoteTextbox } from "./NoteTextbox";
 import {
   Connector,
   syncConnectorBindings,
   type ConnectorBindings,
 } from "./Connector";
+import { loadMediaPlacement, MediaPlacement } from "./MediaPlacement";
 
 export const PAGE_WIDTH = 1600;
 export const PAGE_HEIGHT = 900;
@@ -41,6 +44,7 @@ export interface ObjectTag {
 }
 
 export type TaggedObject = FabricObject & { data?: ObjectTag };
+export type RenderablePage = GamebookPage | EditorPage;
 
 export function tagObject<T extends FabricObject>(object: T, data: ObjectTag): T {
   const existing = (object as T & { data?: ObjectTag }).data ?? {};
@@ -86,46 +90,42 @@ export function snapshotScreenshotLayout(
   };
 }
 
+export function snapshotMediaPlacement(
+  canvas: StaticCanvas | Canvas,
+  fallback: MediaPlacementRecord,
+): MediaPlacementRecord {
+  const screenshot = getScreenshotObject(canvas);
+  if (screenshot instanceof MediaPlacement) return screenshot.toPlacementRecord();
+  if (!screenshot) return fallback;
+  return {
+    ...fallback,
+    left: screenshot.left,
+    top: screenshot.top,
+    scaleX: screenshot.scaleX,
+    scaleY: screenshot.scaleY,
+    angle: ((screenshot.angle % 360) + 360) % 360,
+  };
+}
+
 export async function composePage(
   canvas: StaticCanvas | Canvas,
-  page: GamebookPage,
+  page: RenderablePage,
   signal?: AbortSignal,
 ): Promise<void> {
   applyPageBackground(canvas, page.backgroundColor);
 
-  const screenshot = await FabricImage.fromURL(page.screenshotDataUrl, { signal });
-  screenshot.set({
-    ...page.screenshotLayout,
-    originX: "left",
-    originY: "top",
-    stroke: "#b9bdc2",
-    strokeWidth: 2,
-    strokeUniform: true,
-    lockScalingFlip: true,
-    cornerColor: "#ffffff",
-    cornerStrokeColor: "#1e7a6c",
-    borderColor: "#1e7a6c",
-    transparentCorners: false,
-    cornerSize: 13,
-    hoverCursor: "move",
-    objectCaching: false,
-    shadow: new Shadow({
-      color: "rgba(24, 28, 32, .24)",
-      blur: 18,
-      offsetY: 6,
-    }),
-  });
+  const sourceUrl = pageSourceUrl(page);
+  if (!sourceUrl) throw new Error("The screenshot asset is not materialized.");
+  const placementRecord = pagePlacement(page);
+  const screenshot = await loadMediaPlacement(placementRecord, sourceUrl, signal);
   tagObject(screenshot, {
     role: "screenshot",
     kind: "screenshot",
-    id: `screenshot-${page.id}`,
+    id: placementRecord.id,
   });
   canvas.add(screenshot);
 
-  const annotations = await util.enlivenObjects<FabricObject>(
-    page.annotations.objects.map(upgradeSerializedAnnotation),
-    { signal },
-  );
+  const annotations = await enlivenPageAnnotations(page.annotations, sourceUrl, signal);
   annotations.forEach((enlivenedObject) => {
     const object = normalizeAnnotationObject(enlivenedObject);
     const data = (object as TaggedObject).data;
@@ -139,6 +139,19 @@ export async function composePage(
   });
   syncConnectorBindings(canvas);
   canvas.requestRenderAll();
+}
+
+export async function enlivenPageAnnotations(
+  snapshot: AnnotationSnapshot,
+  sourceUrl: string,
+  signal?: AbortSignal,
+): Promise<FabricObject[]> {
+  return util.enlivenObjects<FabricObject>(
+    snapshot.objects.map((object) =>
+      withRuntimeCropSource(upgradeSerializedAnnotation(object), sourceUrl),
+    ),
+    { signal },
+  );
 }
 
 export function normalizeAnnotationObject(object: FabricObject): FabricObject {
@@ -213,22 +226,55 @@ export function applyPageBackground(
   canvas: StaticCanvas | Canvas,
   color: string,
 ): void {
+  const pattern = pageBackgroundPattern(color);
+  if (canvas instanceof Canvas) {
+    canvas.backgroundColor = "#16181b";
+    let pageSurface = canvas
+      .getObjects()
+      .find(
+        (object) =>
+          isSystemObject(object) &&
+          (object as TaggedObject).data?.kind === "page-background",
+      );
+    if (!(pageSurface instanceof Rect)) {
+      pageSurface = tagObject(
+        new Rect({
+          left: 0,
+          top: 0,
+          width: PAGE_WIDTH,
+          height: PAGE_HEIGHT,
+          originX: "left",
+          originY: "top",
+          selectable: false,
+          evented: false,
+          objectCaching: false,
+        }),
+        { role: "system", kind: "page-background" },
+      );
+      canvas.add(pageSurface);
+    }
+    pageSurface.set({ fill: pattern, dirty: true });
+    canvas.sendObjectToBack(pageSurface);
+    canvas.requestRenderAll();
+    return;
+  }
+  canvas.backgroundColor = pattern;
+  canvas.requestRenderAll();
+}
+
+function pageBackgroundPattern(color: string): Pattern | string {
   const tile = document.createElement("canvas");
   tile.width = 40;
   tile.height = 40;
   const context = tile.getContext("2d");
-  if (!context) {
-    canvas.backgroundColor = color;
-    return;
-  }
+  if (!context) return color;
   context.fillStyle = color;
   context.fillRect(0, 0, tile.width, tile.height);
   context.fillStyle = contrastingDotColor(color);
   context.beginPath();
   context.arc(20, 20, 1.2, 0, Math.PI * 2);
   context.fill();
-  canvas.backgroundColor = new Pattern({ source: tile, repeat: "repeat" });
-  canvas.requestRenderAll();
+  return new Pattern({ source: tile, repeat: "repeat" });
 }
 
 export function attachTextInputContainer(
@@ -245,19 +291,20 @@ export function snapshotAnnotations(canvas: StaticCanvas | Canvas): AnnotationSn
     objects: canvas
       .getObjects()
       .filter(isAnnotationObject)
-      .map((object) =>
-        object.toObject([
+      .map((object) => {
+        const serialized = object.toObject([
           "data",
           "boxHeight",
           "boxBorderColor",
           "boxBorderWidth",
           "boxCornerRadius",
           "contentPadding",
-        ] as never[]) as Record<
-          string,
-          unknown
-        >,
-      ),
+        ] as never[]) as Record<string, unknown>;
+        if ((serialized.data as ObjectTag | undefined)?.kind === "crop") {
+          delete serialized.src;
+        }
+        return serialized;
+      }),
   };
 }
 
@@ -274,7 +321,7 @@ export function extractText(canvas: StaticCanvas | Canvas): string {
 }
 
 export async function renderPageToDataUrl(
-  page: GamebookPage,
+  page: RenderablePage,
   multiplier = 2,
 ): Promise<string> {
   const canvasElement = document.createElement("canvas");
@@ -287,6 +334,32 @@ export async function renderPageToDataUrl(
   const dataUrl = canvas.toDataURL({ format: "png", multiplier });
   canvas.dispose();
   return dataUrl;
+}
+
+function pageSourceUrl(page: RenderablePage): string | null {
+  return "sourceUrl" in page ? page.sourceUrl : page.screenshotDataUrl;
+}
+
+function pagePlacement(page: RenderablePage): MediaPlacementRecord {
+  if ("placement" in page) return page.placement;
+  return {
+    type: "MediaPlacement",
+    placementVersion: 1,
+    id: `screenshot-${page.id}`,
+    evidenceId: `screenshot-${page.id}`,
+    ...page.screenshotLayout,
+    angle: ((page.screenshotLayout.angle % 360) + 360) % 360,
+    zIndex: 0,
+  };
+}
+
+function withRuntimeCropSource(
+  object: Record<string, unknown>,
+  sourceUrl: string,
+): Record<string, unknown> {
+  const data = object.data as ObjectTag | undefined;
+  if (data?.kind !== "crop" || typeof object.src === "string") return object;
+  return { ...object, src: sourceUrl };
 }
 
 function upgradeSerializedAnnotation(
