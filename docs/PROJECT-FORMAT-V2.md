@@ -1,6 +1,6 @@
 # Gamebook Project Format Version 2
 
-> Status: Accepted architecture contract under dependency-ordered implementation. ADR-0002, ADR-0008, and ADR-0009 freeze the container, records, settings, workspace, migration, repair, and compatibility boundaries. The production screenshot editor uses the version 2 archive, workspace, migration, repair, and canonical placement path. Video, research, settings, and Project Trash behavior remain assigned to later roadmap issues.
+> Status: Accepted architecture contract under dependency-ordered implementation. ADR-0002, ADR-0008, and ADR-0009 freeze the container, records, settings, workspace, migration, repair, and compatibility boundaries. The production screenshot editor uses the version 2 archive, workspace, migration, repair, canonical placement, versioned settings, Project Trash, and canonical research-record preservation paths. Video records and research editing workflows remain assigned to later roadmap issues.
 
 ## Goals
 
@@ -25,7 +25,11 @@ The Rust-owned implementation validates archive names, metadata, compression, li
 
 The React/Fabric screenshot editor creates canonical screenshot evidence, page, annotation, connector, and `MediaPlacement` records. Native screenshot events expose only an opaque capture claim ID and display metadata; screenshot bytes enter the workspace without crossing renderer IPC as base64. Open, autosave, Save, Save As, cancellation, external-change conflict, recovery, materialization, and clean-cache controls use the version 2 workspace path. Viewport and runtime token state remain ephemeral, while PNG, PDF, Markdown, text, thumbnails, history, connectors, and crop extraction continue to use the 1600 by 900 logical page.
 
-Deterministic Gzip/plain version 1 migration, byte-identical screenshot staging, schema-valid migration reports, read-only repair reports, future-major rejection, and collision-safe first-replacement backups are integrated into the same visible Open workflow. The 1600 by 900 screenshot comparison reports zero pixels above the per-channel threshold of 8 for the committed migration fixture, below the required 0.1 percent limit. Versioned global settings, Project Trash, canonical research UI, and video records remain future implementation work.
+Deterministic Gzip/plain version 1 migration, byte-identical screenshot staging, schema-valid migration reports, read-only repair reports, future-major rejection, and collision-safe first-replacement backups are integrated into the same visible Open workflow. The 1600 by 900 screenshot comparison reports zero pixels above the per-channel threshold of 8 for the committed migration fixture, below the required 0.1 percent limit.
+
+Global settings are atomically owned by Rust, migrate one version at a time, preserve unknown safe values, default invalid known fields individually, preserve corrupt input before restoring defaults, preserve unsupported future settings without allowing mutation, reject credential-like fields, and keep microphone capture off without separate versioned consent. The Settings surface provides native-path import/export/reset and applies the validated WebView scale preference.
+
+Project Trash calculates a closed dependency set before deletion, reports blockers without mutating the project, commits canonical records plus workspace recovery state through one rollback-capable transaction, retains required assets, restores the complete transaction at original order, and permanently omits unreferenced assets only after explicit cleanup. Loaded canonical records round-trip through the editor unchanged outside fields the current UI owns; unloaded research records remain native-owned and are copied unchanged during Save. Search text and preview hints remain rebuildable derived state. Research editing UI and video records remain future implementation work.
 
 ## Package layout
 
@@ -140,11 +144,15 @@ Source evidence with active dependents cannot enter Trash. For other evidence, t
 
 Empty Trash is an explicit irreversible operation. Permanently deleted records disappear from the next archive, and assets are omitted only when no live or trashed record references their digest. Batch operations either complete completely or leave the project unchanged.
 
+The screenshot editor implements this contract for closed canonical dependency sets. Deleting a page reviews the page and its exclusively owned screenshot evidence together; shared placements, findings, collections, sessions, timed annotations, clips, frames, and other live dependencies block deletion rather than being silently rewritten. Relationship and timeline records that belong to the selected closed set move with the same transaction. Storage lists each transaction, retention eligibility, retained bytes, complete restore, eligible cleanup, and explicit Empty all.
+
 ## Global settings format
 
 Global preferences live outside `.gamebook` in an atomic `settings.json` under the Tauri application configuration directory. The root contains `settingsVersion`, capture defaults, shortcut mappings, playback/accessibility preferences, storage limits, trash retention, and diagnostic consent.
 
 Migrations run one version at a time and have fixture tests. Unknown future settings are preserved when safe; invalid known values fall back individually. A corrupt file is renamed with a timestamp before defaults are created. Secrets and cloud credentials are stored only in Windows Credential Manager.
+
+The production settings manager implements version 1 at the native boundary. Startup, update, and import normalize every known field independently against the frozen contract while preserving unknown safe values. Corrupt files are renamed to a collision-safe timestamped copy before defaults are written. Unsupported future settings remain byte-identical on disk while session defaults are read-only. Import failure leaves current settings unchanged, native dialogs keep paths out of renderer IPC, and credential-like fields are rejected before a settings write. The current UI exposes playback, reduced motion, WebView scale, cache limit, Trash retention, local logging, import, export, and reset; recording-specific controls remain assigned to Milestone 7.
 
 ## Version 1 migration
 

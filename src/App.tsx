@@ -8,6 +8,7 @@ import {
   Minus,
   Redo2,
   Save,
+  Settings,
   Undo2,
   X,
 } from "lucide-react";
@@ -18,12 +19,15 @@ import { ExportMenu, type ExportKind } from "./components/ExportMenu";
 import { PageStrip } from "./components/PageStrip";
 import { ProjectReportDialog } from "./components/ProjectReportDialog";
 import { ProjectStorageDialog } from "./components/ProjectStorageDialog";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { SaveConflictDialog } from "./components/SaveConflictDialog";
+import { TrashImpactDialog } from "./components/TrashImpactDialog";
 import { TooltipLayer } from "./components/TooltipLayer";
 import { ToolRail } from "./components/ToolRail";
 import { useProjectV2 } from "./hooks/useProjectV2";
+import { useGlobalSettings } from "./hooks/useGlobalSettings";
 import { pageImagesToPdf, sessionToText } from "./lib/exporters";
-import { hideOverlay, quitApp, saveBinary, saveMarkdown, saveText } from "./lib/native";
+import { hideOverlay, quitApp, saveBinary, saveMarkdown, saveText, type TrashImpact } from "./lib/native";
 import type { EditorProject } from "./types/projectV2";
 import type { ToolId } from "./types/session";
 
@@ -36,14 +40,20 @@ export default function App() {
   const [quitOpen, setQuitOpen] = useState(false);
   const [saveConflictOpen, setSaveConflictOpen] = useState(false);
   const [storageOpen, setStorageOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [trashImpact, setTrashImpact] = useState<TrashImpact | null>(null);
+  const [emptyTrashMode, setEmptyTrashMode] = useState<"eligible" | "all" | null>(null);
   const [busyLabel, setBusyLabel] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const editorRef = useRef<CanvasEditorHandle>(null);
+  const storageButtonRef = useRef<HTMLButtonElement>(null);
 
   const showError = useCallback((message: string) => {
     setBusyLabel(null);
     setToast(message.replace(/^Error:\s*/, ""));
   }, []);
+
+  const globalSettings = useGlobalSettings(showError);
 
   const {
     project,
@@ -51,7 +61,6 @@ export default function App() {
     activePage,
     setActivePage,
     updatePage,
-    removePage,
     duplicatePage,
     reorderPage,
     hydrated,
@@ -64,8 +73,14 @@ export default function App() {
     report,
     dismissReport,
     recovery,
+    trash,
+    refreshTrash,
     operationActive,
     cancelOperation,
+    reviewPageDeletion,
+    commitTrash,
+    restoreTrash,
+    emptyTrash,
   } = useProjectV2(showError);
 
   useEffect(() => {
@@ -182,6 +197,77 @@ export default function App() {
       const message = String(error);
       if (message.includes("operation-cancelled")) setToast("Cache cleanup cancelled");
       else showError(message);
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
+  async function handleOpenStorage() {
+    setStorageOpen(true);
+    try {
+      setBusyLabel("Refreshing Project storage");
+      await refreshTrash();
+    } catch (error) {
+      showError(String(error));
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
+  async function handleReviewPageDeletion(pageId: string) {
+    try {
+      setBusyLabel("Reviewing Trash impact");
+      const impact = await reviewPageDeletion(pageId);
+      if (impact) setTrashImpact(impact);
+    } catch (error) {
+      showError(String(error));
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
+  async function handleCommitTrash() {
+    const impact = trashImpact;
+    if (!impact || impact.blocked) return;
+    setTrashImpact(null);
+    try {
+      setBusyLabel("Moving records to Project Trash");
+      if (await commitTrash(impact.targets, globalSettings.settings.trash.retentionDays)) {
+        setToast("Moved to Project Trash");
+      }
+    } catch (error) {
+      showError(String(error));
+    } finally {
+      setBusyLabel(null);
+      window.requestAnimationFrame(() => storageButtonRef.current?.focus({ preventScroll: true }));
+    }
+  }
+
+  async function handleRestoreTrash(transactionId: string) {
+    setStorageOpen(false);
+    try {
+      setBusyLabel("Restoring Project Trash");
+      if (await restoreTrash(transactionId)) setToast("Trash transaction restored");
+    } catch (error) {
+      showError(String(error));
+    } finally {
+      setBusyLabel(null);
+      window.requestAnimationFrame(() => storageButtonRef.current?.focus({ preventScroll: true }));
+    }
+  }
+
+  async function handleEmptyTrash() {
+    const mode = emptyTrashMode;
+    if (!mode) return;
+    setEmptyTrashMode(null);
+    setStorageOpen(false);
+    try {
+      setBusyLabel("Emptying Project Trash");
+      if (await emptyTrash(mode === "eligible")) {
+        setToast(mode === "eligible" ? "Eligible Trash emptied" : "Project Trash emptied");
+      }
+    } catch (error) {
+      showError(String(error));
     } finally {
       setBusyLabel(null);
     }
@@ -311,7 +397,7 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [activePage, project]);
 
-  if (!hydrated) {
+  if (!hydrated || !globalSettings.loaded) {
     return <div className="loading-screen"><LoaderCircle /></div>;
   }
 
@@ -342,8 +428,11 @@ export default function App() {
         <button type="button" className="icon-command" data-tooltip="Open project" data-tooltip-side="bottom" aria-label="Open project" onClick={() => void handleOpen()}>
           <FolderOpen />
         </button>
-        <button type="button" className="icon-command" data-tooltip="Project storage" data-tooltip-side="bottom" aria-label="Project storage" onClick={() => setStorageOpen(true)}>
+        <button ref={storageButtonRef} type="button" className="icon-command" data-tooltip="Project storage" data-tooltip-side="bottom" aria-label="Project storage" onClick={() => void handleOpenStorage()}>
           <HardDrive />
+        </button>
+        <button type="button" className="icon-command" data-tooltip="Settings" data-tooltip-side="bottom" aria-label="Settings" onClick={() => setSettingsOpen(true)}>
+          <Settings />
         </button>
         <button type="button" className="command-button" data-tooltip="Save project (Ctrl+S)" data-tooltip-side="bottom" onClick={() => void handleSave()} disabled={!project.pages.length}>
           <Save /> Save
@@ -437,7 +526,7 @@ export default function App() {
           onSelect={handleSelectPage}
           onRemove={(pageId) => {
             editorRef.current?.flush();
-            removePage(pageId);
+            void handleReviewPageDeletion(pageId);
           }}
           onDuplicate={(pageId) => {
             editorRef.current?.flush();
@@ -479,13 +568,81 @@ export default function App() {
       {storageOpen && (
         <ProjectStorageDialog
           recovery={recovery}
+          trash={trash}
           onRecover={(workspaceId) => void handleRecover(workspaceId)}
           onOpenSaved={() => {
             setStorageOpen(false);
             void handleOpen();
           }}
           onCleanCache={() => void handleCleanCache()}
+          onRestoreTrash={(transactionId) => void handleRestoreTrash(transactionId)}
+          onEmptyEligibleTrash={() => {
+            setStorageOpen(false);
+            setEmptyTrashMode("eligible");
+          }}
+          onEmptyAllTrash={() => {
+            setStorageOpen(false);
+            setEmptyTrashMode("all");
+          }}
           onClose={() => setStorageOpen(false)}
+        />
+      )}
+      {settingsOpen && (
+        <SettingsDialog
+          settings={globalSettings.settings}
+          notices={globalSettings.notices}
+          writeProtected={globalSettings.writeProtected}
+          onSave={(settings) => {
+            void globalSettings.save(settings)
+              .then(() => {
+                setSettingsOpen(false);
+                setToast("Settings saved");
+              })
+              .catch((error: unknown) => showError(String(error)));
+          }}
+          onImport={() => {
+            void globalSettings.importFile()
+              .then((imported) => {
+                if (imported) {
+                  setSettingsOpen(false);
+                  setToast("Settings imported");
+                }
+              })
+              .catch((error: unknown) => showError(String(error)));
+          }}
+          onExport={() => {
+            void globalSettings.exportFile()
+              .then((exported) => exported && setToast("Settings exported"))
+              .catch((error: unknown) => showError(String(error)));
+          }}
+          onReset={() => {
+            void globalSettings.reset()
+              .then(() => {
+                setSettingsOpen(false);
+                setToast("Settings reset");
+              })
+              .catch((error: unknown) => showError(String(error)));
+          }}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
+      {trashImpact && (
+        <TrashImpactDialog
+          impact={trashImpact}
+          onCancel={() => setTrashImpact(null)}
+          onConfirm={() => void handleCommitTrash()}
+        />
+      )}
+      {emptyTrashMode && (
+        <ConfirmDialog
+          title={emptyTrashMode === "eligible" ? "Empty eligible Trash?" : "Empty all Project Trash?"}
+          description={emptyTrashMode === "eligible"
+            ? "Eligible records will be permanently removed from the next successful project Save."
+            : "All trashed records will be permanently removed from the next successful project Save, including records still inside their retention period."}
+          confirmLabel={emptyTrashMode === "eligible" ? "Empty eligible" : "Empty all"}
+          restoreFocusTo={storageButtonRef}
+          onCancel={() => setEmptyTrashMode(null)}
+          onConfirm={() => void handleEmptyTrash()}
         />
       )}
       {saveConflictOpen && (

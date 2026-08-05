@@ -163,6 +163,96 @@ export interface ProjectV2RecoverySummary {
   protectedClasses?: string[];
 }
 
+export interface GlobalSettings {
+  settingsVersion: 1;
+  capture: {
+    target: "monitor-under-pointer" | "selected-monitor" | "selected-window";
+    durationSeconds: number;
+    frameRateCap: 30 | 60;
+    includeCursor: boolean;
+    includeSystemAudio: boolean;
+    includeMicrophone: boolean;
+    systemAudioDisclosureVersion: string | null;
+    microphoneConsentVersion: string | null;
+    [key: string]: unknown;
+  };
+  shortcuts: { screenshot: string; video: string; [key: string]: unknown };
+  playback: { autoplay: boolean; volume: number; [key: string]: unknown };
+  accessibility: {
+    reducedMotion: "system" | "reduce" | "allow";
+    uiScalePercent: 100 | 150 | 200;
+    [key: string]: unknown;
+  };
+  storage: { cacheLimitBytes: number; [key: string]: unknown };
+  trash: { retentionDays: number; [key: string]: unknown };
+  diagnostics: {
+    localLogging: boolean;
+    exportConsentVersion: string | null;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface SettingsNotice {
+  code: string;
+  field: string | null;
+  message: string;
+}
+
+export interface GlobalSettingsResult {
+  settings: GlobalSettings;
+  notices: SettingsNotice[];
+  writeProtected: boolean;
+}
+
+export interface TrashTarget {
+  recordType: "evidence" | "timeline" | "page" | "finding" | "tag" | "collection" | "relationship" | "session";
+  recordId: string;
+}
+
+export interface TrashImpactItem {
+  kind: string;
+  recordType: string;
+  recordId: string;
+  label: string;
+}
+
+export interface TrashImpact {
+  targets: TrashTarget[];
+  affected: TrashImpactItem[];
+  blockers: TrashImpactItem[];
+  blocked: boolean;
+  retainedAssetBytes: number;
+}
+
+export interface TrashRecordSummary {
+  trashId: string;
+  originalRecordType: string;
+  originalRecordId: string;
+  title: string;
+}
+
+export interface TrashTransactionSummary {
+  transactionId: string;
+  deletedAt: string;
+  eligibleAfter: string;
+  eligible: boolean;
+  records: TrashRecordSummary[];
+}
+
+export interface TrashState {
+  transactions: TrashTransactionSummary[];
+  totalRecords: number;
+  eligibleTransactions: number;
+  retainedAssetBytes: number;
+}
+
+export interface TrashMutationResult {
+  transactionId: string | null;
+  state: TrashState;
+  project: ProjectV2OpenResult;
+}
+
 export type ProjectV2ExternalChangeChoice = "cancel" | "save-as" | "replace";
 
 export type EditorProjectOpenOutcome =
@@ -296,6 +386,103 @@ export async function evictProjectV2CleanCache(
 export async function listProjectV2Recovery(): Promise<ProjectV2RecoverySummary[]> {
   if (!isTauri) return [];
   return invoke<ProjectV2RecoverySummary[]>("list_project_v2_recovery");
+}
+
+export async function loadGlobalSettings(): Promise<GlobalSettingsResult | null> {
+  if (!isTauri) return null;
+  return invoke<GlobalSettingsResult>("load_global_settings");
+}
+
+export async function updateGlobalSettings(
+  settings: GlobalSettings,
+): Promise<GlobalSettingsResult | null> {
+  if (!isTauri) return { settings, notices: [], writeProtected: false };
+  return invoke<GlobalSettingsResult>("update_global_settings", { settings });
+}
+
+export async function resetGlobalSettings(): Promise<GlobalSettingsResult | null> {
+  if (!isTauri) return null;
+  return invoke<GlobalSettingsResult>("reset_global_settings");
+}
+
+export async function importGlobalSettings(): Promise<GlobalSettingsResult | null> {
+  if (!isTauri) return null;
+  return invoke<GlobalSettingsResult | null>("import_global_settings");
+}
+
+export async function exportGlobalSettings(): Promise<boolean> {
+  if (!isTauri) return false;
+  return invoke<boolean>("export_global_settings");
+}
+
+export async function listProjectV2Trash(workspaceId: string): Promise<TrashState> {
+  if (!isTauri) return emptyTrashState();
+  return invoke<TrashState>("list_project_v2_trash", { workspaceId });
+}
+
+export async function reviewProjectV2TrashImpact(
+  workspaceId: string,
+  targets: TrashTarget[],
+): Promise<TrashImpact> {
+  if (!isTauri) {
+    return {
+      targets,
+      affected: targets.map((target) => ({ ...target, kind: "target", label: target.recordId })),
+      blockers: [],
+      blocked: false,
+      retainedAssetBytes: 0,
+    };
+  }
+  return invoke<TrashImpact>("review_project_v2_trash_impact", {
+    workspaceId,
+    targets,
+  });
+}
+
+export async function trashProjectV2Records(
+  workspaceId: string,
+  targets: TrashTarget[],
+  retentionDays: number,
+): Promise<TrashMutationResult | null> {
+  if (!isTauri) return null;
+  return invoke<TrashMutationResult>("trash_project_v2_records", {
+    workspaceId,
+    targets,
+    retentionDays,
+  });
+}
+
+export async function restoreProjectV2Trash(
+  workspaceId: string,
+  transactionId: string,
+): Promise<TrashMutationResult | null> {
+  if (!isTauri) return null;
+  return invoke<TrashMutationResult>("restore_project_v2_trash", {
+    workspaceId,
+    transactionId,
+  });
+}
+
+export async function emptyProjectV2Trash(
+  workspaceId: string,
+  transactionIds: string[] | null,
+  eligibleOnly: boolean,
+): Promise<TrashMutationResult | null> {
+  if (!isTauri) return null;
+  return invoke<TrashMutationResult>("empty_project_v2_trash", {
+    workspaceId,
+    transactionIds,
+    eligibleOnly,
+  });
+}
+
+function emptyTrashState(): TrashState {
+  return {
+    transactions: [],
+    totalRecords: 0,
+    eligibleTransactions: 0,
+    retainedAssetBytes: 0,
+  };
 }
 
 export function projectV2MediaUrl(token: string): string {

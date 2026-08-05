@@ -64,6 +64,15 @@ Frontend tests cover axe/component checks for the tool rail, Outline, viewport, 
 - The committed render comparison builds the legacy 0.5.3 and canonical `MediaPlacement` scenes at 1600 by 900. Fewer than 0.1 percent of pixels may exceed a per-channel difference of 8; the expected current result is zero differing pixels.
 - Manual production review exercises Open, migration report, repair report, edit, Save, Save As, external conflict, cancellation, recovery, Project storage, PNG/PDF/Markdown/text export, and focus restoration at the supported sizes and accessibility modes.
 
+## Settings, Trash, and canonical research foundations
+
+- Rust tests cover settings version migration, individual known-field fallback, safe unknown-field preservation, corrupt-file preservation, future-version write protection, failed-import rollback, credential rejection, and microphone-consent enforcement.
+- Trash tests cover closed dependency calculation, blocker reporting without mutation, atomic multi-file rollback, startup recovery of interrupted transactions, complete restore in original order, retention without automatic deletion, explicit eligible/all cleanup, and asset retention while live or trashed references remain.
+- Frontend tests cover native command privacy, canonical finding/tag/collection/relationship/session round trips, derived search and preview invalidation, Settings and Storage semantics, Trash impact confirmation, blocker behavior, focus trapping/restoration, announcements, and serious/critical axe violations.
+- Run `npm.cmd run check`, `npm.cmd run frontend:test`, `cargo check --manifest-path src-tauri/Cargo.toml`, `cargo clippy --manifest-path src-tauri/Cargo.toml --lib -- -D warnings`, `cargo test --manifest-path src-tauri/Cargo.toml --lib`, both project-format verifier modes, both architecture-readiness verifier modes, fixture verification, the frontend production build, and the complete application build.
+- Manual production review covers keyboard-only Settings, page-deletion impact, blocked and confirmed Trash paths, restore, eligible cleanup, Empty all confirmation, native import/export dialogs, status announcements, focus restoration, 900 by 620 layout, 100/150/200 percent interface scale, Windows High Contrast, reduced motion, Accessibility Insights, and NVDA.
+- Security/privacy review confirms that renderer commands carry no settings path, project path, credential, token, or media bytes; microphone remains off without separate consent; diagnostic logging stays local; failed/cancelled operations preserve prior settings and project state; and no retention timer deletes records or assets.
+
 ## Deterministic fixtures
 
 - `npm.cmd run fixtures:verify` checks every generated fixture against the committed manifest.
@@ -178,6 +187,7 @@ Frontend tests cover axe/component checks for the tool rail, Outline, viewport, 
 
 - Repeated hotkey captures append pages without losing previous annotations.
 - Pages can be reordered by pointer drag or keyboard from the grip, renumber automatically, deleted, and duplicated cleanly from the current screenshot.
+- Duplicate a page and immediately delete it before the autosave delay; Trash review stages the new page first, Project storage refreshes to show the committed transaction, and Restore returns the complete transaction without a target-not-found error.
 - Page order in PDF, Markdown, and text matches the thumbnail strip.
 - PNG contains the screenshot, annotations, notes, selected page background, and dotted grid without page-title chrome.
 - PDF opens with one landscape page per capture.

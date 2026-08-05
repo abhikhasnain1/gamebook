@@ -25,6 +25,7 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 use xcap::Monitor;
 
 mod project_v2;
+mod settings;
 
 static CAPTURE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
@@ -412,6 +413,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(Arc::new(project_v2::ProjectV2Manager::default()))
+        .manage(settings::SettingsManager::default())
         .register_uri_scheme_protocol("gamebook-media", |window, request| {
             let manager = window
                 .app_handle()
@@ -432,6 +434,10 @@ pub fn run() {
         )
         .setup(move |app| {
             project_v2::initialize(app).map_err(std::io::Error::other)?;
+            let app_data = app.path().app_data_dir().map_err(std::io::Error::other)?;
+            app.state::<settings::SettingsManager>()
+                .initialize(&app_data)
+                .map_err(std::io::Error::other)?;
             app.global_shortcut().register(capture_shortcut)?;
             build_tray(app)?;
             Ok(())
@@ -456,6 +462,16 @@ pub fn run() {
             project_v2::close_project_v2_workspace,
             project_v2::evict_project_v2_clean_cache,
             project_v2::list_project_v2_recovery,
+            project_v2::list_project_v2_trash,
+            project_v2::review_project_v2_trash_impact,
+            project_v2::trash_project_v2_records,
+            project_v2::restore_project_v2_trash,
+            project_v2::empty_project_v2_trash,
+            settings::load_global_settings,
+            settings::update_global_settings,
+            settings::reset_global_settings,
+            settings::import_global_settings,
+            settings::export_global_settings,
             save_binary_export,
             save_text_export,
             save_markdown_export

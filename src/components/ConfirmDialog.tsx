@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
 interface ConfirmDialogProps {
@@ -8,6 +8,7 @@ interface ConfirmDialogProps {
   confirmLabel: string;
   onCancel: () => void;
   onConfirm: () => void;
+  restoreFocusTo?: RefObject<HTMLElement | null>;
 }
 
 export function ConfirmDialog({
@@ -16,6 +17,7 @@ export function ConfirmDialog({
   confirmLabel,
   onCancel,
   onConfirm,
+  restoreFocusTo,
 }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
@@ -44,8 +46,11 @@ export function ConfirmDialog({
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [onCancel]);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      restoreFocusTo?.current?.focus({ preventScroll: true });
+    };
+  }, [onCancel, restoreFocusTo]);
 
   return createPortal(
     <div

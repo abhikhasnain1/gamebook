@@ -4,8 +4,8 @@
 
 Gamebook is a Tauri 2 desktop application with two long-lived layers:
 
-- Rust owns the global hotkey, monitor capture, native window lifecycle, tray, single-instance policy, app-data recovery file, file dialogs, project compression, and final filesystem writes.
-- React and Fabric.js own the editor state, direct manipulation, annotation serialization, history, page thumbnails, and export rendering.
+- Rust owns the global hotkey, monitor capture, native window lifecycle, tray, single-instance policy, versioned global settings, Project Trash transactions, app-data recovery, file dialogs, project compression, and final filesystem writes.
+- React and Fabric.js own the editor state, settings and storage surfaces, direct manipulation, annotation serialization, history, page thumbnails, rebuildable research indexes, and export rendering.
 
 The main WebView is created once and kept hidden while the game is active. Keeping the renderer warm avoids reconstructing the editor on every capture.
 
@@ -45,6 +45,12 @@ Autosave waits for a quiet period, stages changed canonical documents atomically
 
 Open accepts valid version 2 archives and Gzip or plain version 1 projects. Version 1 migration runs in an isolated workspace, preserves byte-identical screenshots and canonical page semantics, displays a migration report, and creates a collision-safe `.v1-backup` only on the first successful same-path replacement. Damaged version 2 input receives a read-only repair report, unsupported future versions are rejected before workspace creation, and failed or cancelled inputs are not mutated.
 
+Global settings live in an atomic native-owned `settings.json`. Known fields normalize independently, unknown safe values survive migration, corrupt input is preserved before defaults are restored, and import failure leaves current preferences unchanged. A future settings version is preserved byte-for-byte and makes settings mutation read-only for that session. Native dialogs keep settings paths out of renderer IPC, credential-like fields are rejected, and microphone capture remains disabled without separate versioned consent.
+
+Project Trash reviews dependencies before mutation and writes the closed canonical record set, Trash wrappers, workspace state, and recovery journal as one rollback-capable transaction. Restore reinstates the complete transaction in manifest order. Retention only marks explicit-cleanup eligibility; required assets remain protected while referenced by live or trashed records, and no timer deletes project content.
+
+Loaded page, evidence, timeline, finding, tag, collection, relationship, session, and Trash records pass through the canonical editor boundary without losing fields the current UI does not own. Unloaded records remain native-owned archive entries and are copied unchanged during Save. Search text and preview indexes are derived from the canonical graph and are never authoritative archive records.
+
 History snapshots cache their serialized comparison value, text edits are grouped over a short typing interval, and page patches reuse the latest snapshot. Thumbnail rendering runs in an idle callback at 192 by 108 pixels, while page-strip images decode asynchronously.
 
 ## Export pipeline
@@ -64,13 +70,17 @@ Native dialogs are parented to the main WebView window and return the final dest
 ## Important files
 
 - `src-tauri/src/lib.rs`: native lifecycle, capture, persistence, and export commands
+- `src-tauri/src/settings.rs`: versioned settings migration, recovery, validation, and native import/export
 - `src-tauri/src/project_v2/`: version 2 archive validation, immutable assets, workspaces, recovery, tokens, and streamed replacement
+- `src-tauri/src/project_v2/trash.rs`: dependency review, Trash transactions, restore, retention, and explicit cleanup
 - `src/components/CanvasEditor.tsx`: editor input, object creation, history, and inline formatting
 - `src/lib/NoteTextbox.ts`: resizable fixed-height text-note object
 - `src/lib/Connector.ts`: connector geometry, endpoint controls, anchors, snapping, and live relationship updates
 - `src/lib/canvasPage.ts`: deterministic page composition, serialization, and rendering
 - `src/App.tsx`: project UI, save/export orchestration, and keyboard flow
 - `src/hooks/useProjectV2.ts`: reachable version 2 open, migration, workspace, save, recovery, and capture orchestration
+- `src/hooks/useGlobalSettings.ts`: renderer settings state and native settings orchestration
+- `src/lib/derivedResearch.ts`: rebuildable canonical-record search and preview hints
 - `src/types/projectV2.ts`: canonical screenshot editor adapters and serialization boundaries
 - `src/types/session.ts`: version 1 compatibility parsing and shared annotation types
 - `src/lib/native.ts`: typed renderer-to-native command boundaries
