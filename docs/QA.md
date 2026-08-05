@@ -187,6 +187,7 @@ Frontend tests cover axe/component checks for the tool rail, Outline, viewport, 
 
 - Repeated hotkey captures append pages without losing previous annotations.
 - Pages can be reordered by pointer drag or keyboard from the grip, renumber automatically, deleted, and duplicated cleanly from the current screenshot.
+- Duplicate a page and immediately delete it before the autosave delay; Trash review stages the new page first, Project storage refreshes to show the committed transaction, and Restore returns the complete transaction without a target-not-found error.
 - Page order in PDF, Markdown, and text matches the thumbnail strip.
 - PNG contains the screenshot, annotations, notes, selected page background, and dotted grid without page-title chrome.
 - PDF opens with one landscape page per capture.

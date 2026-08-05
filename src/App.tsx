@@ -74,6 +74,7 @@ export default function App() {
     dismissReport,
     recovery,
     trash,
+    refreshTrash,
     operationActive,
     cancelOperation,
     reviewPageDeletion,
@@ -196,6 +197,18 @@ export default function App() {
       const message = String(error);
       if (message.includes("operation-cancelled")) setToast("Cache cleanup cancelled");
       else showError(message);
+    } finally {
+      setBusyLabel(null);
+    }
+  }
+
+  async function handleOpenStorage() {
+    setStorageOpen(true);
+    try {
+      setBusyLabel("Refreshing Project storage");
+      await refreshTrash();
+    } catch (error) {
+      showError(String(error));
     } finally {
       setBusyLabel(null);
     }
@@ -415,7 +428,7 @@ export default function App() {
         <button type="button" className="icon-command" data-tooltip="Open project" data-tooltip-side="bottom" aria-label="Open project" onClick={() => void handleOpen()}>
           <FolderOpen />
         </button>
-        <button ref={storageButtonRef} type="button" className="icon-command" data-tooltip="Project storage" data-tooltip-side="bottom" aria-label="Project storage" onClick={() => setStorageOpen(true)}>
+        <button ref={storageButtonRef} type="button" className="icon-command" data-tooltip="Project storage" data-tooltip-side="bottom" aria-label="Project storage" onClick={() => void handleOpenStorage()}>
           <HardDrive />
         </button>
         <button type="button" className="icon-command" data-tooltip="Settings" data-tooltip-side="bottom" aria-label="Settings" onClick={() => setSettingsOpen(true)}>

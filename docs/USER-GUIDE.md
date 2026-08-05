@@ -44,7 +44,7 @@ Save writes an editable, portable `.gamebook` project. The first save asks for a
 
 Gamebook autosaves changed records after a short quiet period inside a protected private workspace; it does not rebuild the project archive on every edit. Recoverable workspaces appear at startup and in Project storage. Project storage can also clear verified clean cache files, but it never removes unsaved or recovery data.
 
-Project storage lists Trash transactions, retained bytes, deletion dates, and retention eligibility. Restore reinstates a complete transaction in its original order. Retention only makes a transaction eligible for the explicit cleanup control; Gamebook never empties Trash on a timer. Empty eligible and Empty all require confirmation, and assets remain protected while any live or trashed record references them.
+Opening Project storage refreshes the native Trash transaction list, retained bytes, deletion dates, and retention eligibility. Restore reinstates a complete transaction in its original order. Retention only makes a transaction eligible for the explicit cleanup control; Gamebook never empties Trash on a timer. Empty eligible and Empty all require confirmation, and assets remain protected while any live or trashed record references them.
 
 Open accepts current version 2 projects and legacy version 1 screenshot projects. Legacy projects are migrated in a workspace without changing the source, then a report summarizes the result. The first successful Save over a legacy source creates a collision-safe `.v1-backup`. Damaged version 2 input opens a read-only repair summary of valid and missing content; unsupported future versions are rejected without creating a mutable workspace or changing the file.
 
