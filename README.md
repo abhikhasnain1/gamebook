@@ -27,6 +27,8 @@ Press `Ctrl+Shift+F12` while playing. Gamebook captures the display under the po
 - Frame-throttled canvas interaction, lightweight page thumbnails, and background autosave compression for large projects
 - Editable ZIP64 `.gamebook` projects with protected autosave workspaces, recovery, and legacy version 1 migration
 - Versioned global settings with per-field recovery, native import/export, and separate microphone-consent enforcement
+- Runtime-remappable screenshot and video shortcuts that preserve the prior working mapping after a registration conflict
+- Capture-excluded recording HUD preview with elapsed/remaining time, independent media states, and a selected-window tray fallback
 - Dependency-reviewed Project Trash with atomic page/evidence transactions, restore, retention, and explicit cleanup
 - Canonical finding, tag, collection, relationship, and research-session record preservation with rebuildable search caches
 - Current-page PNG export

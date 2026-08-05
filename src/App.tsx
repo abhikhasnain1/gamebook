@@ -27,7 +27,17 @@ import { ToolRail } from "./components/ToolRail";
 import { useProjectV2 } from "./hooks/useProjectV2";
 import { useGlobalSettings } from "./hooks/useGlobalSettings";
 import { pageImagesToPdf, sessionToText } from "./lib/exporters";
-import { hideOverlay, quitApp, saveBinary, saveMarkdown, saveText, type TrashImpact } from "./lib/native";
+import {
+  hideOverlay,
+  onRecordingHudFallback,
+  previewRecordingHud,
+  quitApp,
+  saveBinary,
+  saveMarkdown,
+  saveText,
+  setGlobalShortcutsSuspended,
+  type TrashImpact,
+} from "./lib/native";
 import type { EditorProject } from "./types/projectV2";
 import type { ToolId } from "./types/session";
 
@@ -54,6 +64,48 @@ export default function App() {
   }, []);
 
   const globalSettings = useGlobalSettings(showError);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: () => void = () => undefined;
+    void onRecordingHudFallback((result) => {
+      if (!disposed) setToast(result.message);
+    }).then((dispose) => {
+      if (disposed) dispose();
+      else unlisten = dispose;
+    });
+    return () => {
+      disposed = true;
+      unlisten();
+    };
+  }, []);
+
+  useEffect(() => {
+    let suspended = false;
+    const sync = () => {
+      const active = document.activeElement;
+      const next = document.hasFocus() && active instanceof HTMLElement && (
+        active.matches("input, textarea, [contenteditable='true']")
+        || active.getAttribute("role") === "textbox"
+      );
+      if (next === suspended) return;
+      suspended = next;
+      void setGlobalShortcutsSuspended(next);
+    };
+    const deferSync = () => window.setTimeout(sync, 0);
+    document.addEventListener("focusin", sync);
+    document.addEventListener("focusout", deferSync);
+    window.addEventListener("focus", sync);
+    window.addEventListener("blur", sync);
+    sync();
+    return () => {
+      document.removeEventListener("focusin", sync);
+      document.removeEventListener("focusout", deferSync);
+      window.removeEventListener("focus", sync);
+      window.removeEventListener("blur", sync);
+      void setGlobalShortcutsSuspended(false);
+    };
+  }, []);
 
   const {
     project,
@@ -622,6 +674,15 @@ export default function App() {
                 setToast("Settings reset");
               })
               .catch((error: unknown) => showError(String(error)));
+          }}
+          onPreviewHud={async (capture) => {
+            setBusyLabel("Previewing recording HUD");
+            try {
+              const result = await previewRecordingHud(capture);
+              return result.message;
+            } finally {
+              setBusyLabel(null);
+            }
           }}
           onClose={() => setSettingsOpen(false)}
         />

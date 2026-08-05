@@ -205,6 +205,25 @@ export interface GlobalSettingsResult {
   writeProtected: boolean;
 }
 
+export type RecordingTargetKind = GlobalSettings["capture"]["target"];
+
+export interface RecordingHudState {
+  recordingId: string;
+  state: string;
+  elapsedSeconds: number;
+  remainingSeconds: number;
+  videoState: string;
+  systemAudioState: string;
+  microphoneState: string;
+  targetKind: RecordingTargetKind;
+}
+
+export interface RecordingHudResult {
+  presentation: "visual" | "nonvisual-fallback";
+  reason: string | null;
+  message: string;
+}
+
 export interface TrashTarget {
   recordType: "evidence" | "timeline" | "page" | "finding" | "tag" | "collection" | "relationship" | "session";
   recordId: string;
@@ -413,6 +432,50 @@ export async function importGlobalSettings(): Promise<GlobalSettingsResult | nul
 export async function exportGlobalSettings(): Promise<boolean> {
   if (!isTauri) return false;
   return invoke<boolean>("export_global_settings");
+}
+
+export async function setGlobalShortcutsSuspended(suspended: boolean): Promise<void> {
+  if (!isTauri) return;
+  await invoke("set_global_shortcuts_suspended", { suspended });
+}
+
+export async function previewRecordingHud(
+  settings: GlobalSettings["capture"],
+): Promise<RecordingHudResult> {
+  if (!isTauri) {
+    return {
+      presentation: settings.target === "selected-window" ? "nonvisual-fallback" : "visual",
+      reason: settings.target === "selected-window" ? "selected-window-exclusion-unavailable" : null,
+      message: settings.target === "selected-window"
+        ? "Recording status moved to the Gamebook tray because visual HUD exclusion is not guaranteed for selected-window capture."
+        : "The protected recording HUD is active.",
+    };
+  }
+  return invoke<RecordingHudResult>("preview_recording_hud", {
+    targetKind: settings.target,
+    durationSeconds: settings.durationSeconds,
+    includeSystemAudio: settings.includeSystemAudio,
+    includeMicrophone: settings.includeMicrophone,
+  });
+}
+
+export async function onRecordingHudState(
+  handler: (state: RecordingHudState) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri) return () => undefined;
+  return listen<RecordingHudState>("recording-hud-state", ({ payload }) => handler(payload));
+}
+
+export async function onRecordingHudFallback(
+  handler: (result: RecordingHudResult) => void,
+): Promise<UnlistenFn> {
+  if (!isTauri) return () => undefined;
+  return listen<RecordingHudResult>("recording-hud-fallback", ({ payload }) => handler(payload));
+}
+
+export async function requestRecordingStop(recordingId: string): Promise<void> {
+  if (!isTauri) return;
+  await invoke("request_recording_stop", { recordingId });
 }
 
 export async function listProjectV2Trash(workspaceId: string): Promise<TrashState> {

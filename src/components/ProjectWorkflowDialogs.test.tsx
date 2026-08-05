@@ -123,6 +123,7 @@ describe("project workflow dialogs", () => {
         onImport={onImport}
         onExport={vi.fn()}
         onReset={vi.fn()}
+        onPreviewHud={vi.fn().mockResolvedValue("The protected recording HUD is active.")}
         onClose={vi.fn()}
       />,
     );
@@ -154,6 +155,7 @@ describe("project workflow dialogs", () => {
         onImport={vi.fn()}
         onExport={vi.fn()}
         onReset={vi.fn()}
+        onPreviewHud={vi.fn().mockResolvedValue("The protected recording HUD is active.")}
         onClose={vi.fn()}
       />,
     );
@@ -162,6 +164,90 @@ describe("project workflow dialogs", () => {
     expect(screen.getByRole("button", { name: /import/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /reset/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /export/i })).toBeEnabled();
+  });
+
+  it("edits recording settings with separate consent and captured shortcuts", async () => {
+    const onSave = vi.fn();
+    const onPreviewHud = vi.fn().mockResolvedValue(
+      "Recording status moved to the Gamebook tray because visual HUD exclusion is not guaranteed for selected-window capture.",
+    );
+    render(
+      <SettingsDialog
+        settings={defaultBrowserSettings()}
+        notices={[]}
+        writeProtected={false}
+        onSave={onSave}
+        onImport={vi.fn()}
+        onExport={vi.fn()}
+        onReset={vi.fn()}
+        onPreviewHud={onPreviewHud}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const microphone = screen.getByRole("checkbox", { name: "Microphone" });
+    expect(microphone).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Consent to microphone capture" }));
+    expect(microphone).toBeEnabled();
+    fireEvent.click(microphone);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Acknowledge system-audio disclosure" }));
+    fireEvent.change(screen.getByLabelText("Capture target"), {
+      target: { value: "selected-window" },
+    });
+    fireEvent.keyDown(screen.getByLabelText("Video shortcut"), {
+      key: "F10",
+      code: "F10",
+      ctrlKey: true,
+      altKey: true,
+    });
+    expect(screen.getByLabelText("Video shortcut")).toHaveValue("Ctrl+Alt+F10");
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview recording HUD" }));
+    expect(onPreviewHud).toHaveBeenCalledWith(
+      expect.objectContaining({
+        target: "selected-window",
+        includeSystemAudio: true,
+        includeMicrophone: true,
+      }),
+    );
+    expect(await screen.findByText(/moved to the Gamebook tray/i)).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+      capture: expect.objectContaining({
+        target: "selected-window",
+        includeMicrophone: true,
+        systemAudioDisclosureVersion: "whole-system-audio-v1",
+        microphoneConsentVersion: "microphone-capture-v1",
+      }),
+      shortcuts: expect.objectContaining({ video: "Ctrl+Alt+F10" }),
+    }));
+    await expectNoSeriousOrCriticalA11yIssues(document.body);
+  });
+
+  it("blocks duplicate screenshot and video shortcuts", () => {
+    render(
+      <SettingsDialog
+        settings={defaultBrowserSettings()}
+        notices={[]}
+        writeProtected={false}
+        onSave={vi.fn()}
+        onImport={vi.fn()}
+        onExport={vi.fn()}
+        onReset={vi.fn()}
+        onPreviewHud={vi.fn().mockResolvedValue("Preview ready")}
+        onClose={vi.fn()}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByLabelText("Screenshot shortcut"), {
+      key: "F11",
+      code: "F11",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("must be different");
+    expect(screen.getByRole("button", { name: "Save settings" })).toBeDisabled();
   });
 
   it("restores destructive confirmation focus to a stable external control", () => {

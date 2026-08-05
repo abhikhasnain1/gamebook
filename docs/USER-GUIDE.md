@@ -50,9 +50,15 @@ Open accepts current version 2 projects and legacy version 1 screenshot projects
 
 ## Settings
 
-Settings opens from the gear button and stores preferences outside the current project. The current controls cover playback autoplay and volume, reduced motion, 100/150/200 percent interface scale, cache size, Project Trash retention, and local diagnostic logging. Save applies validated values; Reset restores defaults.
+Settings opens from the gear button and stores preferences outside the current project. Recording controls cover the capture target, 5-300 second duration, qualified frame-rate cap, cursor, system audio, microphone, and separate disclosure or consent versions. System audio means the complete output-device mix and may include notifications, voice chat, browsers, music, and other applications. Microphone capture remains disabled until its separate consent is selected.
 
-Import and Export use native file dialogs, so filesystem paths are not exposed to the editor. Invalid fields fall back individually, corrupt settings are preserved before defaults are restored, and a failed import leaves the current settings unchanged. Settings from a newer unsupported version remain unchanged on disk and make mutation controls unavailable while session defaults are active; Export remains available and copies that preserved file byte-for-byte. Credentials are never stored in settings JSON. Microphone capture remains off unless a later recording workflow obtains separate versioned consent; recording controls arrive in the recording milestone.
+Focus a screenshot or video shortcut field and press a modifier plus one key to replace it. Screenshot defaults to `Ctrl+Shift+F12`; video defaults to `Ctrl+Shift+F11`. The two mappings must differ. If Windows rejects a shortcut because another application owns it, Gamebook leaves the prior working mappings and settings unchanged. Gamebook also suspends these shortcuts while a Gamebook text field is focused.
+
+Preview recording HUD shows the protected monitor-capture HUD for five seconds without recording media. It displays elapsed and remaining time plus separate video, system-audio, and microphone states. Press the configured video shortcut to stop the preview early without moving focus away from the game. Selected-window capture instead previews the textual notification-area fallback because visual exclusion cannot be guaranteed for that mode. The registered video shortcut is ready for the recording workflow, but actual recording, finalization, and recovery arrive in the next recording implementation stage.
+
+The remaining controls cover playback autoplay and volume, reduced motion, 100/150/200 percent interface scale, cache size, Project Trash retention, and local diagnostic logging. Save applies validated values; Reset restores defaults.
+
+Import and Export use native file dialogs, so filesystem paths are not exposed to the editor. Invalid fields fall back individually, corrupt settings are preserved before defaults are restored, and a failed import leaves the current settings unchanged. Settings from a newer unsupported version remain unchanged on disk and make mutation controls unavailable while session defaults are active; Export remains available and copies that preserved file byte-for-byte. Credentials are never stored in settings JSON. Microphone capture remains off unless its separate versioned consent is selected; the next recording stage applies these settings to actual capture and recovery.
 
 ## Export
 
@@ -68,6 +74,7 @@ Exports are flattened snapshots. Keep the `.gamebook` project when future editin
 | Command | Shortcut |
 | --- | --- |
 | Capture | `Ctrl+Shift+F12` |
+| Video recording request | `Ctrl+Shift+F11` |
 | Minimize to game | `Esc` |
 | Save | `Ctrl+S` |
 | Undo / Redo | `Ctrl+Z` / `Ctrl+Y` |

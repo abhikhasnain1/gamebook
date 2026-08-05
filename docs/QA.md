@@ -73,6 +73,17 @@ Frontend tests cover axe/component checks for the tool rail, Outline, viewport, 
 - Manual production review covers keyboard-only Settings, page-deletion impact, blocked and confirmed Trash paths, restore, eligible cleanup, Empty all confirmation, native import/export dialogs, status announcements, focus restoration, 900 by 620 layout, 100/150/200 percent interface scale, Windows High Contrast, reduced motion, Accessibility Insights, and NVDA.
 - Security/privacy review confirms that renderer commands carry no settings path, project path, credential, token, or media bytes; microphone remains off without separate consent; diagnostic logging stays local; failed/cancelled operations preserve prior settings and project state; and no retention timer deletes records or assets.
 
+## Recording settings, shortcuts, and HUD foundation
+
+- Rust tests cover modifier-required shortcut parsing, duplicate rejection, conflict rollback with the prior pair still active, action swaps without an unregister gap, persisted-settings preservation after conflict, typing-context suspension, selected-window fallback, and content-protection failure fallback.
+- Frontend tests cover target, duration, qualified frame rate, cursor, system audio, separate microphone consent, shortcut capture, duplicate blocking, HUD preview status, independent textual media states, elapsed/remaining time, stop naming, and serious/critical axe violations.
+- Preview the HUD for monitor-under-pointer and selected-monitor settings. During the five-second preview, take a screenshot and verify the visual HUD is absent from the captured pixels while the tray status remains textual.
+- Preview selected-window capture and verify no visual HUD appears, the notification-area status lists video/system-audio/microphone independently, and the accessible fallback explanation is announced.
+- Hold a Gamebook text or shortcut field focused and verify screenshot/video global shortcuts do not dispatch; move focus out of text entry and verify the configured screenshot shortcut works again.
+- Attempt a valid shortcut held by another application and verify Save reports the conflict while both prior mappings and `settings.json` remain unchanged. Verify malformed, modifier-free, and duplicate mappings cannot replace a working pair.
+- Check the Settings and HUD/fallback surfaces at 900 by 620, 100/150/200 percent UI scale, Windows High Contrast, reduced motion, Accessibility Insights, and NVDA. Timer announcements must be throttled and the HUD must not steal focus from the game.
+- This issue does not start WGC, WASAPI, or Media Foundation recording. Issue #27 owns recording state, disclosure gating before capture, stop/finalization, recovery, and media creation.
+
 ## Deterministic fixtures
 
 - `npm.cmd run fixtures:verify` checks every generated fixture against the committed manifest.

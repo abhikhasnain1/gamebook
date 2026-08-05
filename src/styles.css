@@ -1380,6 +1380,7 @@ html[data-reduced-motion="reduce"] *::after {
 }
 
 .settings-sections input[type="number"],
+.settings-sections input[type="text"],
 .settings-sections select {
   width: 148px;
   min-width: 0;
@@ -1389,6 +1390,124 @@ html[data-reduced-motion="reduce"] *::after {
   border-radius: 4px;
   color: #f1f3f4;
   background: #171a1e;
+}
+
+.settings-disclosure,
+.settings-shortcut-help,
+.settings-preview-status,
+.settings-field-error {
+  margin: 0;
+  color: #b7bdc3;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.settings-consent {
+  padding-top: 2px;
+}
+
+.settings-preview-command {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  border: 1px solid #5a626a;
+  border-radius: 5px;
+  color: #f1f3f4;
+  background: #252a30;
+}
+
+.settings-preview-command svg {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-field-error {
+  color: #ffb4ab;
+}
+
+.recording-hud {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) 68px;
+  align-items: center;
+  gap: 10px;
+  width: 100vw;
+  height: 100vh;
+  padding: 10px 12px;
+  overflow: hidden;
+  border: 2px solid #69717a;
+  color: #f5f6f7;
+  background: #15171a;
+}
+
+.recording-hud-waiting {
+  border-color: transparent;
+}
+
+.recording-hud-summary {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.recording-hud-summary strong {
+  color: #ffb4ab;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.recording-hud-summary time {
+  color: #d8dce0;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.recording-hud-media {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+  font-size: 11px;
+}
+
+.recording-hud-media div {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.recording-hud-media dt {
+  color: #aeb5bc;
+}
+
+.recording-hud-media dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #f5f6f7;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recording-hud-stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 68px;
+  height: 36px;
+  border: 1px solid #ff8a80;
+  border-radius: 5px;
+  color: #fff;
+  background: #862d2d;
+}
+
+.recording-hud-stop svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
 }
 
 .settings-sections input[type="range"] {
@@ -1531,6 +1650,21 @@ html[data-reduced-motion="reduce"] *::after {
     color: ButtonText;
     background: Canvas;
     forced-color-adjust: auto;
+  }
+
+  .recording-hud,
+  .recording-hud-stop {
+    border-color: ButtonText;
+    color: ButtonText;
+    background: Canvas;
+    forced-color-adjust: auto;
+  }
+
+  .recording-hud-summary strong,
+  .recording-hud-summary time,
+  .recording-hud-media dt,
+  .recording-hud-media dd {
+    color: CanvasText;
   }
 }
 
