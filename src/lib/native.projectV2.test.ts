@@ -162,4 +162,50 @@ describe("version 2 native command boundary", () => {
     expect(invoke).toHaveBeenNthCalledWith(2, "inspect_project_v2_repair");
     expect(JSON.stringify(invoke.mock.calls)).not.toMatch(/base64|path|destination/i);
   });
+
+  it("keeps settings file paths native and sends only canonical Trash identities", async () => {
+    const {
+      emptyProjectV2Trash,
+      exportGlobalSettings,
+      importGlobalSettings,
+      reviewProjectV2TrashImpact,
+      trashProjectV2Records,
+    } = await import("./native");
+    invoke
+      .mockResolvedValueOnce({ settings: { settingsVersion: 1 }, notices: [] })
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce({ targets: [], affected: [], blockers: [], blocked: false })
+      .mockResolvedValueOnce({ transactionId: "trash-transaction", state: {} })
+      .mockResolvedValueOnce({ transactionId: null, state: {} });
+
+    await importGlobalSettings();
+    await exportGlobalSettings();
+    const targets = [
+      { recordType: "page" as const, recordId: "page-alpha" },
+      { recordType: "evidence" as const, recordId: "evidence-alpha" },
+    ];
+    await reviewProjectV2TrashImpact("workspace-alpha", targets);
+    await trashProjectV2Records("workspace-alpha", targets, 30);
+    await emptyProjectV2Trash("workspace-alpha", null, true);
+
+    expect(invoke).toHaveBeenNthCalledWith(1, "import_global_settings");
+    expect(invoke).toHaveBeenNthCalledWith(2, "export_global_settings");
+    expect(invoke).toHaveBeenNthCalledWith(3, "review_project_v2_trash_impact", {
+      workspaceId: "workspace-alpha",
+      targets,
+    });
+    expect(invoke).toHaveBeenNthCalledWith(4, "trash_project_v2_records", {
+      workspaceId: "workspace-alpha",
+      targets,
+      retentionDays: 30,
+    });
+    expect(invoke).toHaveBeenNthCalledWith(5, "empty_project_v2_trash", {
+      workspaceId: "workspace-alpha",
+      transactionIds: null,
+      eligibleOnly: true,
+    });
+    expect(JSON.stringify(invoke.mock.calls)).not.toMatch(
+      /filesystemPath|workspacePath|archivePath|password|apiKey|accessToken|mediaToken/i,
+    );
+  });
 });

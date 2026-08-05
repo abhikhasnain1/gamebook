@@ -1,21 +1,29 @@
-import { X } from "lucide-react";
+import { RotateCcw, Trash2, X } from "lucide-react";
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
-import type { ProjectV2RecoverySummary } from "../lib/native";
+import type { ProjectV2RecoverySummary, TrashState } from "../lib/native";
 
 interface ProjectStorageDialogProps {
   recovery: ProjectV2RecoverySummary[];
+  trash: TrashState;
   onRecover: (workspaceId: string) => void;
   onOpenSaved: () => void;
   onCleanCache: () => void;
+  onRestoreTrash: (transactionId: string) => void;
+  onEmptyEligibleTrash: () => void;
+  onEmptyAllTrash: () => void;
   onClose: () => void;
 }
 
 export function ProjectStorageDialog({
   recovery,
+  trash,
   onRecover,
   onOpenSaved,
   onCleanCache,
+  onRestoreTrash,
+  onEmptyEligibleTrash,
+  onEmptyAllTrash,
   onClose,
 }: ProjectStorageDialogProps) {
   const titleId = useId();
@@ -107,6 +115,45 @@ export function ProjectStorageDialog({
           <p>Protected unsaved and recovery data is never removed by this action.</p>
           <button type="button" onClick={onCleanCache}>Clear clean cache</button>
         </section>
+        <section className="storage-section" aria-labelledby={`${titleId}-trash`}>
+          <h3 id={`${titleId}-trash`}>Project Trash</h3>
+          {trash.transactions.length === 0 ? (
+            <p>Project Trash is empty.</p>
+          ) : (
+            <>
+              <p role="status">
+                {trash.totalRecords} record{trash.totalRecords === 1 ? "" : "s"}; {formatBytes(trash.retainedAssetBytes)} retained
+              </p>
+              <ul className="trash-transaction-list">
+                {trash.transactions.map((transaction) => (
+                  <li key={transaction.transactionId}>
+                    <div>
+                      <strong>{transaction.records.map((record) => record.title).join(", ")}</strong>
+                      <small>
+                        Deleted {formatDate(transaction.deletedAt)}; {transaction.eligible ? "eligible for cleanup" : `retained until ${formatDate(transaction.eligibleAfter)}`}
+                      </small>
+                    </div>
+                    <button type="button" onClick={() => onRestoreTrash(transaction.transactionId)}>
+                      <RotateCcw /> Restore
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <div className="trash-actions">
+                <button
+                  type="button"
+                  disabled={trash.eligibleTransactions === 0}
+                  onClick={onEmptyEligibleTrash}
+                >
+                  <Trash2 /> Empty eligible
+                </button>
+                <button type="button" className="danger-command" onClick={onEmptyAllTrash}>
+                  <Trash2 /> Empty all
+                </button>
+              </div>
+            </>
+          )}
+        </section>
         <div className="dialog-actions">
           <button type="button" onClick={onClose}>Close</button>
         </div>
@@ -114,4 +161,15 @@ export function ProjectStorageDialog({
     </div>,
     document.body,
   );
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "unknown date" : date.toLocaleDateString();
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

@@ -162,6 +162,129 @@ describe("canonical version 2 editor model", () => {
     });
   });
 
+  it("round-trips canonical research records without treating derived search as project data", () => {
+    const researchManifest: ProjectV2Manifest = {
+      ...manifest,
+      recordOrder: {
+        ...manifest.recordOrder,
+        findings: ["finding-alpha"],
+        tags: ["tag-alpha"],
+      },
+    };
+    const tag = {
+      recordType: "tag",
+      recordVersion: 1,
+      id: "tag-alpha",
+      createdAt: manifest.createdAt,
+      updatedAt: manifest.updatedAt,
+      normalizedName: "timing",
+      label: "Timing",
+      description: "Timing observations",
+      color: "#ef4444",
+      pattern: "stripe",
+      sortOrder: 0,
+    } as const;
+    const finding = {
+      recordType: "finding",
+      recordVersion: 1,
+      id: "finding-alpha",
+      createdAt: manifest.createdAt,
+      updatedAt: manifest.updatedAt,
+      observation: "Input arrived late",
+      interpretation: "Animation gated input",
+      hypothesis: "The gate is one frame too long",
+      followUp: "Compare another build",
+      status: "open",
+      confidence: 0.5,
+      evidenceReferences: [
+        { evidenceId: evidence.id, pageId: page.id, annotationId: null },
+      ],
+      tagIds: [tag.id],
+      revision: 1,
+    } as const;
+    const project = editorProjectFromNative({
+      workspaceId: "workspace-alpha",
+      projectId: "project-alpha",
+      manifest: researchManifest,
+      records: [evidence, page, finding, tag],
+    });
+
+    expect(project.canonicalRecords["finding:finding-alpha"]).toEqual(finding);
+    expect(editorProjectDocuments(project)).toEqual([
+      researchManifest,
+      evidence,
+      page,
+      finding,
+      tag,
+    ]);
+    expect(JSON.stringify(editorProjectDocuments(project))).not.toMatch(
+      /searchIndex|derivedTextCache/,
+    );
+  });
+
+  it("preserves canonical page fields outside the screenshot editor ownership boundary", () => {
+    const secondaryPlacement = {
+      ...page.placements[0],
+      id: "placement-secondary",
+      left: 500,
+      zIndex: 1,
+    };
+    const semanticAnnotation = {
+      id: "annotation-semantic",
+      kind: "note",
+      scope: {
+        kind: "time",
+        evidenceId: evidence.id,
+        startUs: 1_000,
+        endUs: 2_000,
+      },
+      semanticText: "Canonical description independent of the visible label",
+      fabricObject: {
+        type: "Textbox",
+        left: 50,
+        top: 60,
+        text: "Visible label",
+        data: { id: "annotation-semantic", kind: "note", role: "annotation" },
+      },
+    } as const;
+    const connector = {
+      id: "connector-alpha",
+      start: { objectId: "placement-alpha", anchor: "right" },
+      end: { objectId: "annotation-semantic", anchor: "left" },
+    } as const;
+    const canonicalPage = {
+      ...page,
+      placements: [...page.placements, secondaryPlacement],
+      annotations: [...page.annotations, semanticAnnotation],
+      annotationOrder: ["annotation-alpha", "annotation-semantic"],
+      connectors: [connector],
+    } satisfies ProjectV2PageRecord;
+    const project = editorProjectFromNative({
+      workspaceId: "workspace-alpha",
+      projectId: "project-alpha",
+      manifest,
+      records: [evidence, canonicalPage],
+    });
+
+    const documents = editorProjectDocuments(project);
+    expect(documents[2]).toEqual(canonicalPage);
+  });
+
+  it("does not require unloaded canonical research records before they are edited", () => {
+    const lazyManifest: ProjectV2Manifest = {
+      ...manifest,
+      recordOrder: { ...manifest.recordOrder, findings: ["finding-lazy"] },
+    };
+    const project = editorProjectFromNative({
+      workspaceId: "workspace-alpha",
+      projectId: "project-alpha",
+      manifest: lazyManifest,
+      records: [evidence, page],
+    });
+
+    expect(editorProjectDocuments(project)).toEqual([lazyManifest, evidence, page]);
+  });
+
   it("normalizes placement geometry and rejects runtime fields", () => {
     expect(
       normalizePlacement({

@@ -141,7 +141,8 @@ async function verifyReadiness(report, sources) {
   assert(
     formatDoc.includes("Status: Accepted architecture contract under dependency-ordered implementation")
       && formatDoc.includes("The production screenshot editor uses the version 2 archive")
-      && formatDoc.includes("Video, research, settings, and Project Trash behavior remain assigned to later roadmap issues"),
+      && formatDoc.includes("versioned settings, Project Trash, and canonical research-record preservation paths")
+      && formatDoc.includes("Research editing UI and video records remain future implementation work"),
     "Project-format current/future boundary changed",
   );
   assert(mediaDoc.includes("Status: Frozen architecture contract for future implementation") && mediaDoc.includes("None of these future features is implemented in Gamebook 0.5.3"), "Media architecture current/future boundary changed");

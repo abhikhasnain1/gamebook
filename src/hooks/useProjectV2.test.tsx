@@ -9,14 +9,19 @@ const native = vi.hoisted(() => ({
   createProjectV2: vi.fn(),
   evictProjectV2CleanCache: vi.fn(),
   listProjectV2Recovery: vi.fn(),
+  listProjectV2Trash: vi.fn(),
   materializeProjectV2Asset: vi.fn(),
   onCaptureError: vi.fn(),
   onScreenshotCapture: vi.fn(),
   openProjectForEditor: vi.fn(),
   readProjectV2Record: vi.fn(),
   recoverProjectV2Workspace: vi.fn(),
+  restoreProjectV2Trash: vi.fn(),
+  reviewProjectV2TrashImpact: vi.fn(),
   saveProjectV2: vi.fn(),
   stageProjectV2Document: vi.fn(),
+  trashProjectV2Records: vi.fn(),
+  emptyProjectV2Trash: vi.fn(),
 }));
 
 vi.mock("../lib/native", () => ({
@@ -44,6 +49,12 @@ describe("useProjectV2 production workspace flow", () => {
     vi.clearAllMocks();
     captureListener = null;
     native.listProjectV2Recovery.mockResolvedValue([]);
+    native.listProjectV2Trash.mockResolvedValue({
+      transactions: [],
+      totalRecords: 0,
+      eligibleTransactions: 0,
+      retainedAssetBytes: 0,
+    });
     native.onScreenshotCapture.mockImplementation(async (listener) => {
       captureListener = listener;
       return () => undefined;
@@ -223,6 +234,33 @@ describe("useProjectV2 production workspace flow", () => {
       expect.any(String),
     );
     expect(result.current.project.requiresSaveAs).toBe(false);
+  });
+
+  it("does not eagerly read canonical research records during initial open", async () => {
+    const project = populatedNativeProject("workspace-lazy");
+    project.manifest.recordOrder.findings = ["finding-lazy"];
+    native.openProjectForEditor.mockResolvedValue({ outcome: "opened", project });
+    native.materializeProjectV2Asset.mockResolvedValue({
+      token: "a".repeat(64),
+      digest: "b".repeat(64),
+      mimeType: "image/png",
+      byteLength: 42,
+      expiresAfterSeconds: 600,
+    });
+    const onError = vi.fn();
+    const { result } = renderHook(() => useProjectV2(onError));
+    await waitFor(() => expect(result.current.hydrated).toBe(true));
+
+    await act(async () => {
+      await result.current.openProject();
+    });
+
+    expect(native.readProjectV2Record).not.toHaveBeenCalledWith(
+      "workspace-lazy",
+      "finding",
+      "finding-lazy",
+    );
+    expect(onError).not.toHaveBeenCalled();
   });
 
   it("preserves edits made while a page asset is being renewed", async () => {

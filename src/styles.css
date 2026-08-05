@@ -699,6 +699,15 @@ button:disabled {
   }
 }
 
+html[data-reduced-motion="reduce"] *,
+html[data-reduced-motion="reduce"] *::before,
+html[data-reduced-motion="reduce"] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
 .object-style-bar {
   position: absolute;
   bottom: 14px;
@@ -1309,6 +1318,220 @@ button:disabled {
   width: min(560px, calc(100vw - 48px));
   max-height: calc(100vh - 48px);
   overflow: auto;
+}
+
+.settings-dialog,
+.trash-impact-dialog {
+  width: min(620px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.settings-notices {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 9px;
+  border-left: 3px solid #d9a441;
+  background: #202328;
+}
+
+.settings-notices p {
+  color: #e6e8ea;
+}
+
+.settings-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+  margin-top: 18px;
+}
+
+.settings-sections fieldset {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #484e55;
+  border-radius: 5px;
+}
+
+.settings-sections legend {
+  padding-inline: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-sections label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #d6d9dc;
+  font-size: 12px;
+}
+
+.settings-sections .checkbox-setting {
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-content: start;
+}
+
+.settings-sections input[type="number"],
+.settings-sections select {
+  width: 148px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 7px;
+  border: 1px solid #555c64;
+  border-radius: 4px;
+  color: #f1f3f4;
+  background: #171a1e;
+}
+
+.settings-sections input[type="range"] {
+  width: 120px;
+}
+
+.settings-sections output {
+  grid-column: 2;
+  color: #aeb4ba;
+  font-size: 11px;
+  text-align: right;
+}
+
+.settings-file-actions,
+.trash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.settings-file-actions button,
+.trash-actions button,
+.trash-transaction-list button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid #555c64;
+  border-radius: 4px;
+  color: #f1f3f4;
+  background: #343940;
+}
+
+.settings-file-actions svg,
+.trash-actions svg,
+.trash-transaction-list svg,
+.dialog-actions svg {
+  width: 15px;
+  height: 15px;
+}
+
+.trash-transaction-list,
+.impact-list {
+  display: grid;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trash-transaction-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #3f454c;
+}
+
+.trash-transaction-list strong,
+.trash-transaction-list small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.trash-transaction-list strong {
+  font-size: 12px;
+}
+
+.trash-transaction-list small,
+.impact-list small {
+  margin-top: 3px;
+  color: #aeb4ba;
+  font-size: 10px;
+}
+
+.trash-actions .danger-command {
+  border-color: #98474d;
+  background: #79373c;
+}
+
+.trash-actions button:disabled {
+  opacity: 0.55;
+}
+
+.trash-impact-dialog h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 18px 0 0;
+  font-size: 13px;
+}
+
+.trash-impact-dialog h3 svg {
+  width: 16px;
+  color: #f2b84b;
+}
+
+.impact-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid #444a51;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.impact-list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.trash-blockers {
+  color: #f4d7a1;
+}
+
+@media (max-width: 960px), (max-height: 700px) {
+  .settings-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (forced-colors: active) {
+  .settings-dialog,
+  .trash-impact-dialog,
+  .settings-sections fieldset,
+  .settings-sections input,
+  .settings-sections select,
+  .settings-file-actions button,
+  .trash-actions button,
+  .trash-transaction-list button,
+  .impact-list li {
+    border-color: ButtonText;
+    color: ButtonText;
+    background: Canvas;
+    forced-color-adjust: auto;
+  }
 }
 
 .storage-section {

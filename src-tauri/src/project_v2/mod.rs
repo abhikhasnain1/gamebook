@@ -1,6 +1,7 @@
 mod archive;
 mod migration;
 mod model;
+mod trash;
 mod workspace;
 
 use std::{path::Path, sync::Arc};
@@ -12,7 +13,12 @@ pub use model::{
     CacheEvictionResult, ExternalChangeChoice, MaterializedAssetResult, MigrationProjectResult,
     OpenProjectResult, SaveProjectResult,
 };
+pub use trash::{TrashImpact, TrashMutationResult, TrashState, TrashTarget};
 pub use workspace::ProjectV2Manager;
+
+pub(crate) fn replace_file_atomic(temporary: &Path, destination: &Path) -> Result<(), String> {
+    archive::replace_visible_archive(temporary, destination).map(|_| ())
+}
 
 #[tauri::command]
 pub async fn create_project_v2(
@@ -272,6 +278,73 @@ pub fn list_project_v2_recovery(
     manager: State<'_, Arc<ProjectV2Manager>>,
 ) -> Result<Vec<serde_json::Value>, String> {
     manager.recovery_documents()
+}
+
+#[tauri::command]
+pub async fn list_project_v2_trash(
+    manager: State<'_, Arc<ProjectV2Manager>>,
+    workspace_id: String,
+) -> Result<TrashState, String> {
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.trash_state(&workspace_id))
+        .await
+        .map_err(|error| format!("Project Trash read worker failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn review_project_v2_trash_impact(
+    manager: State<'_, Arc<ProjectV2Manager>>,
+    workspace_id: String,
+    targets: Vec<TrashTarget>,
+) -> Result<TrashImpact, String> {
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.trash_impact(&workspace_id, &targets))
+        .await
+        .map_err(|error| format!("Project Trash review worker failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn trash_project_v2_records(
+    manager: State<'_, Arc<ProjectV2Manager>>,
+    workspace_id: String,
+    targets: Vec<TrashTarget>,
+    retention_days: u64,
+) -> Result<TrashMutationResult, String> {
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        manager.trash_records(&workspace_id, &targets, retention_days)
+    })
+    .await
+    .map_err(|error| format!("Project Trash transaction worker failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn restore_project_v2_trash(
+    manager: State<'_, Arc<ProjectV2Manager>>,
+    workspace_id: String,
+    transaction_id: String,
+) -> Result<TrashMutationResult, String> {
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        manager.restore_trash(&workspace_id, &transaction_id)
+    })
+    .await
+    .map_err(|error| format!("Project Trash restore worker failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn empty_project_v2_trash(
+    manager: State<'_, Arc<ProjectV2Manager>>,
+    workspace_id: String,
+    transaction_ids: Option<Vec<String>>,
+    eligible_only: bool,
+) -> Result<TrashMutationResult, String> {
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        manager.empty_trash(&workspace_id, transaction_ids.as_deref(), eligible_only)
+    })
+    .await
+    .map_err(|error| format!("Project Trash cleanup worker failed: {error}"))?
 }
 
 pub fn initialize(app: &tauri::App) -> Result<(), String> {

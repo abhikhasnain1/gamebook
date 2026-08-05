@@ -15,6 +15,7 @@ import {
   createProjectV2,
   evictProjectV2CleanCache,
   isTauri,
+  listProjectV2Trash,
   listProjectV2Recovery,
   materializeProjectV2Asset,
   onCaptureError,
@@ -23,8 +24,12 @@ import {
   projectV2MediaUrl,
   readProjectV2Record,
   recoverProjectV2Workspace,
+  restoreProjectV2Trash,
+  reviewProjectV2TrashImpact,
   saveProjectV2,
   stageProjectV2Document,
+  trashProjectV2Records,
+  emptyProjectV2Trash,
   type EditorProjectOpenOutcome,
   type ProjectV1MigrationReport,
   type ProjectV2OpenResult,
@@ -33,6 +38,10 @@ import {
   type ProjectV2RepairReport,
   type ProjectV2SaveResult,
   type ScreenshotCaptureEvent,
+  type TrashImpact,
+  type TrashMutationResult,
+  type TrashState,
+  type TrashTarget,
 } from "../lib/native";
 import {
   editorProjectDocuments,
@@ -58,6 +67,7 @@ interface ProjectV2State {
   report: ProjectReportState | null;
   dismissReport: () => void;
   recovery: ProjectV2RecoverySummary[];
+  trash: TrashState;
   operationActive: boolean;
   cancelOperation: () => Promise<boolean>;
   openProject: () => Promise<EditorProjectOpenOutcome | null>;
@@ -75,6 +85,10 @@ interface ProjectV2State {
   removePage: (pageId: string) => void;
   duplicatePage: (pageId: string) => void;
   reorderPage: (sourcePageId: string, targetPageId: string) => void;
+  reviewPageDeletion: (pageId: string) => Promise<TrashImpact | null>;
+  commitTrash: (targets: TrashTarget[], retentionDays: number) => Promise<boolean>;
+  restoreTrash: (transactionId: string) => Promise<boolean>;
+  emptyTrash: (eligibleOnly: boolean) => Promise<boolean>;
 }
 
 export function useProjectV2(onError: (message: string) => void): ProjectV2State {
@@ -84,6 +98,7 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
   const [hydrated, setHydrated] = useState(false);
   const [report, setReport] = useState<ProjectReportState | null>(null);
   const [recovery, setRecovery] = useState<ProjectV2RecoverySummary[]>([]);
+  const [trash, setTrash] = useState<TrashState>(emptyTrashState);
   const [activeOperationId, setActiveOperationId] = useState<string | null>(null);
   const projectRef = useRef(project);
   const captureWorkspacePromiseRef = useRef<Promise<EditorProject> | null>(null);
@@ -126,7 +141,7 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
     ): Promise<EditorProject> => {
       const manifest = result.manifest as {
         activePageId: string | null;
-        recordOrder: { pages: string[]; evidence: string[] };
+        recordOrder: Record<string, string[]>;
       };
       const records = [...result.records];
       const loaded = new Set(
@@ -137,10 +152,15 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
             : [];
         }),
       );
-      const missing = [
-        ...manifest.recordOrder.pages.map((id) => ["page", id] as const),
-        ...manifest.recordOrder.evidence.map((id) => ["evidence", id] as const),
-      ].filter(([type, id]) => !loaded.has(`${type}:${id}`));
+      const recordTypes = [
+        ["page", "pages"],
+        ["evidence", "evidence"],
+      ] as const;
+      const missing = recordTypes
+        .flatMap(([type, list]) =>
+          (manifest.recordOrder[list] ?? []).map((id) => [type, id] as const),
+        )
+        .filter(([type, id]) => !loaded.has(`${type}:${id}`));
       records.push(
         ...(await Promise.all(
           missing.map(([type, id]) =>
@@ -158,6 +178,18 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
       return loadedProject;
     },
     [materializePage],
+  );
+
+  const applyTrashMutation = useCallback(
+    async (result: TrashMutationResult) => {
+      const current = projectRef.current;
+      const loaded = await loadNativeProject(result.project, current.requiresSaveAs);
+      if (projectRef.current.workspaceId !== current.workspaceId) return false;
+      setProject(loaded);
+      setTrash(result.state);
+      return true;
+    },
+    [loadNativeProject, setProject],
   );
 
   const ensureCaptureWorkspace = useCallback(async (): Promise<EditorProject> => {
@@ -340,6 +372,21 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
       if (idleHandle !== null) window.cancelIdleCallback(idleHandle);
     };
   }, [hydrated, onError, project.manifest.updatedAt]);
+
+  useEffect(() => {
+    if (!hydrated || project.workspaceId === PENDING_WORKSPACE_ID) return;
+    let cancelled = false;
+    void listProjectV2Trash(project.workspaceId)
+      .then((state) => {
+        if (!cancelled) setTrash(state);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) onError(String(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, onError, project.workspaceId]);
 
   const openProject = useCallback(async () => {
     const operationId = crypto.randomUUID();
@@ -552,6 +599,7 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
       const now = new Date().toISOString();
       const duplicate: EditorPage = {
         ...source,
+        canonicalPage: undefined,
         id: crypto.randomUUID(),
         title: String(sourceIndex + 2),
         createdAt: now,
@@ -610,6 +658,59 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
     });
   }, []);
 
+  const reviewPageDeletion = useCallback(async (pageId: string) => {
+    const current = projectRef.current;
+    const page = current.pages.find((candidate) => candidate.id === pageId);
+    if (!page) return null;
+    const targets: TrashTarget[] = [{ recordType: "page", recordId: page.id }];
+    if (!current.pages.some(
+      (candidate) => candidate.id !== page.id && candidate.evidenceId === page.evidenceId,
+    )) {
+      targets.push({ recordType: "evidence", recordId: page.evidenceId });
+    }
+    return reviewProjectV2TrashImpact(current.workspaceId, targets);
+  }, []);
+
+  const commitTrash = useCallback(
+    async (targets: TrashTarget[], retentionDays: number) => {
+      const current = projectRef.current;
+      const result = await trashProjectV2Records(
+        current.workspaceId,
+        targets,
+        retentionDays,
+      );
+      if (result) return applyTrashMutation(result);
+      for (const target of targets) {
+        if (target.recordType === "page") removePage(target.recordId);
+      }
+      return true;
+    },
+    [applyTrashMutation, removePage],
+  );
+
+  const restoreTrash = useCallback(
+    async (transactionId: string) => {
+      const result = await restoreProjectV2Trash(
+        projectRef.current.workspaceId,
+        transactionId,
+      );
+      return result ? applyTrashMutation(result) : false;
+    },
+    [applyTrashMutation],
+  );
+
+  const emptyTrash = useCallback(
+    async (eligibleOnly: boolean) => {
+      const result = await emptyProjectV2Trash(
+        projectRef.current.workspaceId,
+        null,
+        eligibleOnly,
+      );
+      return result ? applyTrashMutation(result) : false;
+    },
+    [applyTrashMutation],
+  );
+
   return {
     project,
     setProject,
@@ -619,6 +720,7 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
     report,
     dismissReport: () => setReport(null),
     recovery,
+    trash,
     operationActive: activeOperationId !== null,
     cancelOperation: () =>
       activeOperationId
@@ -636,6 +738,10 @@ export function useProjectV2(onError: (message: string) => void): ProjectV2State
     removePage,
     duplicatePage,
     reorderPage,
+    reviewPageDeletion,
+    commitTrash,
+    restoreTrash,
+    emptyTrash,
   };
 }
 
@@ -687,6 +793,7 @@ function browserProject(workspaceId = "browser-workspace"): EditorProject {
     },
     pages: [],
     evidence: {},
+    canonicalRecords: {},
   };
 }
 
@@ -748,5 +855,14 @@ function browserEvidence(page: EditorPage): ProjectV2ScreenshotEvidenceRecord {
       colorSpace: "srgb",
       monitorLabel: page.monitorName,
     },
+  };
+}
+
+function emptyTrashState(): TrashState {
+  return {
+    transactions: [],
+    totalRecords: 0,
+    eligibleTransactions: 0,
+    retainedAssetBytes: 0,
   };
 }

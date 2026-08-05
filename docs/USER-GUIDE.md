@@ -36,7 +36,7 @@ Use the rainbow swatch for any annotation color and the paint-bucket control for
 
 Every hotkey capture adds a numbered page to the current gamebook. Drag a thumbnail by its grip to reorder it; pointer and keyboard sorting both update numbering and export order automatically. The gamebook title remains editable in the top bar, while pages are always named `1`, `2`, `3`, and so on.
 
-Deleting a thumbnail removes that page from the current project. The delete control is hidden until the thumbnail is hovered. The plus button creates a clean page from the current screenshot without copying its annotations.
+Deleting a thumbnail first reviews the page and its exclusively owned screenshot evidence. Gamebook lists the records that would move together and blocks deletion when a placement, finding, collection, session, timed annotation, clip, frame, or other live dependency would be damaged. Confirming an unblocked review moves the complete transaction to Project Trash. The delete control is hidden until the thumbnail is hovered. The plus button creates a clean page from the current screenshot without copying its annotations.
 
 ## Save and recover
 
@@ -44,7 +44,15 @@ Save writes an editable, portable `.gamebook` project. The first save asks for a
 
 Gamebook autosaves changed records after a short quiet period inside a protected private workspace; it does not rebuild the project archive on every edit. Recoverable workspaces appear at startup and in Project storage. Project storage can also clear verified clean cache files, but it never removes unsaved or recovery data.
 
+Project storage lists Trash transactions, retained bytes, deletion dates, and retention eligibility. Restore reinstates a complete transaction in its original order. Retention only makes a transaction eligible for the explicit cleanup control; Gamebook never empties Trash on a timer. Empty eligible and Empty all require confirmation, and assets remain protected while any live or trashed record references them.
+
 Open accepts current version 2 projects and legacy version 1 screenshot projects. Legacy projects are migrated in a workspace without changing the source, then a report summarizes the result. The first successful Save over a legacy source creates a collision-safe `.v1-backup`. Damaged version 2 input opens a read-only repair summary of valid and missing content; unsupported future versions are rejected without creating a mutable workspace or changing the file.
+
+## Settings
+
+Settings opens from the gear button and stores preferences outside the current project. The current controls cover playback autoplay and volume, reduced motion, 100/150/200 percent interface scale, cache size, Project Trash retention, and local diagnostic logging. Save applies validated values; Reset restores defaults.
+
+Import and Export use native file dialogs, so filesystem paths are not exposed to the editor. Invalid fields fall back individually, corrupt settings are preserved before defaults are restored, and a failed import leaves the current settings unchanged. Settings from a newer unsupported version remain unchanged on disk and make mutation controls unavailable while session defaults are active; Export remains available and copies that preserved file byte-for-byte. Credentials are never stored in settings JSON. Microphone capture remains off unless a later recording workflow obtains separate versioned consent; recording controls arrive in the recording milestone.
 
 ## Export
 

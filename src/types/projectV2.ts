@@ -39,7 +39,9 @@ export interface MediaPlacementRecord {
 export interface ProjectV2AnnotationRecord {
   id: string;
   kind: "pen" | "arrow" | "callout" | "line" | "box" | "circle" | "text" | "note";
-  scope: { kind: "page" };
+  scope:
+    | { kind: "page" }
+    | { kind: "time"; evidenceId: string; startUs: number; endUs: number };
   semanticText: string;
   fabricObject: Record<string, unknown>;
 }
@@ -74,7 +76,7 @@ export interface ProjectV2ScreenshotEvidenceRecord {
   createdAt: string;
   updatedAt: string;
   kind: "screenshot";
-  sessionId: null;
+  sessionId: string | null;
   tagIds: string[];
   provenance: {
     origin: "capture" | "import" | "migration" | "derived";
@@ -86,10 +88,110 @@ export interface ProjectV2ScreenshotEvidenceRecord {
   image: {
     width: number;
     height: number;
-    colorSpace: "srgb";
+    colorSpace: "srgb" | "sdr-rec709";
     monitorLabel: string | null;
   };
 }
+
+export interface ProjectV2FindingRecord {
+  recordType: "finding";
+  recordVersion: 1;
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  observation: string;
+  interpretation: string;
+  hypothesis: string;
+  followUp: string;
+  status: "open" | "supported" | "contradicted" | "resolved" | "archived";
+  confidence: number | null;
+  evidenceReferences: Array<{
+    evidenceId: string;
+    pageId: string | null;
+    annotationId: string | null;
+    exactFrame?: { sampleIndex: number; sourceTimestamp100ns: number; timestampUs: number };
+  }>;
+  tagIds: string[];
+  revision: number;
+}
+
+export interface ProjectV2TagRecord {
+  recordType: "tag";
+  recordVersion: 1;
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  normalizedName: string;
+  label: string;
+  description: string;
+  color: string;
+  pattern: "solid" | "stripe" | "dot" | "crosshatch" | "outline";
+  sortOrder: number;
+}
+
+export interface ProjectV2CollectionRecord {
+  recordType: "collection";
+  recordVersion: 1;
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  title: string;
+  description: string;
+  evidenceIds: string[];
+}
+
+export interface ProjectV2RelationshipRecord {
+  recordType: "relationship";
+  recordVersion: 1;
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  source: { recordType: CanonicalReferenceType; recordId: string };
+  target: { recordType: CanonicalReferenceType; recordId: string };
+  relation: "supports" | "contradicts" | "derived-from" | "compares" | "follow-up";
+  note: string;
+}
+
+export interface ProjectV2SessionRecord {
+  recordType: "session";
+  recordVersion: 1;
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  game: string;
+  build: string;
+  platform: string;
+  level: string;
+  testLabel: string;
+  startedAt: string;
+  endedAt: string | null;
+  captureDefaults: Record<string, unknown>;
+  evidenceIds: string[];
+}
+
+export type CanonicalReferenceType =
+  | "evidence"
+  | "page"
+  | "finding"
+  | "tag"
+  | "collection"
+  | "session";
+
+export type ProjectV2OpaqueCanonicalRecord = Record<string, unknown> & {
+  recordType: "evidence" | "timeline" | "trash";
+  recordVersion: 1;
+  id: string;
+};
+
+export type ProjectV2CanonicalRecord =
+  | ProjectV2PageRecord
+  | ProjectV2ScreenshotEvidenceRecord
+  | ProjectV2FindingRecord
+  | ProjectV2TagRecord
+  | ProjectV2CollectionRecord
+  | ProjectV2RelationshipRecord
+  | ProjectV2SessionRecord
+  | ProjectV2OpaqueCanonicalRecord;
 
 export interface ProjectV2Manifest {
   formatVersion: 2;
@@ -130,6 +232,7 @@ export interface EditorPage {
   annotations: AnnotationSnapshot;
   extractedText: string;
   backgroundColor: string;
+  canonicalPage?: ProjectV2PageRecord;
 }
 
 export type EditorPageContentPatch = Pick<
@@ -144,6 +247,7 @@ export interface EditorProject {
   manifest: ProjectV2Manifest;
   pages: EditorPage[];
   evidence: Record<string, ProjectV2ScreenshotEvidenceRecord>;
+  canonicalRecords: Record<string, ProjectV2CanonicalRecord>;
 }
 
 export interface NativeProjectV2Result {
@@ -161,14 +265,18 @@ export function editorProjectFromNative(
   if (manifest.projectId !== result.projectId) {
     throw new Error("Project identity does not match the native workspace.");
   }
-  const records = result.records
-    .map(optionalProjectRecord)
-    .filter(
-      (
-        record,
-      ): record is ProjectV2PageRecord | ProjectV2ScreenshotEvidenceRecord =>
-        record !== null,
-    );
+  const canonical = result.records
+    .map(optionalCanonicalRecord)
+    .filter((record): record is ProjectV2CanonicalRecord => record !== null);
+  const canonicalRecords = Object.fromEntries(
+    canonical.map((record) => [canonicalRecordKey(record.recordType, record.id), record]),
+  );
+  const records = canonical.filter(
+    (
+      record,
+    ): record is ProjectV2PageRecord | ProjectV2ScreenshotEvidenceRecord =>
+      record.recordType === "page" || record.recordType === "evidence",
+  );
   const evidence = Object.fromEntries(
     records
       .filter(isScreenshotEvidence)
@@ -209,6 +317,7 @@ export function editorProjectFromNative(
       },
       extractedText: page.notes,
       backgroundColor: page.backgroundColor,
+      canonicalPage: page,
     } satisfies EditorPage;
   });
   return {
@@ -218,6 +327,7 @@ export function editorProjectFromNative(
     manifest,
     pages,
     evidence,
+    canonicalRecords,
   };
 }
 
@@ -238,15 +348,52 @@ export function editorProjectDocuments(project: EditorProject): unknown[] {
     },
     assets: deduplicateAssets(project.manifest.assets),
   };
-  const orderedEvidence = manifest.recordOrder.evidence.flatMap((id) => {
-    const record = project.evidence[id];
-    return record ? [record] : [];
-  });
-  return [manifest, ...orderedEvidence, ...pages];
+  const records = new Map(Object.entries(project.canonicalRecords));
+  for (const record of Object.values(project.evidence)) {
+    records.set(canonicalRecordKey("evidence", record.id), record);
+  }
+  for (const page of pages) {
+    records.set(canonicalRecordKey("page", page.id), page);
+  }
+  const orderedRecords = canonicalRecordLists(manifest).flatMap(([recordType, ids]) =>
+    ids.flatMap((id) => {
+      const record = records.get(canonicalRecordKey(recordType, id));
+      return record ? [record] : [];
+    }),
+  );
+  return [manifest, ...orderedRecords];
 }
 
 export function editorPageRecord(page: EditorPage, updatedAt: string): ProjectV2PageRecord {
-  const annotations = page.annotations.objects.map(annotationRecord);
+  const previous = page.canonicalPage;
+  const previousAnnotations = new Map(
+    (previous?.annotations ?? []).map((annotation) => [annotation.id, annotation]),
+  );
+  const annotations = page.annotations.objects.map((object) => {
+    const id = optionalObject(object.data)?.id;
+    return annotationRecord(
+      object,
+      typeof id === "string" ? previousAnnotations.get(id) : undefined,
+    );
+  });
+  const annotationIds = new Set(annotations.map((annotation) => annotation.id));
+  const primaryPlacement = normalizePlacement(page.placement);
+  const placements = previous
+    ? replacePlacement(previous.placements, primaryPlacement)
+    : [primaryPlacement];
+  const objectIds = new Set([
+    ...annotationIds,
+    ...placements.map((placement) => placement.id),
+  ]);
+  const generatedConnectors = annotations.flatMap(connectorRecord);
+  const connectors = new Map(
+    (previous?.connectors ?? [])
+      .filter((connector) =>
+        objectIds.has(connector.start.objectId) && objectIds.has(connector.end.objectId),
+      )
+      .map((connector) => [connector.id, connector]),
+  );
+  for (const connector of generatedConnectors) connectors.set(connector.id, connector);
   return {
     recordType: "page",
     recordVersion: 1,
@@ -256,10 +403,10 @@ export function editorPageRecord(page: EditorPage, updatedAt: string): ProjectV2
     updatedAt,
     primaryEvidenceId: page.evidenceId,
     backgroundColor: page.backgroundColor,
-    placements: [normalizePlacement(page.placement)],
+    placements,
     annotations,
     annotationOrder: annotations.map((annotation) => annotation.id),
-    connectors: annotations.flatMap(connectorRecord),
+    connectors: [...connectors.values()],
     notes: page.extractedText,
   };
 }
@@ -294,7 +441,10 @@ export function normalizePlacement(value: MediaPlacementRecord): MediaPlacementR
   return placement;
 }
 
-function annotationRecord(object: Record<string, unknown>): ProjectV2AnnotationRecord {
+function annotationRecord(
+  object: Record<string, unknown>,
+  previous?: ProjectV2AnnotationRecord,
+): ProjectV2AnnotationRecord {
   const fabricObject = structuredClone(object);
   const data = requireObject(fabricObject.data, "annotation data");
   const id = requireId(data.id, "annotation");
@@ -303,11 +453,20 @@ function annotationRecord(object: Record<string, unknown>): ProjectV2AnnotationR
     delete fabricObject.src;
     delete fabricObject.crossOrigin;
   }
+  if (previous && sameJsonValue(fabricObject, editorFabricObject(previous))) {
+    return structuredClone(previous);
+  }
+  const currentText = typeof fabricObject.text === "string" ? fabricObject.text : null;
+  const previousText =
+    typeof previous?.fabricObject.text === "string" ? previous.fabricObject.text : null;
   return {
     id,
     kind: annotationKind(declaredKind, fabricObject.type),
-    scope: { kind: "page" },
-    semanticText: typeof fabricObject.text === "string" ? fabricObject.text : "",
+    scope: previous?.scope ?? { kind: "page" },
+    semanticText:
+      previous && currentText === previousText
+        ? previous.semanticText
+        : currentText ?? previous?.semanticText ?? "",
     fabricObject,
   };
 }
@@ -342,17 +501,56 @@ function requireManifest(value: unknown): ProjectV2Manifest {
   return manifest as unknown as ProjectV2Manifest;
 }
 
-function optionalProjectRecord(
-  value: unknown,
-): ProjectV2PageRecord | ProjectV2ScreenshotEvidenceRecord | null {
+function optionalCanonicalRecord(value: unknown): ProjectV2CanonicalRecord | null {
   const record = optionalObject(value);
-  if (record?.recordType === "page") {
-    return record as unknown as ProjectV2PageRecord;
+  if (!record || record.recordVersion !== 1 || typeof record.recordType !== "string") return null;
+  const accepted = [
+    "evidence",
+    "timeline",
+    "page",
+    "finding",
+    "tag",
+    "collection",
+    "relationship",
+    "session",
+    "trash",
+  ];
+  if (!accepted.includes(record.recordType)) return null;
+  requireId(record.id, "canonical record");
+  return record as unknown as ProjectV2CanonicalRecord;
+}
+
+function replacePlacement(
+  placements: MediaPlacementRecord[],
+  primary: MediaPlacementRecord,
+): MediaPlacementRecord[] {
+  let replaced = false;
+  const result = placements.map((placement) => {
+    if (placement.id !== primary.id) return placement;
+    replaced = true;
+    return primary;
+  });
+  if (!replaced) result.push(primary);
+  return result;
+}
+
+function sameJsonValue(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left)
+      && Array.isArray(right)
+      && left.length === right.length
+      && left.every((value, index) => sameJsonValue(value, right[index]));
   }
-  if (record?.recordType === "evidence") {
-    return record as unknown as ProjectV2ScreenshotEvidenceRecord;
-  }
-  return null;
+  const leftObject = optionalObject(left);
+  const rightObject = optionalObject(right);
+  if (!leftObject || !rightObject) return false;
+  const leftKeys = Object.keys(leftObject).sort();
+  const rightKeys = Object.keys(rightObject).sort();
+  return leftKeys.length === rightKeys.length
+    && leftKeys.every((key, index) =>
+      key === rightKeys[index] && sameJsonValue(leftObject[key], rightObject[key]),
+    );
 }
 
 function isPageRecord(
@@ -400,6 +598,26 @@ function deduplicateAssets(assets: ProjectV2AssetRecord[]): ProjectV2AssetRecord
 
 function orderedUnique(values: string[]): string[] {
   return [...new Set(values)];
+}
+
+export function canonicalRecordKey(recordType: string, id: string): string {
+  return `${recordType}:${id}`;
+}
+
+function canonicalRecordLists(
+  manifest: ProjectV2Manifest,
+): Array<[ProjectV2CanonicalRecord["recordType"], string[]]> {
+  return [
+    ["evidence", manifest.recordOrder.evidence],
+    ["page", manifest.recordOrder.pages],
+    ["timeline", manifest.recordOrder.timelines],
+    ["finding", manifest.recordOrder.findings],
+    ["tag", manifest.recordOrder.tags],
+    ["collection", manifest.recordOrder.collections],
+    ["relationship", manifest.recordOrder.relationships],
+    ["session", manifest.recordOrder.sessions],
+    ["trash", manifest.recordOrder.trash],
+  ];
 }
 
 function requireObject(value: unknown, label: string): Record<string, unknown> {

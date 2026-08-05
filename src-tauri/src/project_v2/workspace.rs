@@ -11,6 +11,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::http::{header, Method, Request, Response, StatusCode};
 use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
@@ -29,6 +30,10 @@ use super::{
         RecoveryJournalDocument, SaveJournalDocument, SaveProjectResult, SourceSignature,
         WorkspaceLockDocument, WorkspaceRegistryDocument, WorkspaceRegistryEntry,
         WorkspaceStateDocument, MAX_JSON_BYTES, TOKEN_TTL_SECONDS,
+    },
+    trash::{
+        self, CanonicalProject, TrashImpact, TrashMutation, TrashMutationResult, TrashState,
+        TrashTarget,
     },
 };
 
@@ -99,6 +104,22 @@ struct SaveAttempt<'a> {
     operation_id: &'a str,
     source_fingerprint: &'a str,
     state_before_save: &'a WorkspaceStateDocument,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceTransactionJournal {
+    transaction_version: u8,
+    transaction_id: String,
+    status: String,
+    files: Vec<WorkspaceTransactionFile>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceTransactionFile {
+    relative_path: String,
+    had_working_file: bool,
 }
 
 impl ProjectV2Manager {
@@ -182,6 +203,7 @@ impl ProjectV2Manager {
         fs::create_dir_all(&workspace_root)
             .map_err(|error| format!("workspace-create-failed: {error}"))?;
         validate_workspace_root(&workspace_root, &root)?;
+        recover_workspace_transactions(&workspace_root)?;
 
         let mut recovery_required = inspect_existing_lock(
             &workspace_root.join("workspace.lock.json"),
@@ -595,6 +617,7 @@ impl ProjectV2Manager {
             fs::create_dir_all(&workspace_root)
                 .map_err(|error| format!("workspace-create-failed: {error}"))?;
             validate_workspace_root(&workspace_root, &root)?;
+            recover_workspace_transactions(&workspace_root)?;
             let mut recovery_required = inspect_existing_lock(
                 &workspace_root.join("workspace.lock.json"),
                 &workspace_id,
@@ -734,6 +757,84 @@ impl ProjectV2Manager {
         })();
         self.finish_operation(operation_id);
         result
+    }
+
+    pub fn trash_state(&self, workspace_id: &str) -> Result<TrashState, String> {
+        let manager = self
+            .inner
+            .lock()
+            .map_err(|_| "workspace-state-poisoned".to_string())?;
+        let project = load_canonical_project(open_workspace(&manager, workspace_id)?)?;
+        trash::state(&project, Utc::now())
+    }
+
+    pub fn trash_impact(
+        &self,
+        workspace_id: &str,
+        targets: &[TrashTarget],
+    ) -> Result<TrashImpact, String> {
+        let manager = self
+            .inner
+            .lock()
+            .map_err(|_| "workspace-state-poisoned".to_string())?;
+        let project = load_canonical_project(open_workspace(&manager, workspace_id)?)?;
+        trash::review(&project, targets)
+    }
+
+    pub fn trash_records(
+        &self,
+        workspace_id: &str,
+        targets: &[TrashTarget],
+        retention_days: u64,
+    ) -> Result<TrashMutationResult, String> {
+        let now = Utc::now();
+        let mut manager = self
+            .inner
+            .lock()
+            .map_err(|_| "workspace-state-poisoned".to_string())?;
+        let workspace = open_workspace_mut(&mut manager, workspace_id)?;
+        let project = load_canonical_project(workspace)?;
+        let mutation = trash::delete(project, targets, retention_days, now)?;
+        apply_trash_mutation(workspace, mutation, "trash", now, None)
+    }
+
+    pub fn restore_trash(
+        &self,
+        workspace_id: &str,
+        transaction_id: &str,
+    ) -> Result<TrashMutationResult, String> {
+        validate_opaque(transaction_id)?;
+        let now = Utc::now();
+        let mut manager = self
+            .inner
+            .lock()
+            .map_err(|_| "workspace-state-poisoned".to_string())?;
+        let workspace = open_workspace_mut(&mut manager, workspace_id)?;
+        let project = load_canonical_project(workspace)?;
+        let mutation = trash::restore(project, transaction_id, now)?;
+        apply_trash_mutation(workspace, mutation, "restore", now, None)
+    }
+
+    pub fn empty_trash(
+        &self,
+        workspace_id: &str,
+        transaction_ids: Option<&[String]>,
+        eligible_only: bool,
+    ) -> Result<TrashMutationResult, String> {
+        if let Some(ids) = transaction_ids {
+            for id in ids {
+                validate_opaque(id)?;
+            }
+        }
+        let now = Utc::now();
+        let mut manager = self
+            .inner
+            .lock()
+            .map_err(|_| "workspace-state-poisoned".to_string())?;
+        let workspace = open_workspace_mut(&mut manager, workspace_id)?;
+        let project = load_canonical_project(workspace)?;
+        let mutation = trash::empty(project, transaction_ids, eligible_only, now)?;
+        apply_trash_mutation(workspace, mutation, "trash", now, None)
     }
 
     pub fn stage_document(&self, workspace_id: &str, document: Value) -> Result<(), String> {
@@ -1258,6 +1359,9 @@ impl ProjectV2Manager {
                 workspace.state.dirty_record_ids.clear();
                 workspace.state.new_asset_digests.clear();
                 workspace.state.protected_classes.clear();
+                if !workspace.manifest.record_order.trash.is_empty() {
+                    add_protected_class(&mut workspace.state, "project-trash");
+                }
                 workspace.state.updated_at = Utc::now().to_rfc3339();
                 write_workspace_document(
                     &workspace.root.join("workspace-state.json"),
@@ -1648,6 +1752,293 @@ impl ProjectV2Manager {
             &workspace.state,
         )
     }
+}
+
+fn load_canonical_project(workspace: &WorkspaceRuntime) -> Result<CanonicalProject, String> {
+    let working = workspace.root.join("working");
+    let mut records = BTreeMap::new();
+    for (_, record_type, ids) in workspace.manifest.record_order.lists() {
+        for id in ids {
+            let name = record_entry_name(record_type, id)?;
+            let working_path = working.join(posix_to_path(&name));
+            let value = if working_path.is_file() {
+                let value: Value = read_json(&working_path)?;
+                super::archive::validate_project_document(&value)?;
+                value
+            } else if let Some(value) = workspace.loaded_records.get(&name) {
+                value.clone()
+            } else {
+                read_record_from_file(
+                    workspace
+                        .source_file
+                        .try_clone()
+                        .map_err(|error| format!("archive-open-failed: {error}"))?,
+                    record_type,
+                    id,
+                )?
+            };
+            records.insert(name, value);
+        }
+    }
+    let project = CanonicalProject {
+        manifest: workspace.manifest.clone(),
+        records,
+    };
+    project.validate()?;
+    Ok(project)
+}
+
+fn apply_trash_mutation(
+    workspace: &mut WorkspaceRuntime,
+    mutation: TrashMutation,
+    operation: &str,
+    now: DateTime<Utc>,
+    fail_after: Option<usize>,
+) -> Result<TrashMutationResult, String> {
+    let TrashMutation {
+        transaction_id,
+        changed_documents,
+        project,
+    } = mutation;
+    let manifest_value = serde_json::to_value(&project.manifest)
+        .map_err(|error| format!("manifest-invalid: {error}"))?;
+    let mut files = Vec::new();
+    let mut dirty_ids = Vec::new();
+    for document in changed_documents {
+        super::archive::validate_project_document(&document)?;
+        let (relative, dirty_id) = document_workspace_path(&document)?;
+        let bytes = serde_json::to_vec(&document)
+            .map_err(|error| format!("workspace-record-serialize-failed: {error}"))?;
+        if bytes.len() as u64 > MAX_JSON_BYTES {
+            return Err("record-size-limit".to_string());
+        }
+        files.push((relative, bytes));
+        dirty_ids.push(dirty_id);
+    }
+
+    let next_sequence = workspace.recovery_sequence + 1;
+    let mut next_state = workspace.state.clone();
+    next_state.state = "recovery-pending".to_string();
+    next_state.updated_at = now.to_rfc3339();
+    for id in &dirty_ids {
+        if !next_state.dirty_record_ids.contains(id) {
+            next_state.dirty_record_ids.push(id.clone());
+        }
+    }
+    add_protected_class(&mut next_state, "unsaved");
+    add_protected_class(&mut next_state, "recovery");
+    if project.manifest.record_order.trash.is_empty() {
+        next_state
+            .protected_classes
+            .retain(|class| class != "project-trash");
+    } else {
+        add_protected_class(&mut next_state, "project-trash");
+    }
+    let recovery = RecoveryJournalDocument {
+        record_type: "recovery-journal".to_string(),
+        journal_version: 1,
+        workspace_id: workspace.workspace_id.clone(),
+        sequence: next_sequence,
+        written_at: now.to_rfc3339(),
+        operation: operation.to_string(),
+        record_ids: dirty_ids,
+        asset_digests: next_state.new_asset_digests.clone(),
+        status: "committed".to_string(),
+    };
+    let state_value = serde_json::to_value(&next_state)
+        .map_err(|error| format!("workspace-json-serialize-failed: {error}"))?;
+    workspace_schema_validator()?
+        .validate(&state_value)
+        .map_err(|error| format!("workspace-schema-validation-failed: {error}"))?;
+    let recovery_value = serde_json::to_value(&recovery)
+        .map_err(|error| format!("workspace-json-serialize-failed: {error}"))?;
+    workspace_schema_validator()?
+        .validate(&recovery_value)
+        .map_err(|error| format!("workspace-schema-validation-failed: {error}"))?;
+    files.push((
+        PathBuf::from("workspace-state.json"),
+        serde_json::to_vec(&next_state)
+            .map_err(|error| format!("workspace-json-serialize-failed: {error}"))?,
+    ));
+    files.push((
+        PathBuf::from("recovery-journal.json"),
+        serde_json::to_vec(&recovery)
+            .map_err(|error| format!("workspace-json-serialize-failed: {error}"))?,
+    ));
+    commit_workspace_transaction(&workspace.root, files, fail_after)?;
+
+    workspace.manifest = project.manifest;
+    workspace.manifest_value = manifest_value.clone();
+    workspace.loaded_records = project.records;
+    workspace.state = next_state;
+    workspace.recovery_sequence = next_sequence;
+    let state = trash::state(
+        &CanonicalProject {
+            manifest: workspace.manifest.clone(),
+            records: workspace.loaded_records.clone(),
+        },
+        now,
+    )?;
+    Ok(TrashMutationResult {
+        transaction_id,
+        state,
+        project: OpenProjectResult {
+            workspace_id: workspace.workspace_id.clone(),
+            project_id: workspace.manifest.project_id.clone(),
+            manifest: manifest_value,
+            records: workspace.loaded_records.values().cloned().collect(),
+            reused_workspace: true,
+            copy_detected: false,
+            recovery_required: true,
+        },
+    })
+}
+
+fn document_workspace_path(document: &Value) -> Result<(PathBuf, String), String> {
+    if document.get("formatVersion").and_then(Value::as_u64) == Some(2) {
+        return Ok((
+            PathBuf::from("working/manifest.json"),
+            "manifest".to_string(),
+        ));
+    }
+    let record_type = document
+        .get("recordType")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "record-type-missing".to_string())?;
+    let id = document
+        .get("id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "record-id-missing".to_string())?;
+    Ok((
+        PathBuf::from("working").join(posix_to_path(&record_entry_name(record_type, id)?)),
+        id.to_string(),
+    ))
+}
+
+fn commit_workspace_transaction(
+    workspace_root: &Path,
+    files: Vec<(PathBuf, Vec<u8>)>,
+    fail_after: Option<usize>,
+) -> Result<(), String> {
+    let transaction_id = random_id("workspace-transaction")?;
+    let transaction_root = workspace_root.join("transactions").join(&transaction_id);
+    fs::create_dir_all(&transaction_root)
+        .map_err(|error| format!("workspace-transaction-create-failed: {error}"))?;
+    validate_workspace_root(&transaction_root, workspace_root)?;
+    let mut journal_files = Vec::new();
+    for (relative, bytes) in &files {
+        validate_transaction_relative(relative)?;
+        let destination = workspace_root.join(relative);
+        let relative_text = relative.to_string_lossy().replace('\\', "/");
+        let had_working_file = destination.is_file();
+        if had_working_file {
+            let before = fs::read(&destination)
+                .map_err(|error| format!("workspace-transaction-read-failed: {error}"))?;
+            write_bytes_atomic(&transaction_root.join("before").join(relative), &before)?;
+        }
+        write_bytes_atomic(&transaction_root.join("after").join(relative), bytes)?;
+        journal_files.push(WorkspaceTransactionFile {
+            relative_path: relative_text,
+            had_working_file,
+        });
+    }
+    let mut journal = WorkspaceTransactionJournal {
+        transaction_version: 1,
+        transaction_id,
+        status: "committing".to_string(),
+        files: journal_files,
+    };
+    write_json_atomic(&transaction_root.join("journal.json"), &journal)?;
+
+    let result = (|| {
+        for (index, file) in journal.files.iter().enumerate() {
+            if fail_after.is_some_and(|limit| index >= limit) {
+                return Err("workspace-transaction-injected-failure".to_string());
+            }
+            let relative = posix_to_path(&file.relative_path);
+            let bytes = fs::read(transaction_root.join("after").join(&relative))
+                .map_err(|error| format!("workspace-transaction-read-failed: {error}"))?;
+            write_bytes_atomic(&workspace_root.join(relative), &bytes)?;
+        }
+        journal.status = "committed".to_string();
+        write_json_atomic(&transaction_root.join("journal.json"), &journal)
+    })();
+    if let Err(error) = result {
+        rollback_workspace_transaction(workspace_root, &transaction_root, &journal)?;
+        let _ = fs::remove_dir_all(&transaction_root);
+        return Err(error);
+    }
+    fs::remove_dir_all(&transaction_root)
+        .map_err(|error| format!("workspace-transaction-cleanup-failed: {error}"))?;
+    Ok(())
+}
+
+fn recover_workspace_transactions(workspace_root: &Path) -> Result<(), String> {
+    let transactions = workspace_root.join("transactions");
+    if !transactions.exists() {
+        return Ok(());
+    }
+    validate_workspace_root(&transactions, workspace_root)?;
+    for (index, entry) in fs::read_dir(&transactions)
+        .map_err(|error| format!("workspace-transaction-read-failed: {error}"))?
+        .enumerate()
+    {
+        if index >= 1_000 {
+            return Err("workspace-transaction-entry-limit".to_string());
+        }
+        let root = entry
+            .map_err(|error| format!("workspace-transaction-read-failed: {error}"))?
+            .path();
+        validate_workspace_root(&root, workspace_root)?;
+        let journal_path = root.join("journal.json");
+        if !journal_path.is_file() {
+            fs::remove_dir_all(&root)
+                .map_err(|error| format!("workspace-transaction-cleanup-failed: {error}"))?;
+            continue;
+        }
+        let journal: WorkspaceTransactionJournal = read_json(&journal_path)?;
+        if journal.transaction_version != 1 {
+            return Err("workspace-transaction-version-invalid".to_string());
+        }
+        if journal.status != "committed" {
+            rollback_workspace_transaction(workspace_root, &root, &journal)?;
+        }
+        fs::remove_dir_all(&root)
+            .map_err(|error| format!("workspace-transaction-cleanup-failed: {error}"))?;
+    }
+    Ok(())
+}
+
+fn rollback_workspace_transaction(
+    workspace_root: &Path,
+    transaction_root: &Path,
+    journal: &WorkspaceTransactionJournal,
+) -> Result<(), String> {
+    for file in journal.files.iter().rev() {
+        let relative = posix_to_path(&file.relative_path);
+        validate_transaction_relative(&relative)?;
+        let destination = workspace_root.join(&relative);
+        if file.had_working_file {
+            let bytes = fs::read(transaction_root.join("before").join(&relative))
+                .map_err(|error| format!("workspace-transaction-rollback-read-failed: {error}"))?;
+            write_bytes_atomic(&destination, &bytes)?;
+        } else if destination.exists() {
+            fs::remove_file(&destination)
+                .map_err(|error| format!("workspace-transaction-rollback-failed: {error}"))?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_transaction_relative(path: &Path) -> Result<(), String> {
+    if path.is_absolute()
+        || path
+            .components()
+            .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err("workspace-transaction-path-invalid".to_string());
+    }
+    Ok(())
 }
 
 fn initialized_root(manager: &ManagerState) -> Result<&PathBuf, String> {
@@ -2452,8 +2843,9 @@ mod tests {
     use zip::{write::SimpleFileOptions, CompressionMethod, ZipWriter};
 
     use super::{
-        operation_flag, parse_single_range, posix_to_path, random_secret_hex, AssetToken,
-        ExternalChangeChoice, ProjectV2Manager, MAX_FULL_PROTOCOL_RESPONSE_BYTES,
+        commit_workspace_transaction, operation_flag, parse_single_range, posix_to_path,
+        random_secret_hex, AssetToken, ExternalChangeChoice, ProjectV2Manager, TrashTarget,
+        MAX_FULL_PROTOCOL_RESPONSE_BYTES,
     };
     use crate::project_v2::archive::{sha256_bytes, validate_archive, write_replacement_archive};
 
@@ -2477,6 +2869,32 @@ mod tests {
             StatusCode::RANGE_NOT_SATISFIABLE
         );
         assert!(parse_single_range("bytes=0-1,4-5", 100).is_err());
+    }
+
+    #[test]
+    fn workspace_transaction_failure_rolls_back_every_file() {
+        let root = temp_test_dir("workspace-transaction-rollback");
+        fs::create_dir_all(root.join("working")).unwrap();
+        fs::write(root.join("working/existing.json"), b"before").unwrap();
+        let result = commit_workspace_transaction(
+            &root,
+            vec![
+                (PathBuf::from("working/existing.json"), b"after".to_vec()),
+                (PathBuf::from("working/new.json"), b"new".to_vec()),
+            ],
+            Some(1),
+        );
+        assert_eq!(
+            result.unwrap_err(),
+            "workspace-transaction-injected-failure"
+        );
+        assert_eq!(
+            fs::read(root.join("working/existing.json")).unwrap(),
+            b"before"
+        );
+        assert!(!root.join("working/new.json").exists());
+        assert_eq!(fs::read_dir(root.join("transactions")).unwrap().count(), 0);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -2733,6 +3151,80 @@ mod tests {
         let evicted = manager.evict_clean_cache(0, "evict-round-trip").unwrap();
         assert_eq!(evicted.bytes_after, 0);
         assert_eq!(evicted.evicted_entries, 1);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn project_trash_round_trips_atomically_and_restores_complete_transactions() {
+        let root = temp_test_dir("project-trash-round-trip");
+        fs::create_dir_all(&root).unwrap();
+        let app_data = root.join("app-data");
+        let source = root.join("trash.gamebook");
+        write_fixture_archive(&source, "Trash fixture", b"shared screenshot bytes");
+        let manager = ProjectV2Manager::default();
+        manager.initialize(&app_data).unwrap();
+        let opened = manager.open_path(&source).unwrap();
+        let targets = vec![
+            TrashTarget {
+                record_type: "page".to_string(),
+                record_id: "page-secondary".to_string(),
+            },
+            TrashTarget {
+                record_type: "evidence".to_string(),
+                record_id: "evidence-secondary".to_string(),
+            },
+        ];
+        let impact = manager
+            .trash_impact(&opened.workspace_id, &targets)
+            .unwrap();
+        assert!(!impact.blocked);
+        assert_eq!(impact.affected.len(), 2);
+
+        let deleted = manager
+            .trash_records(&opened.workspace_id, &targets, 30)
+            .unwrap();
+        let transaction_id = deleted.transaction_id.clone().unwrap();
+        assert_eq!(deleted.state.transactions.len(), 1);
+        assert_eq!(deleted.state.total_records, 2);
+        assert_eq!(
+            deleted.project.manifest["recordOrder"]["pages"],
+            json!(["page-primary"])
+        );
+        assert_eq!(
+            deleted.project.manifest["assets"].as_array().unwrap().len(),
+            1
+        );
+        manager
+            .save_to(
+                &opened.workspace_id,
+                &source,
+                ExternalChangeChoice::Cancel,
+                "save-trash",
+            )
+            .unwrap();
+        let archived = validate_archive(&source).unwrap();
+        assert_eq!(archived.manifest.record_order.trash.len(), 2);
+        assert_eq!(archived.manifest.assets.len(), 1);
+
+        let restored = manager
+            .restore_trash(&opened.workspace_id, &transaction_id)
+            .unwrap();
+        assert!(restored.state.transactions.is_empty());
+        assert_eq!(
+            restored.project.manifest["recordOrder"]["pages"],
+            json!(["page-primary", "page-secondary"])
+        );
+        manager
+            .save_to(
+                &opened.workspace_id,
+                &source,
+                ExternalChangeChoice::Cancel,
+                "save-restored-trash",
+            )
+            .unwrap();
+        let archived = validate_archive(&source).unwrap();
+        assert!(archived.manifest.record_order.trash.is_empty());
+        assert_eq!(archived.manifest.record_order.pages.len(), 2);
         fs::remove_dir_all(root).unwrap();
     }
 
