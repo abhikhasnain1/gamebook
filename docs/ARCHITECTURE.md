@@ -4,8 +4,8 @@
 
 Gamebook is a Tauri 2 desktop application with two long-lived layers:
 
-- Rust owns the global hotkey, monitor capture, native window lifecycle, tray, single-instance policy, versioned global settings, Project Trash transactions, app-data recovery, file dialogs, project compression, and final filesystem writes.
-- React and Fabric.js own the editor state, settings and storage surfaces, direct manipulation, annotation serialization, history, page thumbnails, rebuildable research indexes, and export rendering.
+- Rust owns global hotkeys, monitor capture, native window lifecycle, the recording HUD and tray fallback, single-instance policy, versioned global settings, Project Trash transactions, app-data recovery, file dialogs, project compression, and final filesystem writes.
+- React and Fabric.js own the editor state, settings and storage surfaces, the semantic HUD surface, direct manipulation, annotation serialization, history, page thumbnails, rebuildable research indexes, and export rendering.
 
 The main WebView is created once and kept hidden while the game is active. Keeping the renderer warm avoids reconstructing the editor on every capture.
 
@@ -13,13 +13,19 @@ Interactive rendering is explicitly scheduled. Fabric automatic add/remove rende
 
 ## Capture sequence
 
-1. The global-shortcut plugin receives `Ctrl+Shift+F12`.
+1. The global-shortcut plugin receives the configured screenshot shortcut, which defaults to `Ctrl+Shift+F12`.
 2. Rust hides the overlay and waits briefly for the desktop compositor.
 3. xcap captures the monitor under the pointer, with primary-display fallback.
 4. Rust encodes the PNG, retains the bytes behind a short-lived opaque capture ID, and emits only that ID plus display metadata in `capture-created`.
 5. The renderer lazily creates an unsaved version 2 workspace on the first capture, claims the PNG into its immutable asset store, and appends canonical screenshot evidence, placement, and page records. The native layer sizes the borderless window to 89% of the captured monitor width and 88% of its height, centers it, then reveals and focuses it.
 
 An atomic in-process guard rejects overlapping capture requests.
+
+## Recording settings and HUD foundation
+
+The native shortcut manager parses modifier-plus-key mappings, registers screenshot and video shortcuts at startup, and replaces both mappings as one transaction. A registration conflict leaves the prior native registrations and persisted settings unchanged. Shortcut dispatch is suspended while a focused Gamebook text-entry control is active, and the tray menu follows the current screenshot mapping. The video shortcut emits the accepted recording request boundary while idle and a recording-ID checked stop request while a HUD state is active, but it does not start capture until the recording-state implementation in Issue #27.
+
+A separate always-on-top HUD WebView presents elapsed and remaining time plus independent textual video, system-audio, and microphone states. Windows content protection is requested before the HUD can be shown over monitor capture. Selected-window capture and systems where protection is unavailable use a textual tray status and announce why the visual HUD is unavailable. Capture exclusion is a presentation guarantee for supported capture modes, not an access-control or protected-content boundary. Settings can preview either path for five seconds without creating media.
 
 ## Page model
 
@@ -45,7 +51,7 @@ Autosave waits for a quiet period, stages changed canonical documents atomically
 
 Open accepts valid version 2 archives and Gzip or plain version 1 projects. Version 1 migration runs in an isolated workspace, preserves byte-identical screenshots and canonical page semantics, displays a migration report, and creates a collision-safe `.v1-backup` only on the first successful same-path replacement. Damaged version 2 input receives a read-only repair report, unsupported future versions are rejected before workspace creation, and failed or cancelled inputs are not mutated.
 
-Global settings live in an atomic native-owned `settings.json`. Known fields normalize independently, unknown safe values survive migration, corrupt input is preserved before defaults are restored, and import failure leaves current preferences unchanged. A future settings version is preserved byte-for-byte and makes settings mutation read-only for that session. Native dialogs keep settings paths out of renderer IPC, credential-like fields are rejected, and microphone capture remains disabled without separate versioned consent.
+Global settings live in an atomic native-owned `settings.json`. Known fields normalize independently, unknown safe values survive migration, corrupt input is preserved before defaults are restored, and import failure leaves current preferences unchanged. A future settings version is preserved byte-for-byte and makes settings mutation read-only for that session. Native dialogs keep settings paths out of renderer IPC, credential-like fields are rejected, and microphone capture remains disabled without separate versioned consent. Capture duration, target, qualified frame-rate cap, cursor, system audio, microphone, disclosure versions, and both shortcuts use the same transaction; failed native shortcut registration prevents the settings write.
 
 Project Trash reviews dependencies before mutation and writes the closed canonical record set, Trash wrappers, workspace state, and recovery journal as one rollback-capable transaction. Restore reinstates the complete transaction in manifest order. Retention only marks explicit-cleanup eligibility; required assets remain protected while referenced by live or trashed records, and no timer deletes project content.
 
@@ -63,7 +69,7 @@ Native dialogs are parented to the main WebView window and return the final dest
 
 - The content security policy permits only the bundled application, Tauri IPC, development localhost, and local `data:` or `blob:` images.
 - Verified version 2 image and media responses are limited to the local `gamebook-media` protocol and scoped, expiring tokens. On Windows, WebView2 maps that protocol to `http://gamebook-media.localhost`; native responses permit only the application origin, use anonymous CORS for canvas-safe rendering and export, and reject an explicit untrusted origin before token access.
-- The sole WebView uses Tauri core event and window permissions.
+- The editor and recording-HUD WebViews use only Tauri core event and window permissions scoped to their labels.
 - Arbitrary filesystem APIs are not exposed to the frontend.
 - The app does not inject DLLs, hook a game renderer, or inspect game memory.
 
@@ -71,6 +77,7 @@ Native dialogs are parented to the main WebView window and return the final dest
 
 - `src-tauri/src/lib.rs`: native lifecycle, capture, persistence, and export commands
 - `src-tauri/src/settings.rs`: versioned settings migration, recovery, validation, and native import/export
+- `src-tauri/src/recording_ui.rs`: runtime shortcut transactions, HUD exclusion/fallback, tray status, and recording UI commands
 - `src-tauri/src/project_v2/`: version 2 archive validation, immutable assets, workspaces, recovery, tokens, and streamed replacement
 - `src-tauri/src/project_v2/trash.rs`: dependency review, Trash transactions, restore, retention, and explicit cleanup
 - `src/components/CanvasEditor.tsx`: editor input, object creation, history, and inline formatting
@@ -80,6 +87,7 @@ Native dialogs are parented to the main WebView window and return the final dest
 - `src/App.tsx`: project UI, save/export orchestration, and keyboard flow
 - `src/hooks/useProjectV2.ts`: reachable version 2 open, migration, workspace, save, recovery, and capture orchestration
 - `src/hooks/useGlobalSettings.ts`: renderer settings state and native settings orchestration
+- `src/components/RecordingHud.tsx`: semantic elapsed/remaining and independent media-state HUD surface
 - `src/lib/derivedResearch.ts`: rebuildable canonical-record search and preview hints
 - `src/types/projectV2.ts`: canonical screenshot editor adapters and serialization boundaries
 - `src/types/session.ts`: version 1 compatibility parsing and shared annotation types

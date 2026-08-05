@@ -18,7 +18,9 @@ Issues #6 through #9 passed or resolved every native media gate and Issue #18 fr
 
 Issues #10 through #13 passed geometry, playback, exact-frame substitution, viewport, lifecycle, performance, scale, forced-colors, reduced-motion, Accessibility Insights, and NVDA gates. Issue #19 accepted their result in [ADR-0001](decisions/0001-media-placement-rendering.md): use the Fabric offscreen surface and ephemeral Fabric viewport transform, with layered DOM video retained as the measured fallback.
 
-Issues #14 through #17 passed the ZIP64 lazy-open, materialization, workspace, lock, recovery, cache, raw-copy, streamed-Save, and Windows replacement gates. Issue #20 accepted [ADR-0002](decisions/0002-zip64-project-storage.md), [ADR-0008](decisions/0008-canonical-version-2-records.md), and [ADR-0009](decisions/0009-version-1-migration-and-repair.md). Production persistence remains future Milestone 6 work.
+Issues #14 through #17 passed the ZIP64 lazy-open, materialization, workspace, lock, recovery, cache, raw-copy, streamed-Save, and Windows replacement gates. Issue #20 accepted [ADR-0002](decisions/0002-zip64-project-storage.md), [ADR-0008](decisions/0008-canonical-version-2-records.md), and [ADR-0009](decisions/0009-version-1-migration-and-repair.md). Milestone 6 now implements the accepted screenshot archive, workspace, migration, repair, settings, Trash, placement, and canonical-record contracts.
+
+Issue #26 implements the native recording-settings boundary, runtime shortcut transaction, protected HUD window, independent media-state presentation, and truthful selected-window tray fallback. It does not start WGC, WASAPI, or Media Foundation capture; recording state, finalization, and recovery remain assigned to Issue #27.
 
 ## Runtime ownership
 

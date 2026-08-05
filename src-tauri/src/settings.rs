@@ -3,13 +3,13 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Mutex, MutexGuard},
 };
 
 use chrono::Utc;
 use serde::Serialize;
 use serde_json::{json, Map, Value};
-use tauri::{State, WebviewWindow};
+use tauri::{Manager, State, WebviewWindow};
 
 const SETTINGS_VERSION: u64 = 1;
 const MAX_SETTINGS_BYTES: u64 = 1024 * 1024;
@@ -17,6 +17,7 @@ const MAX_SETTINGS_BYTES: u64 = 1024 * 1024;
 #[derive(Default)]
 pub struct SettingsManager {
     inner: Mutex<SettingsState>,
+    updates: Mutex<()>,
 }
 
 #[derive(Default)]
@@ -110,12 +111,38 @@ impl SettingsManager {
         })
     }
 
+    pub fn append_shortcut_notices(
+        &self,
+        notices: Vec<crate::recording_ui::ShortcutStartupNotice>,
+    ) -> Result<(), String> {
+        let mut state = self
+            .inner
+            .lock()
+            .map_err(|_| "settings-state-poisoned".to_string())?;
+        state
+            .notices
+            .extend(notices.into_iter().map(|notice| SettingsNotice {
+                code: "shortcut-registration-unavailable".to_string(),
+                field: Some(notice.field.to_string()),
+                message: notice.message,
+            }));
+        Ok(())
+    }
+
+    fn lock_updates(&self) -> Result<MutexGuard<'_, ()>, String> {
+        self.updates
+            .lock()
+            .map_err(|_| "settings-update-state-poisoned".to_string())
+    }
+
+    #[cfg(test)]
     pub fn update(&self, value: Value) -> Result<GlobalSettingsResult, String> {
         reject_credentials(&value)?;
         let (settings, notices) = normalize_settings(value, false)?;
         self.replace(settings, notices)
     }
 
+    #[cfg(test)]
     pub fn reset(&self) -> Result<GlobalSettingsResult, String> {
         self.replace(
             default_settings(),
@@ -127,6 +154,7 @@ impl SettingsManager {
         )
     }
 
+    #[cfg(test)]
     pub fn import_path(&self, path: &Path) -> Result<GlobalSettingsResult, String> {
         self.ensure_writable()?;
         let value = read_settings_file(path)?;
@@ -204,9 +232,12 @@ pub fn load_global_settings(
 pub fn update_global_settings(
     window: WebviewWindow,
     manager: State<'_, SettingsManager>,
+    shortcut_manager: State<'_, crate::recording_ui::ShortcutManager>,
     settings: Value,
 ) -> Result<GlobalSettingsResult, String> {
-    let result = manager.update(settings)?;
+    let _update = manager.lock_updates()?;
+    let (settings, notices) = normalize_settings(settings, false)?;
+    let result = commit_with_shortcuts(&window, &manager, &shortcut_manager, settings, notices)?;
     apply_ui_scale(&window, &result)?;
     Ok(result)
 }
@@ -215,8 +246,20 @@ pub fn update_global_settings(
 pub fn reset_global_settings(
     window: WebviewWindow,
     manager: State<'_, SettingsManager>,
+    shortcut_manager: State<'_, crate::recording_ui::ShortcutManager>,
 ) -> Result<GlobalSettingsResult, String> {
-    let result = manager.reset()?;
+    let _update = manager.lock_updates()?;
+    let result = commit_with_shortcuts(
+        &window,
+        &manager,
+        &shortcut_manager,
+        default_settings(),
+        vec![notice(
+            "settings-reset",
+            None,
+            "Settings were reset to defaults.",
+        )],
+    )?;
     apply_ui_scale(&window, &result)?;
     Ok(result)
 }
@@ -225,6 +268,7 @@ pub fn reset_global_settings(
 pub fn import_global_settings(
     window: WebviewWindow,
     manager: State<'_, SettingsManager>,
+    shortcut_manager: State<'_, crate::recording_ui::ShortcutManager>,
 ) -> Result<Option<GlobalSettingsResult>, String> {
     let Some(path) = rfd::FileDialog::new()
         .set_parent(&window)
@@ -233,7 +277,13 @@ pub fn import_global_settings(
     else {
         return Ok(None);
     };
-    let result = manager.import_path(&path)?;
+    let _update = manager.lock_updates()?;
+    manager.ensure_writable()?;
+    let value = read_settings_file(&path)?;
+    reject_credentials(&value)?;
+    let (settings, mut notices) = normalize_settings(value, true)?;
+    notices.push(notice("settings-imported", None, "Settings were imported."));
+    let result = commit_with_shortcuts(&window, &manager, &shortcut_manager, settings, notices)?;
     apply_ui_scale(&window, &result)?;
     Ok(Some(result))
 }
@@ -253,6 +303,54 @@ pub fn export_global_settings(
     };
     manager.export_path(&path)?;
     Ok(true)
+}
+
+fn commit_with_shortcuts(
+    window: &WebviewWindow,
+    manager: &SettingsManager,
+    shortcut_manager: &crate::recording_ui::ShortcutManager,
+    settings: Value,
+    notices: Vec<SettingsNotice>,
+) -> Result<GlobalSettingsResult, String> {
+    let result = commit_settings_transaction(
+        manager,
+        settings,
+        notices,
+        |candidate| shortcut_manager.apply(window.app_handle(), candidate),
+        |previous| shortcut_manager.apply(window.app_handle(), previous),
+    )?;
+    if let Some(shortcut) = result
+        .settings
+        .pointer("/shortcuts/screenshot")
+        .and_then(Value::as_str)
+    {
+        crate::set_tray_screenshot_shortcut(window.app_handle(), shortcut);
+    }
+    Ok(result)
+}
+
+fn commit_settings_transaction<A, R>(
+    manager: &SettingsManager,
+    settings: Value,
+    notices: Vec<SettingsNotice>,
+    mut apply: A,
+    mut rollback: R,
+) -> Result<GlobalSettingsResult, String>
+where
+    A: FnMut(&Value) -> Result<(), String>,
+    R: FnMut(&Value) -> Result<(), String>,
+{
+    let previous = manager.current()?;
+    apply(&settings)?;
+    match manager.replace(settings, notices) {
+        Ok(result) => Ok(result),
+        Err(error) => match rollback(&previous.settings) {
+            Ok(()) => Err(error),
+            Err(rollback_error) => Err(format!(
+                "{error}; shortcut-rollback-failed: {rollback_error}"
+            )),
+        },
+    }
 }
 
 fn default_settings() -> Value {
@@ -420,24 +518,28 @@ fn normalize_settings(
         "shortcuts",
         &mut notices,
         |section, defaults, notices| {
-            string_field(
+            shortcut_field(
                 section,
                 defaults,
                 "screenshot",
-                1,
-                128,
                 "shortcuts.screenshot",
                 notices,
             );
-            string_field(
-                section,
-                defaults,
-                "video",
-                1,
-                128,
-                "shortcuts.video",
-                notices,
-            );
+            shortcut_field(section, defaults, "video", "shortcuts.video", notices);
+            let duplicate = section
+                .get("screenshot")
+                .and_then(Value::as_str)
+                .and_then(|value| crate::recording_ui::normalize_shortcut(value).ok())
+                .zip(
+                    section
+                        .get("video")
+                        .and_then(Value::as_str)
+                        .and_then(|value| crate::recording_ui::normalize_shortcut(value).ok()),
+                )
+                .is_some_and(|(screenshot, video)| screenshot == video);
+            if duplicate {
+                fallback(section, defaults, "video", "shortcuts.video", notices);
+            }
         },
     );
     normalize_section(
@@ -654,19 +756,19 @@ fn enum_field(
     }
 }
 
-fn string_field(
+fn shortcut_field(
     section: &mut Map<String, Value>,
     defaults: &Map<String, Value>,
     key: &str,
-    min: usize,
-    max: usize,
     path: &str,
     notices: &mut Vec<SettingsNotice>,
 ) {
     if !section
         .get(key)
         .and_then(Value::as_str)
-        .is_some_and(|value| value.len() >= min && value.len() <= max)
+        .is_some_and(|value| {
+            value.len() <= 128 && crate::recording_ui::normalize_shortcut(value).is_ok()
+        })
     {
         fallback(section, defaults, key, path, notices);
     }
@@ -880,6 +982,24 @@ mod tests {
     }
 
     #[test]
+    fn defaults_invalid_or_duplicate_shortcuts_individually() {
+        let mut value = default_settings();
+        value["shortcuts"]["screenshot"] = json!("F12");
+        value["shortcuts"]["video"] = json!("Ctrl+Shift+F12");
+        let (settings, notices) = normalize_settings(value, true).unwrap();
+        assert_eq!(settings["shortcuts"]["screenshot"], "Ctrl+Shift+F12");
+        assert_eq!(settings["shortcuts"]["video"], "Ctrl+Shift+F11");
+        assert!(notices.iter().any(|notice| {
+            notice.code == "settings-field-defaulted"
+                && notice.field.as_deref() == Some("shortcuts.screenshot")
+        }));
+        assert!(notices.iter().any(|notice| {
+            notice.code == "settings-field-defaulted"
+                && notice.field.as_deref() == Some("shortcuts.video")
+        }));
+    }
+
+    #[test]
     fn rejects_credentials_before_writing_settings() {
         let mut value = default_settings();
         value["processor"] = json!({ "apiKey": "must-not-be-written" });
@@ -978,6 +1098,34 @@ mod tests {
             "settings-future-version"
         );
         assert_eq!(manager.current().unwrap().settings, before);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn shortcut_conflict_leaves_persisted_settings_unchanged() {
+        let root = temp_test_dir("settings-shortcut-conflict");
+        fs::create_dir_all(&root).unwrap();
+        let manager = SettingsManager::default();
+        manager.initialize(&root).unwrap();
+        let before = manager.current().unwrap().settings;
+        let mut candidate = before.clone();
+        candidate["shortcuts"]["video"] = json!("Ctrl+Alt+F10");
+
+        let error = commit_settings_transaction(
+            &manager,
+            candidate,
+            Vec::new(),
+            |_| Err("shortcut-registration-conflict".to_string()),
+            |_| Ok(()),
+        )
+        .unwrap_err();
+
+        assert_eq!(error, "shortcut-registration-conflict");
+        assert_eq!(manager.current().unwrap().settings, before);
+        assert_eq!(
+            read_settings_file(&root.join("settings.json")).unwrap(),
+            before
+        );
         fs::remove_dir_all(root).unwrap();
     }
 

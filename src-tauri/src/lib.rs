@@ -2,7 +2,7 @@ use std::{
     fs,
     path::Path,
     sync::atomic::{AtomicBool, Ordering},
-    sync::Arc,
+    sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
@@ -17,14 +17,16 @@ use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use image::{codecs::png::PngEncoder, ExtendedColorType, ImageEncoder};
 use serde::{Deserialize, Serialize};
 use tauri::{
-    menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
-    tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindow,
+    menu::{MenuBuilder, MenuItem, MenuItemBuilder, PredefinedMenuItem},
+    tray::{TrayIcon, TrayIconBuilder},
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
 };
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::ShortcutState;
 use xcap::Monitor;
 
 mod project_v2;
+mod recording_ui;
 mod settings;
 
 static CAPTURE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
@@ -52,6 +54,84 @@ struct CapturedMonitor {
     height: u32,
     monitor_x: i32,
     monitor_y: i32,
+}
+
+struct TrayController {
+    capture_item: MenuItem<tauri::Wry>,
+    recording_item: MenuItem<tauri::Wry>,
+    tray_icon: TrayIcon<tauri::Wry>,
+    screenshot_shortcut: Mutex<String>,
+    recording_active: Mutex<bool>,
+}
+
+impl TrayController {
+    fn set_screenshot_shortcut(&self, shortcut: &str) {
+        if let Ok(mut current) = self.screenshot_shortcut.lock() {
+            *current = shortcut.to_string();
+        }
+        let _ = self
+            .capture_item
+            .set_text(format!("Capture screenshot  {shortcut}"));
+        if !self
+            .recording_active
+            .lock()
+            .map(|active| *active)
+            .unwrap_or(false)
+        {
+            let _ = self
+                .tray_icon
+                .set_tooltip(Some(format!("Gamebook - {shortcut} to capture")));
+        }
+    }
+
+    fn set_recording(&self, state: Option<&recording_ui::RecordingHudState>) {
+        if let Ok(mut active) = self.recording_active.lock() {
+            *active = state.is_some();
+        }
+        if let Some(state) = state {
+            let status = format!(
+                "Recording {} elapsed; {} remaining; video {}; system audio {}; microphone {}",
+                format_duration(state.elapsed_seconds),
+                format_duration(state.remaining_seconds),
+                state.video_state.replace('-', " "),
+                state.system_audio_state.replace('-', " "),
+                state.microphone_state.replace('-', " ")
+            );
+            let _ = self.recording_item.set_text(&status);
+            let _ = self
+                .tray_icon
+                .set_tooltip(Some(format!("Gamebook - {status}")));
+        } else {
+            let _ = self.recording_item.set_text("Recording inactive");
+            let shortcut = self
+                .screenshot_shortcut
+                .lock()
+                .map(|value| value.clone())
+                .unwrap_or_else(|_| "Ctrl+Shift+F12".to_string());
+            let _ = self
+                .tray_icon
+                .set_tooltip(Some(format!("Gamebook - {shortcut} to capture")));
+        }
+    }
+}
+
+fn format_duration(seconds: u64) -> String {
+    format!("{:02}:{:02}", seconds / 60, seconds % 60)
+}
+
+pub(crate) fn set_recording_tray_status(
+    app: &AppHandle,
+    state: Option<&recording_ui::RecordingHudState>,
+) {
+    if let Some(controller) = app.try_state::<TrayController>() {
+        controller.set_recording(state);
+    }
+}
+
+pub(crate) fn set_tray_screenshot_shortcut(app: &AppHandle, shortcut: &str) {
+    if let Some(controller) = app.try_state::<TrayController>() {
+        controller.set_screenshot_shortcut(shortcut);
+    }
 }
 
 #[derive(Deserialize)]
@@ -248,17 +328,24 @@ fn trigger_capture(app: AppHandle) {
     });
 }
 
-fn build_tray(app: &tauri::App) -> tauri::Result<()> {
-    let capture = MenuItemBuilder::with_id("capture", "Capture  Ctrl+Shift+F12").build(app)?;
+fn build_tray(app: &tauri::App, screenshot_shortcut: &str) -> tauri::Result<TrayController> {
+    let capture = MenuItemBuilder::with_id(
+        "capture",
+        format!("Capture screenshot  {screenshot_shortcut}"),
+    )
+    .build(app)?;
+    let recording = MenuItemBuilder::with_id("recording-status", "Recording inactive")
+        .enabled(false)
+        .build(app)?;
     let show = MenuItemBuilder::with_id("show", "Open Gamebook").build(app)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
     let menu = MenuBuilder::new(app)
-        .items(&[&capture, &show, &separator, &quit])
+        .items(&[&capture, &recording, &show, &separator, &quit])
         .build()?;
 
-    let mut builder = TrayIconBuilder::new()
-        .tooltip("Gamebook - Ctrl+Shift+F12 to capture")
+    let mut builder = TrayIconBuilder::with_id("gamebook-tray")
+        .tooltip(format!("Gamebook - {screenshot_shortcut} to capture"))
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -274,8 +361,14 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
     if let Some(icon) = app.default_window_icon() {
         builder = builder.icon(icon.clone());
     }
-    builder.build(app)?;
-    Ok(())
+    let tray_icon = builder.build(app)?;
+    Ok(TrayController {
+        capture_item: capture,
+        recording_item: recording,
+        tray_icon,
+        screenshot_shortcut: Mutex::new(screenshot_shortcut.to_string()),
+        recording_active: Mutex::new(false),
+    })
 }
 
 #[tauri::command]
@@ -408,12 +501,11 @@ fn save_markdown_export(
 }
 
 pub fn run() {
-    let capture_shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::SHIFT), Code::F12);
-    let handler_shortcut = capture_shortcut;
-
     tauri::Builder::default()
         .manage(Arc::new(project_v2::ProjectV2Manager::default()))
         .manage(settings::SettingsManager::default())
+        .manage(recording_ui::ShortcutManager::default())
+        .manage(recording_ui::RecordingUiManager::default())
         .register_uri_scheme_protocol("gamebook-media", |window, request| {
             let manager = window
                 .app_handle()
@@ -425,9 +517,23 @@ pub fn run() {
         }))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(move |app, shortcut, event| {
-                    if shortcut == &handler_shortcut && event.state() == ShortcutState::Pressed {
-                        trigger_capture(app.clone());
+                .with_handler(|app, shortcut, event| {
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    match app
+                        .state::<recording_ui::ShortcutManager>()
+                        .action_for(shortcut)
+                    {
+                        Some(recording_ui::ShortcutAction::Screenshot) => {
+                            trigger_capture(app.clone());
+                        }
+                        Some(recording_ui::ShortcutAction::Video) => {
+                            let _ = app
+                                .state::<recording_ui::RecordingUiManager>()
+                                .handle_video_shortcut(app);
+                        }
+                        None => {}
                     }
                 })
                 .build(),
@@ -438,8 +544,43 @@ pub fn run() {
             app.state::<settings::SettingsManager>()
                 .initialize(&app_data)
                 .map_err(std::io::Error::other)?;
-            app.global_shortcut().register(capture_shortcut)?;
-            build_tray(app)?;
+            let current_settings = app
+                .state::<settings::SettingsManager>()
+                .current()
+                .map_err(std::io::Error::other)?;
+            let screenshot_shortcut = current_settings
+                .settings
+                .pointer("/shortcuts/screenshot")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("Ctrl+Shift+F12");
+            let tray = build_tray(app, screenshot_shortcut)?;
+            app.manage(tray);
+
+            let hud_window = WebviewWindowBuilder::new(
+                app,
+                "recording-hud",
+                WebviewUrl::App("index.html?surface=recording-hud".into()),
+            )
+            .title("Gamebook recording status")
+            .inner_size(390.0, 104.0)
+            .resizable(false)
+            .decorations(false)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .focused(false)
+            .visible(false)
+            .shadow(false)
+            .build()?;
+            app.state::<recording_ui::RecordingUiManager>()
+                .initialize(&hud_window)
+                .map_err(std::io::Error::other)?;
+
+            let shortcut_notices = app
+                .state::<recording_ui::ShortcutManager>()
+                .initialize(app.handle(), &current_settings.settings);
+            app.state::<settings::SettingsManager>()
+                .append_shortcut_notices(shortcut_notices)
+                .map_err(std::io::Error::other)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -472,6 +613,9 @@ pub fn run() {
             settings::reset_global_settings,
             settings::import_global_settings,
             settings::export_global_settings,
+            recording_ui::set_global_shortcuts_suspended,
+            recording_ui::preview_recording_hud,
+            recording_ui::request_recording_stop,
             save_binary_export,
             save_text_export,
             save_markdown_export
